@@ -52,6 +52,13 @@ src/
 └── main.tsx
 ```
 
+Models: `src/game-core/models/` holds every shared shape. Validators take `unknown` and
+narrow honestly — **never `Partial<T>`**, which asserts that present fields already have
+the right type and is exactly the assumption a corrupt save breaks. Shared primitives live
+in `models/guards.ts`. Every persisted shape carries `schemaVersion`, and recovery
+(`coerceSettings`, `coercePlayerProfile`) repairs field-by-field rather than discarding a
+whole record (spec §17).
+
 Navigation: `src/game-core/app-state/` owns the state machine (spec §4) — an explicit
 transition table plus a pure `transition()`. `src/hooks/useAppMachine.ts` is the only
 React binding to it. Screens never track navigation with their own booleans, and a
@@ -123,7 +130,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done and tested · `[!]`
 
 Each step ships its own unit tests. Nothing here touches the DOM.
 
-- [ ] **B1** Types: `PromptEntry`, `ObstacleDefinition`, `MapConfig`, `GameSettings`,
+- [x] **B1** Types: `PromptEntry`, `ObstacleDefinition`, `MapConfig`, `GameSettings`,
       `RunResult`, `MapProgress`, `PlayerProfile`. All persisted shapes carry
       `schemaVersion`. Spec §14, §15.
 - [ ] **B2** Typing comparison engine: per-character state (correct / current /

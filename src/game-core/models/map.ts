@@ -1,0 +1,186 @@
+import {
+  isCount,
+  isFiniteNumber,
+  isIntegerAtLeast,
+  isNonEmptyString,
+  isPositiveNumber,
+  isRatio,
+  isRecord,
+  isStringArray,
+} from './guards';
+import type { MapId, ObstacleId } from './ids';
+import type { PromptCategory } from './prompt';
+
+/**
+ * Map configuration (spec §6).
+ *
+ * Difficulty is never "a WPM number". It is the combination of target speed,
+ * prompt length and familiarity, obstacle frequency, reaction buffer, chase
+ * pressure, collision penalty, and recovery opportunity. All of it lives here as
+ * data so systems never hardcode tuning (CLAUDE.md §3).
+ */
+
+/** Visual theme, spec §6 map table. Drives palette and parallax art, not rules. */
+export const MAP_THEMES = [
+  'neighborhood',
+  'downtown',
+  'market-district',
+  'industrial-zone',
+  'night-highway',
+  'final-pursuit',
+] as const;
+
+export type MapTheme = (typeof MAP_THEMES)[number];
+
+/**
+ * What the player must do to unlock this map. `null` prerequisite means
+ * available from the start (Map 1).
+ */
+export interface UnlockRule {
+  readonly requiresMapId: MapId | null;
+  /** Accuracy required on the prerequisite map, 0..1. Spec §6: 0.85 through 0.92. */
+  readonly minimumAccuracy: number;
+}
+
+/** Timing budget for obstacle prompts (spec §6 prompt timing formula). */
+export interface TimingProfile {
+  /**
+   * Multiplier applied to the expected typing time. 1.70 on Map 1 down to 1.08
+   * on Map 6 — the player gets progressively less slack.
+   */
+  readonly reactionBuffer: number;
+  /**
+   * Flat milliseconds added on top, covering the time to notice a prompt at all.
+   * Independent of prompt length.
+   */
+  readonly fixedVisualLeadTimeMs: number;
+}
+
+/** How the three dogs behave on this map (spec §5 dog chase system). */
+export interface ChaseProfile {
+  /** Starting gap in meters. Also the maximum — the gap never exceeds this. */
+  readonly startingDistanceMeters: number;
+  /** Meters lost per second of ordinary running. The baseline pressure. */
+  readonly baseCatchUpMetersPerSecond: number;
+  /** Meters lost immediately on hitting an obstacle. */
+  readonly collisionPenaltyMeters: number;
+  /** Meters lost when an obstacle prompt is missed without a collision. */
+  readonly missedPromptPenaltyMeters: number;
+  /** Meters regained per completed prompt while on a streak. */
+  readonly streakRecoveryMeters: number;
+  /** Below this gap the HUD and audio escalate to a danger state. */
+  readonly dangerThresholdMeters: number;
+}
+
+/** Speed boost granted by completing a boost prompt (spec §5). */
+export interface BoostProfile {
+  readonly speedMultiplier: number;
+  readonly durationMs: number;
+}
+
+/** Which content this map draws on and how often obstacles appear. */
+export interface ContentProfile {
+  readonly promptCategories: readonly PromptCategory[];
+  readonly obstacleIds: readonly ObstacleId[];
+  /** Average seconds between obstacles. Lower means denser pressure. */
+  readonly obstacleIntervalSeconds: number;
+  /** Random variation applied to the interval, 0..1. Keeps spacing unpredictable. */
+  readonly obstacleIntervalJitter: number;
+  /** Tags preferred when selecting themed vocabulary for this map. */
+  readonly themeTags: readonly string[];
+}
+
+export interface MapConfig {
+  readonly id: MapId;
+  /** 1-based position in the progression. Matches `minimumMap` on content. */
+  readonly mapNumber: number;
+  readonly name: string;
+  readonly theme: MapTheme;
+  /** The honest target typing speed, shown to the player (spec §6). */
+  readonly targetWpm: number;
+  /** Total run distance in meters. */
+  readonly distanceMeters: number;
+  /** MC speed in meters per second before boosts and penalties. */
+  readonly baseSpeedMetersPerSecond: number;
+  readonly timing: TimingProfile;
+  readonly chase: ChaseProfile;
+  readonly boost: BoostProfile;
+  readonly content: ContentProfile;
+  readonly unlock: UnlockRule;
+}
+
+/**
+ * Bounds on adaptive assistance (spec §6). Adaptation nudges the reaction buffer
+ * within these limits and never outside them, so the player cannot notice unfair
+ * speed manipulation.
+ */
+export interface AdaptiveAssistanceConfig {
+  readonly enabled: boolean;
+  /** Consecutive failures before the buffer is eased. */
+  readonly failuresBeforeEasing: number;
+  /** Consecutive successes before the buffer is tightened. */
+  readonly successesBeforeTightening: number;
+  /** Step size applied to the reaction buffer. */
+  readonly bufferStep: number;
+  /** Hard floor and ceiling as multipliers of the map's configured buffer. */
+  readonly minimumBufferMultiplier: number;
+  readonly maximumBufferMultiplier: number;
+}
+
+export const DEFAULT_ADAPTIVE_ASSISTANCE: AdaptiveAssistanceConfig = {
+  enabled: true,
+  failuresBeforeEasing: 3,
+  successesBeforeTightening: 8,
+  bufferStep: 0.05,
+  minimumBufferMultiplier: 0.9,
+  maximumBufferMultiplier: 1.25,
+};
+
+export function isMapConfig(value: unknown): value is MapConfig {
+  if (!isRecord(value)) return false;
+
+  if (!isNonEmptyString(value['id'])) return false;
+  if (!isIntegerAtLeast(value['mapNumber'], 1)) return false;
+  if (!isNonEmptyString(value['name'])) return false;
+  if (!isPositiveNumber(value['targetWpm'])) return false;
+  if (!isPositiveNumber(value['distanceMeters'])) return false;
+  if (!isPositiveNumber(value['baseSpeedMetersPerSecond'])) return false;
+
+  const timing = value['timing'];
+  if (!isRecord(timing)) return false;
+  // A buffer below 1 would give the player less time than the map's own target
+  // speed requires — an unwinnable map, not a hard one.
+  if (!isFiniteNumber(timing['reactionBuffer']) || timing['reactionBuffer'] < 1) return false;
+  if (!isCount(timing['fixedVisualLeadTimeMs'])) return false;
+
+  const chase = value['chase'];
+  if (!isRecord(chase)) return false;
+  if (!isPositiveNumber(chase['startingDistanceMeters'])) return false;
+  if (!isCount(chase['baseCatchUpMetersPerSecond'])) return false;
+  if (!isCount(chase['collisionPenaltyMeters'])) return false;
+  if (!isCount(chase['missedPromptPenaltyMeters'])) return false;
+  if (!isCount(chase['streakRecoveryMeters'])) return false;
+  if (!isCount(chase['dangerThresholdMeters'])) return false;
+
+  const boost = value['boost'];
+  if (!isRecord(boost)) return false;
+  if (!isFiniteNumber(boost['speedMultiplier']) || boost['speedMultiplier'] < 1) return false;
+  if (!isPositiveNumber(boost['durationMs'])) return false;
+
+  const content = value['content'];
+  if (!isRecord(content)) return false;
+  if (!isStringArray(content['promptCategories']) || content['promptCategories'].length === 0) {
+    return false;
+  }
+  if (!isStringArray(content['obstacleIds'])) return false;
+  if (!isStringArray(content['themeTags'])) return false;
+  if (!isPositiveNumber(content['obstacleIntervalSeconds'])) return false;
+  if (!isRatio(content['obstacleIntervalJitter'])) return false;
+
+  const unlock = value['unlock'];
+  if (!isRecord(unlock)) return false;
+  if (unlock['requiresMapId'] !== null && !isNonEmptyString(unlock['requiresMapId'])) return false;
+  if (!isRatio(unlock['minimumAccuracy'])) return false;
+
+  return true;
+}
