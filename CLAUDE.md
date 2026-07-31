@@ -52,6 +52,10 @@ src/
 └── main.tsx
 ```
 
+Randomness: `src/game-core/random/` is the only source. `Math.random` is lint-banned in
+game-core. Every draw returns `{ value, rng }` — the next generator travels with the value,
+so randomness is threaded as data and never hides in module state. Same seed, same run.
+
 Typing: `src/game-core/typing/` compares **whole input values**, not key events —
 `applyInput(state, inputElementValue)`. Insertions, backspace, and paste are all handled
 by diffing against the previous value. Counters are event-based (a mistake that is fixed
@@ -156,7 +160,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 - [x] **B7** Scoring + combo: base prompt score + speed bonus + accuracy bonus +
       remaining-time bonus + combo multiplier − collision penalty. Lifetime score
       clamped at ≥ 0. Spec §8.
-- [ ] **B8** Seeded RNG + prompt selection: filter by category / difficulty / minimum
+- [x] **B8** Seeded RNG + prompt selection: filter by category / difficulty / minimum
       map, prevent immediate repetition, fully deterministic under a fixed seed.
       Spec §15.
 

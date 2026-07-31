@@ -1,6 +1,8 @@
 import { isIntegerAtLeast, isNonEmptyString, isRatio, isRecord, isStringArray } from './guards';
 import type { PromptId } from './ids';
 
+export type { PromptId };
+
 /**
  * Typing content (spec §15).
  *
