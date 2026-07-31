@@ -93,7 +93,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done and tested · `[!]`
 
 - [x] **A1** Vite + React + TypeScript scaffold. Strict mode, `noImplicitAny`, no `any`.
       ESLint + Prettier configured. npm scripts wired (see §6).
-- [ ] **A2** Vitest + Testing Library setup. One smoke test that actually runs and passes.
+- [x] **A2** Vitest + Testing Library setup. One smoke test that actually runs and passes.
 - [ ] **A3** Folder skeleton per §3. Add an ESLint `no-restricted-imports` rule (or
       equivalent) forbidding DOM/React/renderer imports inside `game-core`.
 - [ ] **A4** Design tokens in `styles/tokens.css`: light + dark color scales, spacing
@@ -231,9 +231,16 @@ npm run dev           # Vite dev server (http://localhost:5173)
 npm run build         # tsc --build && vite build
 npm run preview       # serve the production build
 npm run typecheck     # tsc --build --force
+npm run test          # Vitest, single run
+npm run test:watch    # Vitest watch mode
+npm run test:coverage # Vitest + v8 coverage
 npm run lint          # ESLint
 npm run format        # Prettier write
 npm run format:check  # Prettier check
 ```
 
-Not wired yet: `test` (arrives in A2), `test:e2e` (arrives in G4).
+Not wired yet: `test:e2e` (arrives in G4).
+
+Test conventions: unit and component tests are colocated as `src/**/*.test.ts(x)`.
+Vitest globals are **off** — import `describe` / `it` / `expect` from `vitest` explicitly.
+Shared harness lives in `src/test/setup.ts` (jest-dom matchers + Testing Library cleanup).
