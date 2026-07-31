@@ -65,6 +65,17 @@ Hard rules:
 - Per-frame data does not flow into React. The bridge emits UI updates at a fixed
   low frequency (~10Hz), never once per animation frame.
 
+**These boundaries are enforced by ESLint, not by convention.** See the layer blocks in
+`eslint.config.js`. `npm run lint` fails on a violation. Each layer folder also carries a
+`README.md` stating its contract. Enforced today:
+
+| Layer | Forbidden |
+|---|---|
+| `game-core` | browser globals, `Date.now`, `Math.random`, React, all outer layers |
+| `game-runtime` | React, `components`, `screens` |
+| `components` / `screens` / `App.tsx` | `game-runtime` internals — go through `game-bridge` |
+| `content` | React, `game-runtime`, `components`, `screens` |
+
 ---
 
 ## 4. Working protocol
@@ -94,7 +105,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done and tested · `[!]`
 - [x] **A1** Vite + React + TypeScript scaffold. Strict mode, `noImplicitAny`, no `any`.
       ESLint + Prettier configured. npm scripts wired (see §6).
 - [x] **A2** Vitest + Testing Library setup. One smoke test that actually runs and passes.
-- [ ] **A3** Folder skeleton per §3. Add an ESLint `no-restricted-imports` rule (or
+- [x] **A3** Folder skeleton per §3. Add an ESLint `no-restricted-imports` rule (or
       equivalent) forbidding DOM/React/renderer imports inside `game-core`.
 - [ ] **A4** Design tokens in `styles/tokens.css`: light + dark color scales, spacing
       scale, radii, shadows, Inter/system font stack, motion durations. Spec §9.
