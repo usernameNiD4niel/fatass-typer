@@ -20,3 +20,16 @@ export {
   totalCharacters,
 } from './run-stats';
 export type { RunStats, TypingSample } from './run-stats';
+
+export {
+  bestSustainableWindow,
+  DEFAULT_SUSTAINABLE_PEAK_CONFIG,
+  explainMissingPeak,
+  sustainablePeakWpm,
+  updateLifetimePeak,
+} from './sustainable-peak';
+export type {
+  SustainablePeakConfig,
+  SustainablePeakWindow,
+  WindowRejection,
+} from './sustainable-peak';

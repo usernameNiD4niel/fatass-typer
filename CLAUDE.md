@@ -144,7 +144,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
       spaces, configurable mistake behavior. Spec §5 "Typing input system".
 - [x] **B3** Stats: gross WPM (`chars / 5 / elapsed_minutes`), run average, raw peak,
       accuracy, correct/incorrect/corrected characters. Spec §7.
-- [ ] **B4** `sustainablePeakWpm` — rolling 10–15s window with a minimum character
+- [x] **B4** `sustainablePeakWpm` — rolling 10–15s window with a minimum character
       count, a minimum accuracy threshold, and a maximum idle gap. This is the headline
       lifetime stat; a one-second burst must never become the record. Spec §7.
 - [ ] **B5** Prompt timing: `expected_typing_seconds` and `available_seconds` per the
