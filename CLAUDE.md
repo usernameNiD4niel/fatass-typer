@@ -142,7 +142,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 - [x] **B2** Typing comparison engine: per-character state (correct / current /
       incorrect / untyped), backspace, case-insensitive by default, punctuation and
       spaces, configurable mistake behavior. Spec §5 "Typing input system".
-- [ ] **B3** Stats: gross WPM (`chars / 5 / elapsed_minutes`), run average, raw peak,
+- [x] **B3** Stats: gross WPM (`chars / 5 / elapsed_minutes`), run average, raw peak,
       accuracy, correct/incorrect/corrected characters. Spec §7.
 - [ ] **B4** `sustainablePeakWpm` — rolling 10–15s window with a minimum character
       count, a minimum accuracy threshold, and a maximum idle gap. This is the headline
