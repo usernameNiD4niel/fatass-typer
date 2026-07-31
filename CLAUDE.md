@@ -107,7 +107,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done and tested · `[!]`
 - [x] **A2** Vitest + Testing Library setup. One smoke test that actually runs and passes.
 - [x] **A3** Folder skeleton per §3. Add an ESLint `no-restricted-imports` rule (or
       equivalent) forbidding DOM/React/renderer imports inside `game-core`.
-- [ ] **A4** Design tokens in `styles/tokens.css`: light + dark color scales, spacing
+- [x] **A4** Design tokens in `styles/tokens.css`: light + dark color scales, spacing
       scale, radii, shadows, Inter/system font stack, motion durations. Spec §9.
 - [ ] **A5** App state machine — `Boot · MainMenu · MapSelection · PreRunCountdown ·
       Running · Paused · PlayerHit · LevelComplete · GameOver · Results · Settings`.
@@ -251,6 +251,13 @@ npm run format:check  # Prettier check
 ```
 
 Not wired yet: `test:e2e` (arrives in G4).
+
+Styling: `src/styles/tokens.css` is the only place raw values live. Components reference
+**semantic** tokens (`--surface-raised`, `--text-primary`, `--status-danger`), never
+primitives (`--color-neutral-200`) and never literals. Theme flips via `data-theme` on
+`<html>`; with no attribute set it follows `prefers-color-scheme`. Reduced motion collapses
+all `--duration-*` to `0ms`. `src/styles/tokens.test.ts` fails the build if a token exists
+in one theme but not the other.
 
 Test conventions: unit and component tests are colocated as `src/**/*.test.ts(x)`.
 Vitest globals are **off** — import `describe` / `it` / `expect` from `vitest` explicitly.

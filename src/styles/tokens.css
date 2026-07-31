@@ -1,0 +1,384 @@
+/**
+ * Design tokens — the single source of truth for the visual system.
+ *
+ * Rules (CLAUDE.md §3): no component hardcodes a color, spacing value, radius,
+ * shadow, or duration. Everything references a token from this file.
+ *
+ * Two layers:
+ *   1. Primitives  (--color-blue-500, --space-4)   raw values, theme-independent
+ *   2. Semantics   (--surface, --text-primary)     what a thing means; these flip per theme
+ *
+ * Components use semantics. Primitives exist so the semantics have somewhere to point.
+ *
+ * Visual direction is iOS-inspired adapted for desktop (spec §9): clean hierarchy,
+ * generous whitespace, rounded cards, soft translucent panels, restrained palette,
+ * spring-like transitions. No proprietary Apple assets.
+ */
+
+:root {
+  /* ---------------------------------------------------------------------- */
+  /* 1. Primitives — color ramps                                            */
+  /* ---------------------------------------------------------------------- */
+
+  /* Neutral — slightly cool gray, the backbone of the UI. */
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #f7f8fa;
+  --color-neutral-100: #eef0f4;
+  --color-neutral-200: #e2e5ec;
+  --color-neutral-300: #cbd0da;
+  --color-neutral-400: #9aa1b1;
+  --color-neutral-500: #6f7787;
+  --color-neutral-600: #525a69;
+  --color-neutral-700: #3c434f;
+  --color-neutral-800: #272c35;
+  --color-neutral-900: #181c23;
+  --color-neutral-950: #0e1116;
+
+  /* Accent — the single brand hue. Used sparingly. */
+  --color-accent-100: #dbeafe;
+  --color-accent-300: #93c5fd;
+  --color-accent-400: #60a5fa;
+  --color-accent-500: #2f7cf6;
+  --color-accent-600: #1d63d8;
+  --color-accent-700: #1a4fac;
+
+  /* Success — correct characters, completed prompts, unlocks. */
+  --color-success-100: #d7f5e3;
+  --color-success-400: #34c77b;
+  --color-success-500: #1ba463;
+  --color-success-600: #14804d;
+
+  /* Warning — obstacle deadline pressure, dogs closing in. */
+  --color-warning-100: #fdefd2;
+  --color-warning-400: #f5b544;
+  --color-warning-500: #d9901c;
+  --color-warning-600: #a86c11;
+
+  /* Danger — mistakes, collisions, caught. */
+  --color-danger-100: #fde0e0;
+  --color-danger-400: #f2696b;
+  --color-danger-500: #dc3b3f;
+  --color-danger-600: #b32a2e;
+
+  /* ---------------------------------------------------------------------- */
+  /* 2. Primitives — spacing (4px base scale)                               */
+  /* ---------------------------------------------------------------------- */
+
+  --space-0: 0;
+  --space-1: 0.25rem; /*  4px */
+  --space-2: 0.5rem; /*   8px */
+  --space-3: 0.75rem; /* 12px */
+  --space-4: 1rem; /*    16px */
+  --space-5: 1.25rem; /* 20px */
+  --space-6: 1.5rem; /*  24px */
+  --space-8: 2rem; /*    32px */
+  --space-10: 2.5rem; /* 40px */
+  --space-12: 3rem; /*   48px */
+  --space-16: 4rem; /*   64px */
+  --space-20: 5rem; /*   80px */
+  --space-24: 6rem; /*   96px */
+
+  /* ---------------------------------------------------------------------- */
+  /* 3. Primitives — radii                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-2xl: 36px;
+  --radius-pill: 999px;
+
+  /* ---------------------------------------------------------------------- */
+  /* 4. Typography                                                          */
+  /* ---------------------------------------------------------------------- */
+
+  --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Prompts use a tabular/monospaced face so character cells do not shift width
+     as the player types. Critical for readability under time pressure. */
+  --font-prompt:
+    ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', 'Roboto Mono', monospace;
+
+  --font-size-xs: 0.75rem; /*   12px */
+  --font-size-sm: 0.875rem; /*  14px */
+  --font-size-base: 1rem; /*    16px */
+  --font-size-md: 1.125rem; /*  18px */
+  --font-size-lg: 1.375rem; /*  22px */
+  --font-size-xl: 1.75rem; /*   28px */
+  --font-size-2xl: 2.25rem; /*  36px */
+  --font-size-3xl: 3rem; /*     48px */
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.15;
+  --line-height-snug: 1.35;
+  --line-height-normal: 1.55;
+
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.02em;
+
+  /* Prompt text size — user-adjustable in Settings (step E6, spec §12). */
+  --prompt-font-size: var(--font-size-2xl);
+
+  /* ---------------------------------------------------------------------- */
+  /* 5. Motion                                                              */
+  /* ---------------------------------------------------------------------- */
+
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-normal: 220ms;
+  --duration-slow: 340ms;
+  --duration-slower: 520ms;
+
+  /* Spring-like easings. --ease-spring overshoots slightly; do not use it on
+     anything that must not visually exceed its bounds. */
+  --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ---------------------------------------------------------------------- */
+  /* 6. Layout                                                              */
+  /* ---------------------------------------------------------------------- */
+
+  /* Below this, the app shows the desktop width guard (step E7, spec §9). */
+  --layout-min-width: 1024px;
+  --layout-content-max: 1200px;
+  --layout-gutter: var(--space-8);
+
+  --border-width-hairline: 1px;
+  --border-width-thick: 2px;
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 2px;
+
+  /* ---------------------------------------------------------------------- */
+  /* 7. Z-index scale — named so nothing invents a z-index: 9999            */
+  /* ---------------------------------------------------------------------- */
+
+  --z-base: 0;
+  --z-canvas: 10;
+  --z-hud: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+}
+
+/* ------------------------------------------------------------------------ */
+/* 8. Semantic tokens — LIGHT theme (the default)                           */
+/* ------------------------------------------------------------------------ */
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --surface-canvas: var(--color-neutral-50);
+  --surface-default: var(--color-neutral-0);
+  --surface-raised: var(--color-neutral-0);
+  --surface-sunken: var(--color-neutral-100);
+  --surface-inverse: var(--color-neutral-900);
+  /* Translucent panel fill. Kept high-opacity on purpose — spec §9 warns against
+     glassmorphism that harms readability. */
+  --surface-translucent: rgb(255 255 255 / 0.82);
+  --surface-scrim: rgb(14 17 22 / 0.44);
+
+  /* Text */
+  --text-primary: var(--color-neutral-900);
+  --text-secondary: var(--color-neutral-600);
+  --text-tertiary: var(--color-neutral-500);
+  --text-disabled: var(--color-neutral-400);
+  --text-inverse: var(--color-neutral-0);
+  --text-on-accent: var(--color-neutral-0);
+
+  /* Borders */
+  --border-subtle: var(--color-neutral-200);
+  --border-default: var(--color-neutral-300);
+  --border-strong: var(--color-neutral-400);
+
+  /* Interactive */
+  --accent-default: var(--color-accent-500);
+  --accent-hover: var(--color-accent-600);
+  --accent-active: var(--color-accent-700);
+  --accent-subtle: var(--color-accent-100);
+  --focus-ring: var(--color-accent-400);
+
+  /* Status */
+  --status-success: var(--color-success-500);
+  --status-success-subtle: var(--color-success-100);
+  --status-warning: var(--color-warning-500);
+  --status-warning-subtle: var(--color-warning-100);
+  --status-danger: var(--color-danger-500);
+  --status-danger-subtle: var(--color-danger-100);
+
+  /* Gameplay — deliberately high contrast, gameplay beats aesthetics here.
+     Shape and weight also differ per state, so these never rely on color
+     alone (spec §12). */
+  --prompt-text-untyped: var(--color-neutral-500);
+  --prompt-text-correct: var(--color-success-600);
+  --prompt-text-incorrect: var(--color-danger-600);
+  --prompt-text-current: var(--color-neutral-900);
+  --prompt-caret: var(--color-accent-500);
+  --prompt-incorrect-bg: var(--color-danger-100);
+  --prompt-current-bg: var(--color-accent-100);
+
+  /* Dog threat meter — safe through to about to be caught. */
+  --threat-safe: var(--color-success-500);
+  --threat-close: var(--color-warning-500);
+  --threat-critical: var(--color-danger-500);
+
+  /* Shadows — soft and low-contrast, layered rather than one hard drop. */
+  --shadow-xs: 0 1px 2px rgb(14 17 22 / 0.06);
+  --shadow-sm: 0 1px 3px rgb(14 17 22 / 0.08), 0 1px 2px rgb(14 17 22 / 0.04);
+  --shadow-md: 0 4px 12px rgb(14 17 22 / 0.08), 0 1px 3px rgb(14 17 22 / 0.05);
+  --shadow-lg: 0 12px 28px rgb(14 17 22 / 0.11), 0 2px 6px rgb(14 17 22 / 0.06);
+  --shadow-xl: 0 24px 56px rgb(14 17 22 / 0.16), 0 4px 12px rgb(14 17 22 / 0.07);
+}
+
+/* ------------------------------------------------------------------------ */
+/* 9. Semantic tokens — DARK theme                                          */
+/* ------------------------------------------------------------------------ */
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --surface-canvas: var(--color-neutral-950);
+  --surface-default: var(--color-neutral-900);
+  --surface-raised: var(--color-neutral-800);
+  --surface-sunken: var(--color-neutral-950);
+  --surface-inverse: var(--color-neutral-50);
+  --surface-translucent: rgb(24 28 35 / 0.84);
+  --surface-scrim: rgb(0 0 0 / 0.58);
+
+  --text-primary: var(--color-neutral-50);
+  --text-secondary: var(--color-neutral-300);
+  --text-tertiary: var(--color-neutral-400);
+  --text-disabled: var(--color-neutral-500);
+  --text-inverse: var(--color-neutral-900);
+  --text-on-accent: var(--color-neutral-0);
+
+  --border-subtle: var(--color-neutral-800);
+  --border-default: var(--color-neutral-700);
+  --border-strong: var(--color-neutral-600);
+
+  --accent-default: var(--color-accent-400);
+  --accent-hover: var(--color-accent-300);
+  --accent-active: var(--color-accent-500);
+  --accent-subtle: rgb(47 124 246 / 0.18);
+  --focus-ring: var(--color-accent-300);
+
+  --status-success: var(--color-success-400);
+  --status-success-subtle: rgb(52 199 123 / 0.16);
+  --status-warning: var(--color-warning-400);
+  --status-warning-subtle: rgb(245 181 68 / 0.16);
+  --status-danger: var(--color-danger-400);
+  --status-danger-subtle: rgb(242 105 107 / 0.16);
+
+  --prompt-text-untyped: var(--color-neutral-500);
+  --prompt-text-correct: var(--color-success-400);
+  --prompt-text-incorrect: var(--color-danger-400);
+  --prompt-text-current: var(--color-neutral-0);
+  --prompt-caret: var(--color-accent-400);
+  --prompt-incorrect-bg: rgb(242 105 107 / 0.22);
+  --prompt-current-bg: rgb(96 165 250 / 0.22);
+
+  --threat-safe: var(--color-success-400);
+  --threat-close: var(--color-warning-400);
+  --threat-critical: var(--color-danger-400);
+
+  /* Shadows read as depth-plus-glow in dark mode; pure black alpha disappears. */
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.35);
+  --shadow-lg: 0 12px 28px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.4);
+  --shadow-xl: 0 24px 56px rgb(0 0 0 / 0.62), 0 4px 12px rgb(0 0 0 / 0.45);
+}
+
+/* ------------------------------------------------------------------------ */
+/* 10. System preference — applies only until the user picks a theme.       */
+/*     The explicit [data-theme] attribute always wins (step E7).           */
+/* ------------------------------------------------------------------------ */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    color-scheme: dark;
+
+    --surface-canvas: var(--color-neutral-950);
+    --surface-default: var(--color-neutral-900);
+    --surface-raised: var(--color-neutral-800);
+    --surface-sunken: var(--color-neutral-950);
+    --surface-inverse: var(--color-neutral-50);
+    --surface-translucent: rgb(24 28 35 / 0.84);
+    --surface-scrim: rgb(0 0 0 / 0.58);
+
+    --text-primary: var(--color-neutral-50);
+    --text-secondary: var(--color-neutral-300);
+    --text-tertiary: var(--color-neutral-400);
+    --text-disabled: var(--color-neutral-500);
+    --text-inverse: var(--color-neutral-900);
+
+    --border-subtle: var(--color-neutral-800);
+    --border-default: var(--color-neutral-700);
+    --border-strong: var(--color-neutral-600);
+
+    --accent-default: var(--color-accent-400);
+    --accent-hover: var(--color-accent-300);
+    --accent-active: var(--color-accent-500);
+    --accent-subtle: rgb(47 124 246 / 0.18);
+    --focus-ring: var(--color-accent-300);
+
+    --status-success: var(--color-success-400);
+    --status-success-subtle: rgb(52 199 123 / 0.16);
+    --status-warning: var(--color-warning-400);
+    --status-warning-subtle: rgb(245 181 68 / 0.16);
+    --status-danger: var(--color-danger-400);
+    --status-danger-subtle: rgb(242 105 107 / 0.16);
+
+    --prompt-text-untyped: var(--color-neutral-500);
+    --prompt-text-correct: var(--color-success-400);
+    --prompt-text-incorrect: var(--color-danger-400);
+    --prompt-text-current: var(--color-neutral-0);
+    --prompt-caret: var(--color-accent-400);
+    --prompt-incorrect-bg: rgb(242 105 107 / 0.22);
+    --prompt-current-bg: rgb(96 165 250 / 0.22);
+
+    --threat-safe: var(--color-success-400);
+    --threat-close: var(--color-warning-400);
+    --threat-critical: var(--color-danger-400);
+
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.35);
+    --shadow-lg: 0 12px 28px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.4);
+    --shadow-xl: 0 24px 56px rgb(0 0 0 / 0.62), 0 4px 12px rgb(0 0 0 / 0.45);
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* 11. Reduced motion — spec §12. Durations collapse; nothing else changes.  */
+/*     The Settings toggle sets data-reduced-motion (step E6).               */
+/* ------------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduced-motion='off']) {
+    --duration-instant: 0ms;
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+    --duration-slower: 0ms;
+    --ease-spring: var(--ease-standard);
+  }
+}
+
+:root[data-reduced-motion='on'] {
+  --duration-instant: 0ms;
+  --duration-fast: 0ms;
+  --duration-normal: 0ms;
+  --duration-slow: 0ms;
+  --duration-slower: 0ms;
+  --ease-spring: var(--ease-standard);
+}
