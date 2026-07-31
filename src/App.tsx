@@ -1,36 +1,44 @@
 import type { JSX } from 'react';
-
-/** Temporary token preview. Removed when real screens land in phase E. */
-const SWATCHES = [
-  { token: '--surface-raised', label: 'Raised surface' },
-  { token: '--accent-default', label: 'Accent' },
-  { token: '--status-success', label: 'Success' },
-  { token: '--status-warning', label: 'Warning' },
-  { token: '--status-danger', label: 'Danger' },
-  { token: '--text-primary', label: 'Primary text' },
-] as const;
+import { useAppMachine } from './hooks/useAppMachine';
 
 /**
- * Scaffold shell. Real screens and the app state machine arrive in steps A5 and E2.
+ * Scaffold shell driving the app state machine directly.
+ *
+ * This is a development harness, not the real UI — every state gets one button
+ * per legal event so the graph from spec §4 can be walked by hand. Real screens
+ * replace it in phase E.
  */
 export function App(): JSX.Element {
+  const machine = useAppMachine();
+
   return (
     <main className="scaffold">
       <h1 className="scaffold__title">Typing Chase</h1>
       <p className="scaffold__subtitle">
-        Scaffold running. Step A4 complete — design tokens wired, light and dark themes follow the
-        system preference until Settings lands.
+        Step A5 complete — the app state machine drives navigation. Real screens arrive in phase E.
       </p>
-      <ul className="scaffold__swatches" aria-label="Design token preview">
-        {SWATCHES.map(({ token, label }) => (
-          <li
-            key={token}
-            className="scaffold__swatch"
-            style={{ backgroundColor: `var(${token})` }}
-            title={`${label} (${token})`}
-          />
+
+      <p className="scaffold__state" aria-live="polite">
+        State: <strong>{machine.state}</strong>
+        {machine.context.settingsOrigin !== null && (
+          <span className="scaffold__origin"> (returns to {machine.context.settingsOrigin})</span>
+        )}
+      </p>
+
+      <nav className="scaffold__events" aria-label="Legal transitions">
+        {machine.available.map((type) => (
+          <button
+            key={type}
+            type="button"
+            className="scaffold__event"
+            onClick={() => {
+              machine.send(type);
+            }}
+          >
+            {type}
+          </button>
         ))}
-      </ul>
+      </nav>
     </main>
   );
 }

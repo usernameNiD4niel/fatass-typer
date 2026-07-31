@@ -47,9 +47,15 @@ src/
 ├── content/        word lists, map configs, obstacle data
 ├── components/     reusable UI primitives
 ├── screens/        full-screen views
+├── hooks/          React bindings onto game-core (e.g. useAppMachine)
 ├── styles/         design tokens, global CSS
 └── main.tsx
 ```
+
+Navigation: `src/game-core/app-state/` owns the state machine (spec §4) — an explicit
+transition table plus a pure `transition()`. `src/hooks/useAppMachine.ts` is the only
+React binding to it. Screens never track navigation with their own booleans, and a
+control is only rendered when `machine.can(event)` allows it.
 
 Hard rules:
 
@@ -109,7 +115,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done and tested · `[!]`
       equivalent) forbidding DOM/React/renderer imports inside `game-core`.
 - [x] **A4** Design tokens in `styles/tokens.css`: light + dark color scales, spacing
       scale, radii, shadows, Inter/system font stack, motion durations. Spec §9.
-- [ ] **A5** App state machine — `Boot · MainMenu · MapSelection · PreRunCountdown ·
+- [x] **A5** App state machine — `Boot · MainMenu · MapSelection · PreRunCountdown ·
       Running · Paused · PlayerHit · LevelComplete · GameOver · Results · Settings`.
       Explicit transition table, unit-tested. No state booleans scattered around. Spec §4.
 
