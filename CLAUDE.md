@@ -153,7 +153,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 - [x] **B6** Chase-distance model: one logical meter. Penalty on collision or missed
       prompt, gain on accuracy streak, catch at zero. No physical AI simulation.
       Spec §5 "Dog chase system".
-- [ ] **B7** Scoring + combo: base prompt score + speed bonus + accuracy bonus +
+- [x] **B7** Scoring + combo: base prompt score + speed bonus + accuracy bonus +
       remaining-time bonus + combo multiplier − collision penalty. Lifetime score
       clamped at ≥ 0. Spec §8.
 - [ ] **B8** Seeded RNG + prompt selection: filter by category / difficulty / minimum
