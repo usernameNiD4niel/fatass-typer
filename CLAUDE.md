@@ -150,7 +150,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 - [x] **B5** Prompt timing: `expected_typing_seconds` and `available_seconds` per the
       spec formula. Per-map reaction buffer. Effective character count includes spaces
       and punctuation. Spec §6.
-- [ ] **B6** Chase-distance model: one logical meter. Penalty on collision or missed
+- [x] **B6** Chase-distance model: one logical meter. Penalty on collision or missed
       prompt, gain on accuracy streak, catch at zero. No physical AI simulation.
       Spec §5 "Dog chase system".
 - [ ] **B7** Scoring + combo: base prompt score + speed bonus + accuracy bonus +

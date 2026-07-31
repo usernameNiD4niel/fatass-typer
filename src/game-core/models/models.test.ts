@@ -67,6 +67,7 @@ const MAP: MapConfig = {
     collisionPenaltyMeters: 8,
     missedPromptPenaltyMeters: 4,
     streakRecoveryMeters: 2,
+    streakThreshold: 3,
     dangerThresholdMeters: 12,
   },
   boost: { speedMultiplier: 1.4, durationMs: 2000 },

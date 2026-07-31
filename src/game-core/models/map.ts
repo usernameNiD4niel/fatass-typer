@@ -68,6 +68,13 @@ export interface ChaseProfile {
   readonly missedPromptPenaltyMeters: number;
   /** Meters regained per completed prompt while on a streak. */
   readonly streakRecoveryMeters: number;
+  /**
+   * Consecutive completed prompts before recovery starts.
+   *
+   * Recovery is a reward for a run of good typing, not for every single prompt —
+   * otherwise the gap only ever grows and the dogs stop being a threat.
+   */
+  readonly streakThreshold: number;
   /** Below this gap the HUD and audio escalate to a danger state. */
   readonly dangerThresholdMeters: number;
 }
@@ -160,6 +167,7 @@ export function isMapConfig(value: unknown): value is MapConfig {
   if (!isCount(chase['collisionPenaltyMeters'])) return false;
   if (!isCount(chase['missedPromptPenaltyMeters'])) return false;
   if (!isCount(chase['streakRecoveryMeters'])) return false;
+  if (!isIntegerAtLeast(chase['streakThreshold'], 1)) return false;
   if (!isCount(chase['dangerThresholdMeters'])) return false;
 
   const boost = value['boost'];
