@@ -52,6 +52,12 @@ src/
 └── main.tsx
 ```
 
+Typing: `src/game-core/typing/` compares **whole input values**, not key events —
+`applyInput(state, inputElementValue)`. Insertions, backspace, and paste are all handled
+by diffing against the previous value. Counters are event-based (a mistake that is fixed
+still counts as a mistake), and input is ignored once a prompt completes so nothing
+resolves twice.
+
 Models: `src/game-core/models/` holds every shared shape. Validators take `unknown` and
 narrow honestly — **never `Partial<T>`**, which asserts that present fields already have
 the right type and is exactly the assumption a corrupt save breaks. Shared primitives live
@@ -133,7 +139,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 - [x] **B1** Types: `PromptEntry`, `ObstacleDefinition`, `MapConfig`, `GameSettings`,
       `RunResult`, `MapProgress`, `PlayerProfile`. All persisted shapes carry
       `schemaVersion`. Spec §14, §15.
-- [ ] **B2** Typing comparison engine: per-character state (correct / current /
+- [x] **B2** Typing comparison engine: per-character state (correct / current /
       incorrect / untyped), backspace, case-insensitive by default, punctuation and
       spaces, configurable mistake behavior. Spec §5 "Typing input system".
 - [ ] **B3** Stats: gross WPM (`chars / 5 / elapsed_minutes`), run average, raw peak,
