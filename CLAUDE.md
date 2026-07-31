@@ -8,7 +8,9 @@ behind. Typing boost prompts speeds the MC up. Obstacles carry prompts that must
 typed before impact, or the MC stumbles and the dogs close in. Six maps, rising target
 WPM from 20 to 50.
 
-Physical keyboard required. Minimum width 1024px. Mobile is out of scope.
+**Web app only.** Physical keyboard required. Minimum width 1024px. Mobile is out of
+scope. No desktop packaging, no native shell, no PWA install target unless the user
+asks for one later.
 
 The full spec lives in `claude_typing_chase_game_prompt.md`. This file is the build
 plan — steps reference the spec by section (e.g. "spec §13") rather than restating it.
@@ -24,7 +26,7 @@ instruction from the user.
 |---|---|---|
 | Rust + Bevy compiled to WASM | TypeScript-only runtime. Keep `game-core` pure and DOM-free so a Rust + WASM swap stays possible later | Fastest path to working functionality + UI |
 | IndexedDB / Dexie persistence | In-memory store behind a `StorageAdapter` interface | No database yet |
-| Tauri Windows packaging | Deferred entirely, not in the step list | Out of current scope |
+| Tauri Windows packaging | Dropped. Web app only | Out of scope |
 
 Everything else in the spec stands: game rules, difficulty model, sustainable peak WPM,
 six maps, iOS-inspired desktop UI, accessibility, automated tests.
@@ -89,7 +91,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done and tested · `[!]`
 
 ### Phase A — Foundation
 
-- [ ] **A1** Vite + React + TypeScript scaffold. Strict mode, `noImplicitAny`, no `any`.
+- [x] **A1** Vite + React + TypeScript scaffold. Strict mode, `noImplicitAny`, no `any`.
       ESLint + Prettier configured. npm scripts wired (see §6).
 - [ ] **A2** Vitest + Testing Library setup. One smoke test that actually runs and passes.
 - [ ] **A3** Folder skeleton per §3. Add an ESLint `no-restricted-imports` rule (or
@@ -225,12 +227,13 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
 
 ```bash
 npm install
-npm run dev        # Vite dev server
-npm run build      # production build
-npm run test       # Vitest
-npm run test:e2e   # Playwright
-npm run lint       # ESLint
-npm run format     # Prettier
+npm run dev           # Vite dev server (http://localhost:5173)
+npm run build         # tsc --build && vite build
+npm run preview       # serve the production build
+npm run typecheck     # tsc --build --force
+npm run lint          # ESLint
+npm run format        # Prettier write
+npm run format:check  # Prettier check
 ```
 
-Deferred, not wired up: `build:wasm`, `tauri:dev`, `tauri:build`.
+Not wired yet: `test` (arrives in A2), `test:e2e` (arrives in G4).

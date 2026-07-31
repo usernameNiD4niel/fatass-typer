@@ -1,0 +1,10 @@
+dist
+coverage
+node_modules
+playwright-report
+test-results
+package-lock.json
+
+# Hand-wrapped docs — keep the authored line breaks.
+claude_typing_chase_game_prompt.md
+CLAUDE.md
