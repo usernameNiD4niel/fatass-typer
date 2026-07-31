@@ -1,0 +1,236 @@
+# Typing Chase — Build Guide
+
+## 1. Project overview
+
+Desktop-first typing game, delivered as a web app. Side-scrolling 2D endless-runner:
+a heavy-set main character (MC) runs toward a finish line while three dogs chase from
+behind. Typing boost prompts speeds the MC up. Obstacles carry prompts that must be
+typed before impact, or the MC stumbles and the dogs close in. Six maps, rising target
+WPM from 20 to 50.
+
+Physical keyboard required. Minimum width 1024px. Mobile is out of scope.
+
+The full spec lives in `claude_typing_chase_game_prompt.md`. This file is the build
+plan — steps reference the spec by section (e.g. "spec §13") rather than restating it.
+
+---
+
+## 2. Stack and scope decisions
+
+These override the spec. Do not reintroduce the left column without an explicit
+instruction from the user.
+
+| Spec says | We do instead | Why |
+|---|---|---|
+| Rust + Bevy compiled to WASM | TypeScript-only runtime. Keep `game-core` pure and DOM-free so a Rust + WASM swap stays possible later | Fastest path to working functionality + UI |
+| IndexedDB / Dexie persistence | In-memory store behind a `StorageAdapter` interface | No database yet |
+| Tauri Windows packaging | Deferred entirely, not in the step list | Out of current scope |
+
+Everything else in the spec stands: game rules, difficulty model, sustainable peak WPM,
+six maps, iOS-inspired desktop UI, accessibility, automated tests.
+
+Actual stack: React + TypeScript (strict) + Vite + Canvas 2D + Vanilla CSS / CSS Modules.
+Vitest for units and components, Playwright for e2e. No heavy component library.
+
+---
+
+## 3. Architecture rules
+
+```
+src/
+├── game-core/      pure rules — no DOM, no React, no canvas
+├── game-runtime/   canvas renderer + fixed-timestep loop
+├── game-bridge/    command-in / event-out bus
+├── storage/        StorageAdapter interface + in-memory impl
+├── content/        word lists, map configs, obstacle data
+├── components/     reusable UI primitives
+├── screens/        full-screen views
+├── styles/         design tokens, global CSS
+└── main.tsx
+```
+
+Hard rules:
+
+- **`game-core` imports nothing from the DOM, React, or the renderer.** It is
+  deterministic, seeded, and fully unit-tested. This is the boundary a Rust
+  implementation would later replace.
+- `game-runtime` never imports React. React never imports `game-runtime` internals —
+  only `game-bridge`.
+- No game rules inside React components.
+- No persistence code inside rendering code.
+- TypeScript strict. No `any`. Small focused modules. No magic numbers — map tuning
+  lives in config files under `content/`.
+- Per-frame data does not flow into React. The bridge emits UI updates at a fixed
+  low frequency (~10Hz), never once per animation frame.
+
+---
+
+## 4. Working protocol
+
+Read this before starting any step.
+
+1. **One step at a time.** Do not batch steps. Do not start a step whose prerequisites
+   are not `[x]`.
+2. Flip the step marker to `[~]` in this file *before* starting, and to `[x]` only when
+   the work is done **and its tests actually ran and passed**.
+3. Never claim a test passed without running it. If something is incomplete, mark it
+   `[!]` with a one-line reason rather than `[x]`.
+4. At the end of each step, report three things: files added/changed, the exact command
+   to verify it, anything left incomplete.
+5. Do not rewrite earlier steps' work without a stated reason. Preserve working behavior.
+6. Never leave `// implementation goes here` placeholders. A simple working
+   implementation beats a stub.
+
+Status legend: `[ ]` todo · `[~]` in progress · `[x]` done and tested · `[!]` blocked
+
+---
+
+## 5. Steps
+
+### Phase A — Foundation
+
+- [ ] **A1** Vite + React + TypeScript scaffold. Strict mode, `noImplicitAny`, no `any`.
+      ESLint + Prettier configured. npm scripts wired (see §6).
+- [ ] **A2** Vitest + Testing Library setup. One smoke test that actually runs and passes.
+- [ ] **A3** Folder skeleton per §3. Add an ESLint `no-restricted-imports` rule (or
+      equivalent) forbidding DOM/React/renderer imports inside `game-core`.
+- [ ] **A4** Design tokens in `styles/tokens.css`: light + dark color scales, spacing
+      scale, radii, shadows, Inter/system font stack, motion durations. Spec §9.
+- [ ] **A5** App state machine — `Boot · MainMenu · MapSelection · PreRunCountdown ·
+      Running · Paused · PlayerHit · LevelComplete · GameOver · Results · Settings`.
+      Explicit transition table, unit-tested. No state booleans scattered around. Spec §4.
+
+### Phase B — `game-core` pure rules
+
+Each step ships its own unit tests. Nothing here touches the DOM.
+
+- [ ] **B1** Types: `PromptEntry`, `ObstacleDefinition`, `MapConfig`, `GameSettings`,
+      `RunResult`, `MapProgress`, `PlayerProfile`. All persisted shapes carry
+      `schemaVersion`. Spec §14, §15.
+- [ ] **B2** Typing comparison engine: per-character state (correct / current /
+      incorrect / untyped), backspace, case-insensitive by default, punctuation and
+      spaces, configurable mistake behavior. Spec §5 "Typing input system".
+- [ ] **B3** Stats: gross WPM (`chars / 5 / elapsed_minutes`), run average, raw peak,
+      accuracy, correct/incorrect/corrected characters. Spec §7.
+- [ ] **B4** `sustainablePeakWpm` — rolling 10–15s window with a minimum character
+      count, a minimum accuracy threshold, and a maximum idle gap. This is the headline
+      lifetime stat; a one-second burst must never become the record. Spec §7.
+- [ ] **B5** Prompt timing: `expected_typing_seconds` and `available_seconds` per the
+      spec formula. Per-map reaction buffer. Effective character count includes spaces
+      and punctuation. Spec §6.
+- [ ] **B6** Chase-distance model: one logical meter. Penalty on collision or missed
+      prompt, gain on accuracy streak, catch at zero. No physical AI simulation.
+      Spec §5 "Dog chase system".
+- [ ] **B7** Scoring + combo: base prompt score + speed bonus + accuracy bonus +
+      remaining-time bonus + combo multiplier − collision penalty. Lifetime score
+      clamped at ≥ 0. Spec §8.
+- [ ] **B8** Seeded RNG + prompt selection: filter by category / difficulty / minimum
+      map, prevent immediate repetition, fully deterministic under a fixed seed.
+      Spec §15.
+
+### Phase C — Runtime and first playable slice
+
+- [ ] **C1** Fixed-timestep game loop with an accumulator, decoupled from the React
+      render cycle.
+- [ ] **C2** Canvas 2D renderer scaffold: side-scrolling camera, parallax background
+      layers, asset manifest file with isolated asset paths. Spec §10.
+- [ ] **C3** MC placeholder from vector shapes + animation state machine: idle, running,
+      boosting, jumping, sliding, stumbling, hit, victory, caught. World speed is driven
+      by game rules, not by animation speed. Spec §5, §10.
+- [ ] **C4** Three dogs rendered, positions driven by B6, with escalating visual danger
+      cues as they close in.
+- [ ] **C5** Bridge: `GameCommand` in, `GameEvent` out per spec §13. Validate messages
+      at the boundary. Emit stats at a fixed ~10Hz, never per frame. Clean up listeners
+      on canvas unmount.
+- [ ] **C6** Typing input: a real focused `<input>` element — not global `keydown` — for
+      text construction. Backspace, punctuation, spaces. Ignore unsupported control keys.
+      Send normalized input events through the bridge.
+- [ ] **C7** **Vertical slice.** Boost prompts grant a visible speed boost, the finish
+      line is reachable, the dogs can catch the MC and end the run. First genuinely
+      playable build. Spec §19 Milestone 1 acceptance criteria.
+
+### Phase D — Obstacles and map rules
+
+- [ ] **D1** Obstacle definitions and data: crate, low barrier, hanging sign, puddle,
+      trash bin, roadwork barrier, narrow passage. Spawner driven by map config. Spec §5.
+- [ ] **D2** Time-to-impact calculation, prompt attachment, and an early warning event,
+      using B5 timing so the prompt appears early enough for the map's target WPM.
+- [ ] **D3** Resolution: success triggers the correct avoidance animation (jump / slide /
+      sidestep); deadline expiry triggers hit or stumble. Hard guard against double
+      resolution.
+- [ ] **D4** Consequences wired through: dog distance, combo break, score, run
+      statistics. Tests for resolution and timing edge cases.
+- [ ] **D5** Pause / resume / restart, Escape to pause. Map 1 fully data-driven and
+      playable end to end. Spec §19 Milestone 2.
+
+### Phase E — UI shell
+
+iOS-inspired desktop visual language — clean hierarchy, generous whitespace, rounded
+cards, soft translucent panels, restrained palette, spring-like transitions. Spec §9.
+
+- [ ] **E1** UI primitives: Button, Card, Panel, Toggle, Slider, Modal. Accessible, with
+      strong visible focus states. No component library.
+- [ ] **E2** Splash / loading screen + main menu: title, Start, Continue (when progress
+      exists), Maps, Statistics, Settings, highest unlocked map, sustainable peak WPM,
+      overall accuracy.
+- [ ] **E3** Map selection cards (name, target WPM, theme, locked state, best score,
+      best accuracy, completion status, unlock requirement) + level briefing screen.
+- [ ] **E4** Game HUD. The active prompt is the clear visual priority. Also: typed
+      progress, current WPM, accuracy, combo, progress to finish, dog threat distance,
+      obstacle time pressure, pause control. Do not overload it.
+- [ ] **E5** Pause overlay + level-complete + game-over + detailed run results (score,
+      average WPM, sustainable peak, accuracy, obstacle success rate, longest combo,
+      mistakes, new records, unlocks, Retry / Next Map / Return to Maps).
+- [ ] **E6** Settings screen (theme, reduced motion, prompt text size, mistake behavior,
+      volumes, dev-only reset progress) + Statistics screen.
+- [ ] **E7** First-run tutorial + desktop width guard (polished message below 1024px) +
+      light/dark theme wiring across all screens.
+
+### Phase F — Content, maps, storage
+
+- [ ] **F1** Word and phrase content files by category: common short / medium / long
+      words, punctuation, numbers, short phrases, medium phrases, map-themed vocabulary.
+      No slurs, no obscure words in beginner maps, no ambiguous whitespace. Spec §15.
+- [ ] **F2** Map 1 tuned for a genuine 20 WPM typist. Playtest and adjust the numbers.
+- [ ] **F3** Maps 2–6: configs, visual themes, vocabulary, reaction buffers
+      (1.55 → 1.40 → 1.28 → 1.18 → 1.08), unlock accuracy gates (85% → 92%). Data-driven,
+      not hardcoded into systems. Spec §6.
+- [ ] **F4** Adaptive assistance: small clamped buffer adjustments after repeated
+      failures or a sustained accuracy streak. Never aggressive enough to feel unfair.
+      The displayed target WPM stays honest. Spec §6.
+- [ ] **F5** `StorageAdapter` interface + in-memory implementation + run history +
+      dev-only reset. Progress resets on reload — that is intended for now. An IndexedDB
+      implementation is explicitly deferred; the interface is the seam for it.
+
+### Phase G — Polish
+
+- [ ] **G1** Audio system: menu music, running music, danger layer as dogs approach,
+      correct-character feedback, prompt-complete, boost, obstacle warning, collision,
+      victory, game-over. Placeholders only, no copyrighted audio. Audio starts only
+      after user interaction. Volume settings, music and SFX toggles. Spec §11.
+- [ ] **G2** Accessibility pass: full keyboard navigation, visible focus indicators,
+      reduced-motion setting, color-independent success/error indicators, high-contrast
+      prompt text, descriptive labels, no flashing effects. Spec §12.
+- [ ] **G3** Performance pass: 60 FPS target, zero React re-renders per animation frame,
+      entity reuse, lazy-loaded non-essential screens, loading progress. Profile and
+      record the results. Spec §16.
+- [ ] **G4** Playwright e2e desktop keyboard flows + README and docs + CI workflow
+      (build, lint, test).
+
+**41 steps total.**
+
+---
+
+## 6. Commands
+
+```bash
+npm install
+npm run dev        # Vite dev server
+npm run build      # production build
+npm run test       # Vitest
+npm run test:e2e   # Playwright
+npm run lint       # ESLint
+npm run format     # Prettier
+```
+
+Deferred, not wired up: `build:wasm`, `tauri:dev`, `tauri:build`.
