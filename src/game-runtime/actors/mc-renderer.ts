@@ -2,6 +2,7 @@ import { type Camera } from '../render/camera';
 import { type Canvas2D } from '../render/canvas-surface';
 import {
   crouchRatio,
+  lateralOffsetRatio,
   type McAnimation,
   type McAnimationState,
   verticalOffsetRatio,
@@ -62,6 +63,7 @@ const EXPRESSIONS: Readonly<Record<McAnimationState, Expression>> = {
   boosting: 'strained',
   jumping: 'strained',
   sliding: 'strained',
+  sidestepping: 'strained',
   stumbling: 'shock',
   hit: 'shock',
   victory: 'delighted',
@@ -79,6 +81,9 @@ function leanRadians(animation: McAnimation): number {
       return 0.1;
     case 'sliding':
       return -0.5;
+    case 'sidestepping':
+      // Leaning into the step, away from whatever he is dodging.
+      return 0.1 - lateralOffsetRatio(animation) * 0.3;
     case 'stumbling':
       // A wobble rather than a fixed pose — he is fighting to stay upright.
       return 0.45 + Math.sin(animation.progress * Math.PI * 3) * 0.18;
@@ -243,6 +248,9 @@ export function drawMc(context: Canvas2D, options: McDrawOptions): void {
   const lift = verticalOffsetRatio(animation) * 0.55;
   const crouch = crouchRatio(animation);
   const bob = bobUnits(animation, swing);
+  // A sidestep moves him across the road, not along it, so it shifts the whole
+  // body sideways on screen rather than changing his position in the world.
+  const lateralPx = lateralOffsetRatio(animation) * heightPx * 0.35;
 
   context.save();
 
@@ -255,7 +263,7 @@ export function drawMc(context: Canvas2D, options: McDrawOptions): void {
   fillEllipse(context, 0, 0, 0.26 * shadowScale, 0.05 * shadowScale, MC_COLORS.shadow);
   context.restore();
 
-  context.translate(options.xPx, options.groundYPx - (lift + bob) * heightPx);
+  context.translate(options.xPx + lateralPx, options.groundYPx - (lift + bob) * heightPx);
   context.scale(heightPx, heightPx);
 
   drawSpeedLines(context, animation);

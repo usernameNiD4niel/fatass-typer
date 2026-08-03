@@ -9,6 +9,7 @@ Pure rules. No clock, no randomness beyond the seeded RNG, no DOM.
   more than one due time and dropping the extras would quietly make the map easier.
 - `active-obstacle.ts` (D2) — an obstacle placed in a run: where it sits, when its prompt
   attaches, and when the deadline expires.
+- `resolution.ts` (D3) — how it ends, and the guard that makes it end once.
 
 ## The promise
 
@@ -30,5 +31,26 @@ every obstacle-and-prompt combination Map 1 can produce.
 Each transition fires at most once, so a stalled frame that crosses two thresholds produces
 one warning and one attachment rather than a burst.
 
-Resolution — the avoidance animation, the collision, the consequences — is D3. Obstacles
-marked `resolved` or `missed` are inert and never fire again.
+## Three endings
+
+Every obstacle reaches exactly one: **avoided** (prompt completed in time), **stumbled**
+(deadline passed with at least half the prompt correct), or **hit** (deadline passed with
+little or nothing typed). Splitting the failure in two matters — a player who nearly made it
+was trying and ran out of road; charging them the same as someone who never engaged makes
+the near-miss feel arbitrary.
+
+`isResolvable` is the single double-resolution guard: only an `active` obstacle can end. A
+late keystroke landing in the same step as the deadline, a duplicated event, or a re-entrant
+call cannot award a second avoidance or charge a second collision. Completing a prompt after
+the deadline does not rescue it — it becomes a stumble, since the text _was_ typed.
+
+Notice the division of ownership: `active-obstacle.ts` sets `expired` when the deadline
+passes but leaves `status` alone. Only resolution moves an obstacle to `resolved` or
+`missed`. A status written from two places is a status nobody owns.
+
+`moveForOutcome` names the move — the obstacle's own action on success, a stumble or an
+impact on failure. It returns a name, not an animation: nothing in `game-core` knows what an
+animation is. The runtime's `animationForMove` does the mapping.
+
+The consequences of each ending — dog distance, combo, score, run statistics — are D4.
+Obstacles marked `resolved` or `missed` are inert and never fire again.

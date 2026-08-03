@@ -17,6 +17,7 @@ export const MC_ANIMATION_STATES = [
   'boosting',
   'jumping',
   'sliding',
+  'sidestepping',
   'stumbling',
   'hit',
   'victory',
@@ -39,6 +40,7 @@ export type McLocomotionState = Extract<McAnimationState, 'idle' | 'running' | '
 const TRANSIENT_DURATIONS_MS = {
   jumping: 700,
   sliding: 600,
+  sidestepping: 500,
   stumbling: 500,
   hit: 800,
 } as const satisfies Partial<Record<McAnimationState, number>>;
@@ -61,6 +63,7 @@ const PRIORITY: Readonly<Record<McAnimationState, number>> = {
   boosting: 0,
   jumping: 1,
   sliding: 1,
+  sidestepping: 1,
   stumbling: 2,
   hit: 3,
   victory: 4,
@@ -212,6 +215,43 @@ export function advanceMcAnimation(animation: McAnimation, input: AdvanceInput):
  */
 export function verticalOffsetRatio(animation: McAnimation): number {
   if (animation.state !== 'jumping') return 0;
+
+  return Math.sin(animation.progress * Math.PI);
+}
+
+/**
+ * The animation for an avoidance move (spec §5).
+ *
+ * `game-core` decides *what* happened — the obstacle's action, or a stumble, or
+ * an impact — and this maps it onto a pose. Keeping the mapping here is what
+ * lets the rules stay ignorant of animation entirely.
+ */
+export function animationForMove(
+  move: 'jump' | 'slide' | 'sidestep' | 'stumble' | 'impact',
+): McAnimationState {
+  switch (move) {
+    case 'jump':
+      return 'jumping';
+    case 'slide':
+      return 'sliding';
+    case 'sidestep':
+      return 'sidestepping';
+    case 'stumble':
+      return 'stumbling';
+    case 'impact':
+      return 'hit';
+  }
+}
+
+/**
+ * Lateral shift, -1..1, for a sidestep. Positive is away from the camera.
+ *
+ * The sidestep needs its own pose rather than borrowing the slide's: the player
+ * has to be able to tell which move the game just credited them with, or the
+ * feedback stops teaching them anything.
+ */
+export function lateralOffsetRatio(animation: McAnimation): number {
+  if (animation.state !== 'sidestepping') return 0;
 
   return Math.sin(animation.progress * Math.PI);
 }

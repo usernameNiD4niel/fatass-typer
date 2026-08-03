@@ -31,8 +31,11 @@ a detached canvas forever.
   draws through), `scene-renderer.ts` (`drawScene`, `groundYPx`), and `canvas-renderer.ts`
   (`CanvasRenderer`, the one stateful object — owns the element, camera, and palette).
 - `actors/` — the characters. `mc-animation.ts` is the MC's animation state machine (idle,
-  running, boosting, jumping, sliding, stumbling, hit, victory, caught) — pure, with
-  interrupt priorities so a collision can cut a jump short but never the reverse.
+  running, boosting, jumping, sliding, sidestepping, stumbling, hit, victory, caught) —
+  pure, with interrupt priorities so a
+  collision can cut a jump short but never the reverse. `animationForMove` maps the move
+  `game-core` names onto a pose; each avoidance move gets a distinguishable one, so the
+  player can tell which one the game credited them with.
   `mc-renderer.ts` draws him from vector shapes in body units, so `heightPx` is the only
   dial and a sprite sheet can replace the file wholesale. `dog-pack.ts` turns the chase
   model's single gap number into three animals; `dog-renderer.ts` draws them with danger

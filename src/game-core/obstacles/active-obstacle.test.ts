@@ -204,10 +204,12 @@ describe('approaching', () => {
     expect(remainingMs(attached, attachedAt + 999_999)).toBe(0);
   });
 
-  it('expires the deadline when the prompt is never finished', () => {
+  it('reports the deadline once when the prompt is never finished', () => {
     const { obstacle, events } = approach(place());
 
-    expect(obstacle.status).toBe('missed');
+    expect(obstacle.expired).toBe(true);
+    // The status stays `active` — `resolution.ts` owns what an expiry costs.
+    expect(obstacle.status).toBe('active');
     expect(events.filter((event) => event === 'deadlineExpired')).toHaveLength(1);
   });
 

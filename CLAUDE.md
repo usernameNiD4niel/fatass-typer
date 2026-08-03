@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 22 / 41 steps complete.** Phases A, B, and C are finished. **The game is
+**Progress: 23 / 41 steps complete.** Phases A, B, and C are finished. **The game is
 playable**: boost prompts speed the MC up, the finish line is reachable, and the dogs can
 catch him and end the run (spec §19 milestone 1).
 
 | | |
 |---|---|
-| **Last completed** | **D2** — obstacle placement, prompt attachment, early warning |
-| **Next up** | **D3** — obstacle resolution: avoidance, hit, stumble (awaiting approval) |
+| **Last completed** | **D3** — obstacle resolution and the avoidance animations |
+| **Next up** | **D4** — wiring obstacle consequences into a run (awaiting approval) |
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -146,7 +146,7 @@ catch him and end the run (spec §19 milestone 1).
 | A — Foundation | ✅ 5 / 5 |
 | B — `game-core` pure rules | ✅ 8 / 8 |
 | C — Runtime + playable slice | ✅ 7 / 7 |
-| D — Obstacles & map rules | 🟨 2 / 5 |
+| D — Obstacles & map rules | 🟨 3 / 5 |
 | E — UI shell | ⬜ 0 / 7 |
 | F — Content, maps, storage | ⬜ 0 / 5 |
 | G — Polish | ⬜ 0 / 4 |
@@ -154,7 +154,7 @@ catch him and end the run (spec §19 milestone 1).
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 595 passed, 33 files
+npm run test          # 617 passed, 34 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -184,11 +184,12 @@ the prompt, HUD, and outcome. `src/game-runtime/session/` holds the run itself �
 `src/content/` has Map 1, the seven obstacle definitions, and a starter vocabulary.
 `src/game-core/obstacles/` schedules them and places them: seeded spawning, then a placement
 derived from the B5 timing budget so the prompt is always on screen early enough for the
-map's stated WPM. See that folder's README for the three moments — warning, attach, deadline.
+map's stated WPM, plus resolution — avoided, stumbled, or hit, decided once. See that
+folder's README for the three moments and the three endings.
 
-**What does not exist yet.** Obstacles are scheduled and placed but nothing resolves them
-yet, and `run-session` does not spawn any, so a run is still boost prompts only. D3 wires in
-resolution and consequences. No
+**What does not exist yet.** `run-session` does not spawn obstacles, so a run is still boost
+prompts only: D4 wires the consequences (dog distance, combo, score, statistics) through and
+D5 makes Map 1 playable end to end with them. No
 persistence — `storage/` is still a README, and progress does not survive a reload. The UI
 is a placeholder: `App.tsx` is the A5 harness with the game screen bolted on, and the real
 screens, primitives, and HUD arrive in phase E. Maps 2–6 and the full content set are
@@ -266,7 +267,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
       trash bin, roadwork barrier, narrow passage. Spawner driven by map config. Spec §5.
 - [x] **D2** Time-to-impact calculation, prompt attachment, and an early warning event,
       using B5 timing so the prompt appears early enough for the map's target WPM.
-- [ ] **D3** Resolution: success triggers the correct avoidance animation (jump / slide /
+- [x] **D3** Resolution: success triggers the correct avoidance animation (jump / slide /
       sidestep); deadline expiry triggers hit or stumble. Hard guard against double
       resolution.
 - [ ] **D4** Consequences wired through: dog distance, combo break, score, run

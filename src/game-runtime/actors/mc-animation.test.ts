@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   advanceMcAnimation,
+  animationForMove,
   createMcAnimation,
   crouchRatio,
   isTerminal,
+  lateralOffsetRatio,
   locomotionFor,
   MC_ANIMATION_STATES,
   type McAnimation,
@@ -161,6 +163,21 @@ describe('run cycle', () => {
   });
 });
 
+describe('animationForMove', () => {
+  it('gives each avoidance move its own distinguishable pose', () => {
+    const poses = ['jump', 'slide', 'sidestep'] as const;
+    const states = poses.map((move) => animationForMove(move));
+
+    expect(states).toEqual(['jumping', 'sliding', 'sidestepping']);
+    expect(new Set(states).size).toBe(3);
+  });
+
+  it('maps failure onto the stumble and hit poses', () => {
+    expect(animationForMove('stumble')).toBe('stumbling');
+    expect(animationForMove('impact')).toBe('hit');
+  });
+});
+
 describe('pose helpers', () => {
   it('arcs the jump up and back down', () => {
     const jumping = play(createMcAnimation(), 'jumping');
@@ -177,6 +194,16 @@ describe('pose helpers', () => {
 
       expect(verticalOffsetRatio(play(createMcAnimation(), state))).toBe(0);
     }
+  });
+
+  it('steps sideways only while sidestepping, and returns to the lane', () => {
+    const sidestep = play(createMcAnimation(), 'sidestepping');
+    const duration = stateDurationMs('sidestepping');
+
+    expect(lateralOffsetRatio(sidestep)).toBeCloseTo(0);
+    expect(lateralOffsetRatio(advance(sidestep, duration / 2))).toBeCloseTo(1, 1);
+    expect(lateralOffsetRatio(advance(sidestep, duration * 0.95))).toBeLessThan(0.3);
+    expect(lateralOffsetRatio(play(createMcAnimation(), 'sliding'))).toBe(0);
   });
 
   it('crouches only while sliding, and fully in the middle', () => {

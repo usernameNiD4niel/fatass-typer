@@ -56,6 +56,14 @@ export interface ActiveObstacle {
    */
   readonly deadlineAtMs: number | null;
   readonly warned: boolean;
+  /**
+   * The deadline has passed and has been reported once.
+   *
+   * Separate from `status` on purpose: this module notices the deadline, but
+   * only `resolution.ts` decides what it costs, and a status set from two places
+   * is a status nobody owns. The flag is what keeps the report once-only.
+   */
+  readonly expired: boolean;
 }
 
 /**
@@ -103,6 +111,7 @@ export function placeObstacle(input: PlaceObstacleInput): ActiveObstacle {
     attachedAtMs: null,
     deadlineAtMs: null,
     warned: false,
+    expired: false,
   };
 }
 
@@ -216,10 +225,13 @@ export function advanceObstacle(
 
   if (
     current.status === 'active' &&
+    !current.expired &&
     current.deadlineAtMs !== null &&
     input.elapsedMs >= current.deadlineAtMs
   ) {
-    current = { ...current, status: 'missed' };
+    // The status stays `active`: `resolution.ts` turns this into a stumble or a
+    // hit, and it needs an unresolved obstacle to work on.
+    current = { ...current, expired: true };
     events.push({ type: 'deadlineExpired', obstacle: current });
   }
 

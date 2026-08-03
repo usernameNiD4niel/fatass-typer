@@ -17,9 +17,11 @@ export { DOG_COLORS, dogHeightPx, drawDog, drawDogPack } from './dog-renderer';
 export type { DogDrawOptions, DogPackDrawOptions } from './dog-renderer';
 export {
   advanceMcAnimation,
+  animationForMove,
   createMcAnimation,
   crouchRatio,
   isTerminal,
+  lateralOffsetRatio,
   locomotionFor,
   MC_ANIMATION_STATES,
   play,
