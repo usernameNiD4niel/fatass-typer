@@ -12,9 +12,22 @@ Data only. No logic.
 
 ## Contents
 
-- `maps.ts` — `MAP_1`, the only map so far. Distance, base speed, reaction buffer, chase
-  profile, boost profile, prompt categories, and unlock rule, all as data. Steps F2 and F3
-  tune it and add maps 2 to 6 without touching code.
+- `maps.ts` — all six maps (steps F2, F3). Distance, base speed, reaction buffer, chase
+  profile, boost profile, prompt categories, and unlock rule, all as data. The buffers run
+  1.70 → 1.08 and the accuracy gates 85% → 92%, exactly as spec §6 suggests.
+
+**The maps are tuned against a simulated typist**, not by feel —
+`game-runtime/session/playtest-harness.ts` plays a full run at an exact WPM, optionally
+mistyping at a fixed rate. `map-progression.test.ts` states the result as assertions: every
+map is finishable at its advertised speed _including while mistyping one character in
+twelve_, and no prompt any map can spawn demands more WPM than the map prints on its card.
+
+Difficulty is never one dial (spec §6). Each map raises the target speed, tightens the
+buffer, shortens the obstacle interval, widens the vocabulary, and adds obstacle kinds. The
+one lesson the tuning taught: **boost duration has to outlast the prompts a map draws.**
+Maps 3 to 6 all failed their error runs until their boosts were lengthened — long phrases
+with a short boost starve the player of speed no matter how gentle the chase is.
+
 - `obstacles.ts` — the seven obstacles from spec §5: crate, low barrier, puddle, trash bin,
   hanging sign, roadwork barrier, narrow passage. Each carries its avoidance action, its
   prompt category (which is what actually sets the difficulty), a flat reaction allowance,

@@ -130,21 +130,21 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 34 / 41 steps complete.** Phases A through E are finished. **Map 1 is
+**Progress: 35 / 41 steps complete.** Phases A through E are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **F2** — Map 1 tuned against a simulated typist |
-| **Next up** | **F3** — maps 2 to 6 (awaiting approval) |
+| **Last completed** | **F3** — maps 2 to 6, tuned across the whole ladder |
+| **Next up** | **F4** — adaptive assistance (awaiting approval) |
 
-**Map 1 is tuned (F2).** A 20 WPM typist finishes on every seed and still finishes while
-mistyping 8% of characters; 16 WPM with mistakes scrapes home; 10 WPM is caught. The
-survival threshold sits near 13 WPM. `session/playtest-harness.ts` drives a metronomic
-simulated typist and `map-1-playtest.test.ts` states those numbers as assertions — the maps
-are tuned against it rather than by feel, because playtesting a typing game by hand measures
-the tester.
+**All six maps are tuned (F2, F3).** `session/playtest-harness.ts` drives a metronomic
+simulated typist; `map-1-playtest.test.ts` and `map-progression.test.ts` state the results as
+assertions, because playtesting a typing game by hand measures the tester. Every map is
+finishable at its advertised speed *including while mistyping one character in twelve*, and
+no prompt a map can spawn demands more WPM than the map advertises. Survival thresholds run
+roughly 12 → 29 WPM across the ladder.
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -155,13 +155,13 @@ the tester.
 | C — Runtime + playable slice | ✅ 7 / 7 |
 | D — Obstacles & map rules | ✅ 5 / 5 |
 | E — UI shell | ✅ 7 / 7 |
-| F — Content, maps, storage | 🟨 2 / 5 |
+| F — Content, maps, storage | 🟨 3 / 5 |
 | G — Polish | ⬜ 0 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 855 passed, 51 files
+npm run test          # 879 passed, 52 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -192,8 +192,8 @@ comparison) and the quieter readouts and meters around it.
 and sends whole values through the bridge. `src/screens/game/` mounts the canvas and renders
 the prompt, HUD, and outcome. `src/game-runtime/session/` holds the run itself — a pure
 `run-session` plus the `RuntimeHost` that gives it a loop, a renderer, and a clock.
-`src/content/` has Map 1, the seven obstacle definitions, and the full vocabulary — around
-200 prompts across eight categories, gated by map number.
+`src/content/` has all six maps, the seven obstacle definitions, and the full vocabulary —
+around 200 prompts across eight categories, gated by map number.
 `src/game-core/obstacles/` schedules them and places them: seeded spawning, then a placement
 derived from the B5 timing budget so the prompt is always on screen early enough for the
 map's stated WPM, plus resolution — avoided, stumbled, or hit, decided once. See that
@@ -328,7 +328,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
       words, punctuation, numbers, short phrases, medium phrases, map-themed vocabulary.
       No slurs, no obscure words in beginner maps, no ambiguous whitespace. Spec §15.
 - [x] **F2** Map 1 tuned for a genuine 20 WPM typist. Playtest and adjust the numbers.
-- [ ] **F3** Maps 2–6: configs, visual themes, vocabulary, reaction buffers
+- [x] **F3** Maps 2–6: configs, visual themes, vocabulary, reaction buffers
       (1.55 → 1.40 → 1.28 → 1.18 → 1.08), unlock accuracy gates (85% → 92%). Data-driven,
       not hardcoded into systems. Spec §6.
 - [ ] **F4** Adaptive assistance: small clamped buffer adjustments after repeated

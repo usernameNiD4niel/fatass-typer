@@ -1,4 +1,4 @@
-export { findMap, MAP_1, MAPS } from './maps';
+export { findMap, MAP_1, MAP_2, MAP_3, MAP_4, MAP_5, MAP_6, MAPS } from './maps';
 export { findObstacle, OBSTACLES, obstaclesFor } from './obstacles';
 export {
   ALL_PROMPTS,
