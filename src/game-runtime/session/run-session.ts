@@ -9,13 +9,22 @@ import {
   createChaseState,
   normalizedDistance,
 } from '../../game-core/chase';
+import {
+  type AssistanceState,
+  assistedMap,
+  createAssistance,
+  registerFailure,
+  registerSuccess,
+} from '../../game-core/assistance';
 import { createPromptSelector, nextPrompt, type PromptSelector } from '../../game-core/content';
 import type {
+  AdaptiveAssistanceConfig,
   LiveRunStats,
   MapConfig,
   ObstacleDefinition,
   PromptEntry,
 } from '../../game-core/models';
+import { DEFAULT_ADAPTIVE_ASSISTANCE } from '../../game-core/models';
 import {
   type ActiveObstacle,
   advanceObstacles,
@@ -104,6 +113,9 @@ export interface RunSession {
 
   readonly obstaclePool: readonly ObstacleDefinition[];
   readonly spawner: SpawnerState;
+  /** Adaptive assistance (spec §6). Moves the reaction buffer, nothing else. */
+  readonly assistance: AssistanceState;
+  readonly assistanceConfig: AdaptiveAssistanceConfig;
   /** Obstacles currently in the world, nearest last. */
   readonly obstacles: readonly ActiveObstacle[];
 
@@ -164,6 +176,8 @@ export interface CreateRunSessionInput {
   readonly pool: readonly PromptEntry[];
   /** Obstacle definitions the map may draw from. Empty means a run with none. */
   readonly obstacles?: readonly ObstacleDefinition[];
+  /** Adaptive assistance. Pass `{ ...config, enabled: false }` to turn it off. */
+  readonly assistance?: AdaptiveAssistanceConfig;
   /** Same seed, same run — the property the whole test suite leans on. */
   readonly seed: string;
 }
@@ -188,6 +202,8 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     score: createScoreState(),
     obstaclePool: input.obstacles ?? [],
     spawner: createSpawner(createRngFromString(`${input.seed}:obstacles`), input.map.content),
+    assistance: createAssistance(),
+    assistanceConfig: input.assistance ?? DEFAULT_ADAPTIVE_ASSISTANCE,
     obstacles: [],
     completedPrompts: 0,
     obstaclesFaced: 0,
@@ -274,7 +290,10 @@ function spawnDueObstacles(session: RunSession): RunSessionResult {
       instanceId: `obstacle-${String(index)}`,
       definition,
       prompt: drawn.prompt,
-      map: session.map,
+      // Assistance enters here and only here: the obstacle is placed against a
+      // map whose reaction buffer has been nudged, so the extra time is real
+      // distance on the road rather than a special case in the deadline.
+      map: assistedMap(session.map, session.assistance),
       playerMeters: session.playerMeters,
       elapsedMs: session.elapsedMs,
     });
@@ -355,6 +374,7 @@ function applyResolution(session: RunSession, resolved: ResolvedObstacle): RunSe
       // Clearing an obstacle grants the same boost a typed word does — the
       // reward for good typing should not depend on which prompt it was.
       boostRemainingMs: next.map.boost.durationMs,
+      assistance: registerSuccess(next.assistance, next.assistanceConfig),
     };
   } else if (outcome === 'stumbled') {
     // Cheaper than a collision, and it still breaks the combo.
@@ -363,6 +383,9 @@ function applyResolution(session: RunSession, resolved: ResolvedObstacle): RunSe
       chase: chaseMissedPrompt(next.chase, profile),
       score: scoreMissedPrompt(next.score),
       stumbles: next.stumbles + 1,
+      // A stumble counts as a failure for assistance: the player ran out of
+      // road, which is exactly the thing more reaction time would have fixed.
+      assistance: registerFailure(next.assistance, next.assistanceConfig),
     };
     points = next.score.score - session.score.score;
   } else {
@@ -371,6 +394,7 @@ function applyResolution(session: RunSession, resolved: ResolvedObstacle): RunSe
       chase: chaseCollision(next.chase, profile),
       score: scoreCollision(next.score),
       collisions: next.collisions + 1,
+      assistance: registerFailure(next.assistance, next.assistanceConfig),
     };
     points = next.score.score - session.score.score;
   }

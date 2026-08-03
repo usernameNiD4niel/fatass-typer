@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 35 / 41 steps complete.** Phases A through E are finished. **Map 1 is
+**Progress: 36 / 41 steps complete.** Phases A through E are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **F3** — maps 2 to 6, tuned across the whole ladder |
-| **Next up** | **F4** — adaptive assistance (awaiting approval) |
+| **Last completed** | **F4** — adaptive assistance (dormant under current tuning) |
+| **Next up** | **F5** — `StorageAdapter` and run history (awaiting approval) |
 
 **All six maps are tuned (F2, F3).** `session/playtest-harness.ts` drives a metronomic
 simulated typist; `map-1-playtest.test.ts` and `map-progression.test.ts` state the results as
@@ -145,6 +145,12 @@ assertions, because playtesting a typing game by hand measures the tester. Every
 finishable at its advertised speed *including while mistyping one character in twelve*, and
 no prompt a map can spawn demands more WPM than the map advertises. Survival thresholds run
 roughly 12 → 29 WPM across the ladder.
+
+**Adaptive assistance is dormant (F4).** It is implemented, wired, clamped, and honours its
+setting — but it triggers on missed obstacles, and the obstacle timing budget is generous
+enough that a player missing obstacles has already been caught by the dogs. 360 simulated
+runs produced no easing. `game-core/assistance/README.md` explains why and what changing it
+would mean; the dormancy is pinned by a test so it cannot shift unnoticed.
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -155,13 +161,13 @@ roughly 12 → 29 WPM across the ladder.
 | C — Runtime + playable slice | ✅ 7 / 7 |
 | D — Obstacles & map rules | ✅ 5 / 5 |
 | E — UI shell | ✅ 7 / 7 |
-| F — Content, maps, storage | 🟨 3 / 5 |
+| F — Content, maps, storage | 🟨 4 / 5 |
 | G — Polish | ⬜ 0 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 879 passed, 52 files
+npm run test          # 900 passed, 54 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -331,7 +337,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
 - [x] **F3** Maps 2–6: configs, visual themes, vocabulary, reaction buffers
       (1.55 → 1.40 → 1.28 → 1.18 → 1.08), unlock accuracy gates (85% → 92%). Data-driven,
       not hardcoded into systems. Spec §6.
-- [ ] **F4** Adaptive assistance: small clamped buffer adjustments after repeated
+- [x] **F4** Adaptive assistance: small clamped buffer adjustments after repeated
       failures or a sustained accuracy streak. Never aggressive enough to feel unfair.
       The displayed target WPM stays honest. Spec §6.
 - [ ] **F5** `StorageAdapter` interface + in-memory implementation + run history +

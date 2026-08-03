@@ -1,4 +1,9 @@
-import type { MapConfig, ObstacleDefinition, PromptEntry } from '../../game-core/models';
+import type {
+  AdaptiveAssistanceConfig,
+  MapConfig,
+  ObstacleDefinition,
+  PromptEntry,
+} from '../../game-core/models';
 import {
   advanceRunSession,
   applyRunInput,
@@ -32,6 +37,17 @@ export interface PlaytestInput {
   readonly obstacles: readonly ObstacleDefinition[];
   readonly wpm: number;
   readonly seed: string;
+  /** Adaptive assistance. Defaults to the game's own configuration. */
+  readonly assistance?: AdaptiveAssistanceConfig;
+  /**
+   * How long the typist takes to *notice* a new prompt before typing it.
+   *
+   * Zero by default, which is a perfect machine and the right baseline for
+   * tuning. A real player has this lag, and it is the only thing that makes an
+   * obstacle deadline missable — without it, the timing budget guarantees every
+   * prompt is finished in time and no obstacle is ever missed.
+   */
+  readonly reactionDelayMs?: number;
   /**
    * Fraction of characters typed wrong, 0..1. A perfect typist is not a
    * realistic one, and a map tuned only against perfection is tuned wrong.
@@ -69,6 +85,7 @@ export function playtest(input: PlaytestInput): PlaytestResult {
       pool: input.prompts,
       obstacles: input.obstacles,
       seed: input.seed,
+      ...(input.assistance === undefined ? {} : { assistance: input.assistance }),
     }),
   ).session;
 
@@ -77,8 +94,17 @@ export function playtest(input: PlaytestInput): PlaytestResult {
   let mistakes = 0;
   let closest = 1;
   let pendingCorrection = false;
+  let seenPromptId = session.prompt?.id ?? null;
+  const reactionDelayMs = input.reactionDelayMs ?? 0;
 
   for (let step = 0; step < (input.maxSteps ?? 60_000) && session.phase === 'running'; step += 1) {
+    // A new prompt has to be noticed before it can be typed.
+    const promptId = session.prompt?.id ?? null;
+    if (promptId !== seenPromptId) {
+      seenPromptId = promptId;
+      nextKeyAtMs = Math.max(nextKeyAtMs, session.elapsedMs + reactionDelayMs);
+    }
+
     while (session.elapsedMs >= nextKeyAtMs && session.phase === 'running') {
       const target = session.prompt?.text ?? '';
       const typed = session.typing.typed;

@@ -1,6 +1,12 @@
 import type { GameCommand, GameEvent, GameHost } from '../../game-bridge';
-import type { MapConfig, ObstacleDefinition, PromptEntry, RunResult } from '../../game-core/models';
-import { CURRENT_SCHEMA_VERSION } from '../../game-core/models';
+import type {
+  AdaptiveAssistanceConfig,
+  MapConfig,
+  ObstacleDefinition,
+  PromptEntry,
+  RunResult,
+} from '../../game-core/models';
+import { CURRENT_SCHEMA_VERSION, DEFAULT_ADAPTIVE_ASSISTANCE } from '../../game-core/models';
 import {
   advanceDogPack,
   advanceMcAnimation,
@@ -89,6 +95,8 @@ export class RuntimeHost implements GameHost {
 
   private renderer: CanvasRenderer | null = null;
   private session: RunSession;
+  /** Applied to the *next* run, so a run's rules never change under way. */
+  private assistanceConfig: AdaptiveAssistanceConfig = DEFAULT_ADAPTIVE_ASSISTANCE;
   private mc: McAnimation = createMcAnimation();
   private dogs: DogPackState = createDogPack();
 
@@ -160,11 +168,21 @@ export class RuntimeHost implements GameHost {
 
         return;
 
-      // Only one map exists in the slice, and settings do not change the rules
-      // yet. Both are accepted rather than reported as errors: the UI is right
-      // to send them, and F5/E6 give them somewhere to land.
-      case 'loadMap':
       case 'setSettings':
+        // Only the settings that change the rules are read here. Theme, prompt
+        // size, and volumes belong to the UI and never reach the simulation.
+        this.assistanceConfig = {
+          ...DEFAULT_ADAPTIVE_ASSISTANCE,
+          enabled: command.settings.adaptiveAssistanceEnabled,
+        };
+        // A run already under way keeps the configuration it started with:
+        // changing the rules mid-run would make the result incomparable.
+        return;
+
+      // Which map to run is chosen before the runtime is built (the screen
+      // rebuilds it), so this is accepted and ignored rather than reported as
+      // an error — the UI is right to send it.
+      case 'loadMap':
         return;
     }
   }
@@ -210,6 +228,7 @@ export class RuntimeHost implements GameHost {
       map: this.options.map,
       pool: this.options.prompts,
       obstacles: this.options.obstacles ?? [],
+      assistance: this.assistanceConfig,
       // A restart is a fresh run, not a replay: a new seed means new prompts.
       seed: `${this.options.seed}:${String(Math.round(this.now()))}`,
     });
