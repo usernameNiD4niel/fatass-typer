@@ -1,9 +1,10 @@
-import { type JSX, useCallback, useState } from 'react';
+import { type JSX, useCallback, useEffect, useState } from 'react';
 
 import { Button } from './components/ui';
 import { findMap, MAP_1, MAPS, obstaclesFor } from './content';
 import type { PlayerProfile, RunResult } from './game-core/models';
 import { useAppliedSettings } from './hooks/useAppliedSettings';
+import { useGameAudio } from './hooks/useGameAudio';
 import { useAppMachine } from './hooks/useAppMachine';
 import { useMinimumWidth } from './hooks/useMinimumWidth';
 import { usePlayerProfile } from './hooks/usePlayerProfile';
@@ -38,6 +39,16 @@ export function App(): JSX.Element {
 
   // Theme, prompt size, and reduced motion reach the document from here.
   useAppliedSettings(profile.settings);
+  const audio = useGameAudio(profile.settings);
+
+  const inRun = machine.state === 'Running' || machine.state === 'Paused';
+
+  useEffect(() => {
+    // Menu music everywhere but the run; the run screen starts its own track
+    // when the player presses Start, which is also the gesture that unlocks
+    // audio in the first place.
+    if (!inRun) audio.setTrack('menu');
+  }, [audio, inRun]);
   // Which map was chosen — data the player picked, not navigation. Where they
   // are is the machine's business and stays there (CLAUDE.md §3).
   const [selectedMapId, setSelectedMapId] = useState<string>(MAP_1.id);
@@ -201,6 +212,7 @@ export function App(): JSX.Element {
         <main>
           <GameScreen
             mapId={selectedMapId}
+            audio={audio}
             onRunEnded={endRun}
             onRestart={() => {
               machine.send('RESTART_RUN');

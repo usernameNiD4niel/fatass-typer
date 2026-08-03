@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 37 / 41 steps complete.** Phases A through F are finished. **Map 1 is
+**Progress: 38 / 41 steps complete.** Phases A through F are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **F5** — storage seam, run history, progress persistence |
-| **Next up** | **G1** — the audio system (awaiting approval) |
+| **Last completed** | **G1** — synthesised audio: cues, music, danger layer |
+| **Next up** | **G2** — accessibility pass (awaiting approval) |
 
 **All six maps are tuned (F2, F3).** `session/playtest-harness.ts` drives a metronomic
 simulated typist; `map-1-playtest.test.ts` and `map-progression.test.ts` state the results as
@@ -151,6 +151,13 @@ setting — but it triggers on missed obstacles, and the obstacle timing budget 
 enough that a player missing obstacles has already been caught by the dogs. 360 simulated
 runs produced no easing. `game-core/assistance/README.md` explains why and what changing it
 would mean; the dormancy is pinned by a test so it cannot shift unnoticed.
+
+**Audio is entirely synthesised (G1).** No audio files, so nothing copyrighted and nothing
+to preload. `src/audio/` holds the engine behind a narrow `AudioContextLike` interface —
+jsdom has no Web Audio, so a recording `FakeAudioContext` is what makes the 24 tests assert
+on tones actually played rather than on mock calls. Nothing sounds before a user gesture
+(the Start button unlocks it), and every audio call is try/caught: silence is always an
+acceptable failure mode.
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -162,12 +169,12 @@ would mean; the dormancy is pinned by a test so it cannot shift unnoticed.
 | D — Obstacles & map rules | ✅ 5 / 5 |
 | E — UI shell | ✅ 7 / 7 |
 | F — Content, maps, storage | ✅ 5 / 5 |
-| G — Polish | ⬜ 0 / 4 |
+| G — Polish | 🟨 1 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 937 passed, 57 files
+npm run test          # 961 passed, 57 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -347,7 +354,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
 
 ### Phase G — Polish
 
-- [ ] **G1** Audio system: menu music, running music, danger layer as dogs approach,
+- [x] **G1** Audio system: menu music, running music, danger layer as dogs approach,
       correct-character feedback, prompt-complete, boost, obstacle warning, collision,
       victory, game-over. Placeholders only, no copyrighted audio. Audio starts only
       after user interaction. Volume settings, music and SFX toggles. Spec §11.

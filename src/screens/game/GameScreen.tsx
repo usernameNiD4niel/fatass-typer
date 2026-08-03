@@ -10,6 +10,7 @@ import type {
   GameState,
   PromptViewModel,
 } from '../../game-bridge/messages';
+import type { GameAudio } from '../../hooks/useGameAudio';
 import { findMap } from '../../content';
 import { EMPTY_LIVE_STATS, type LiveRunStats, type RunResult } from '../../game-core/models';
 import styles from './GameScreen.module.css';
@@ -44,6 +45,8 @@ function formatWpm(value: number): string {
 export interface GameScreenProps {
   /** Which map to run. Defaults to Map 1 when the caller has not chosen. */
   readonly mapId?: string;
+  /** The app's audio. Absent means a silent run, which is always acceptable. */
+  readonly audio?: GameAudio;
   /**
    * The run ended. The shell decides what happens next — this screen reports
    * the outcome and stops there, so navigation stays with the state machine.
@@ -55,6 +58,7 @@ export interface GameScreenProps {
 
 export function GameScreen({
   mapId,
+  audio,
   onRunEnded,
   onQuit,
   onRestart,
@@ -65,6 +69,11 @@ export function GameScreen({
   // down — every time the parent hands over a fresh callback.
   const endedRef = useRef(onRunEnded);
   endedRef.current = onRunEnded;
+  // Same reasoning: the mount effect must not re-run — and tear the runtime
+  // down — because a parent handed over a fresh audio object.
+  const audioRef = useRef(audio);
+  audioRef.current = audio;
+  const typedRef = useRef('');
 
   const [ready, setReady] = useState(false);
   const [state, setState] = useState<GameState>('uninitialized');
@@ -104,11 +113,20 @@ export function GameScreen({
         case 'promptChanged':
           setPrompt(event.prompt);
           setTyped('');
+          typedRef.current = '';
           // A new prompt starts with no deadline until the runtime reports one.
           setDeadline({ remainingMs: event.prompt?.remainingMs ?? null, pressure: 'safe' });
           break;
         case 'statsUpdated':
           setStats(event.stats);
+          // The danger layer follows the gap, at the bridge's ~10Hz.
+          audioRef.current?.setDanger(1 - event.stats.dogDistanceNormalized);
+          break;
+        case 'obstacleWarning':
+          audioRef.current?.play('obstacleWarning');
+          break;
+        case 'playerHit':
+          audioRef.current?.play(event.reason === 'stumbled' ? 'stumble' : 'collision');
           break;
         case 'deadlineChanged':
           setDeadline({ remainingMs: event.remainingMs, pressure: event.pressure });
@@ -116,6 +134,8 @@ export function GameScreen({
         case 'levelCompleted':
         case 'gameOver':
           setResult(event.result);
+          audioRef.current?.setDanger(0);
+          audioRef.current?.play(event.type === 'levelCompleted' ? 'victory' : 'gameOver');
           endedRef.current?.(event.result);
           break;
         case 'fatalError':
@@ -153,8 +173,42 @@ export function GameScreen({
 
   const start = useCallback(() => {
     setResult(null);
+    // This is a click, so it is a legitimate moment to start the audio context.
+    audioRef.current?.unlock();
+    audioRef.current?.setTrack('running');
     send(finished ? { type: 'restart' } : { type: 'startRun' });
   }, [finished, send]);
+
+  /**
+   * Per-character feedback (spec §11).
+   *
+   * Driven from the field's own value rather than a bridge event: keystrokes
+   * happen at typing speed, and pushing one event per character through a
+   * bridge that exists to throttle traffic would be working against it.
+   */
+  const handleTyped = useCallback(
+    (value: string) => {
+      const previous = typedRef.current;
+      typedRef.current = value;
+      setTyped(value);
+
+      if (value.length <= previous.length) return;
+
+      const target = prompt?.text ?? '';
+      const correct = target.slice(0, value.length).toLowerCase() === value.toLowerCase();
+
+      if (!correct) {
+        audioRef.current?.play('mistake');
+
+        return;
+      }
+
+      // A completed prompt gets its own sound; the last correct character does
+      // not also click, or the two would collide.
+      audioRef.current?.play(value.length === target.length ? 'promptComplete' : 'keystroke');
+    },
+    [prompt],
+  );
 
   // Escape pauses from anywhere on the screen, not only from the typing field —
   // a player who clicked away still expects it to work (spec §4).
@@ -227,7 +281,7 @@ export function GameScreen({
         disabled={!running}
         promptId={prompt?.promptId ?? null}
         label={prompt ? `Type: ${prompt.text}` : 'Type the prompt'}
-        onValueChange={setTyped}
+        onValueChange={handleTyped}
         onEscape={togglePause}
       />
 
