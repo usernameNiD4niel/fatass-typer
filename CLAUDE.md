@@ -113,11 +113,64 @@ Read this before starting any step.
    `[!]` with a one-line reason rather than `[x]`.
 4. At the end of each step, report three things: files added/changed, the exact command
    to verify it, anything left incomplete.
+5. **Update the RESUME HERE block below** whenever a step's status changes. That block is
+   how a new session finds its place.
 5. Do not rewrite earlier steps' work without a stated reason. Preserve working behavior.
 6. Never leave `// implementation goes here` placeholders. A simple working
    implementation beats a stub.
 
 Status legend: `[ ]` todo · `[~]` in progress · `[x]` done and tested · `[!]` blocked
+
+**The user approves each step before it starts.** Complete one step, report, then stop and
+wait. Do not begin the next step unprompted.
+
+---
+
+## 4a. RESUME HERE
+
+> Keep this block current. It is the first thing to read when picking the project back up.
+
+**Progress: 14 / 41 steps complete.** Phases A and B are finished; phase C has started.
+
+| | |
+|---|---|
+| **Last completed** | **C1** — fixed-timestep game loop |
+| **Next up** | **C2** — canvas 2D renderer scaffold (awaiting user approval to start) |
+| **In progress** | none — no step is half-done |
+| **Blocked** | none |
+
+| Phase | Status |
+|---|---|
+| A — Foundation | ✅ 5 / 5 |
+| B — `game-core` pure rules | ✅ 8 / 8 |
+| C — Runtime + playable slice | 🟨 1 / 7 |
+| D — Obstacles & map rules | ⬜ 0 / 5 |
+| E — UI shell | ⬜ 0 / 7 |
+| F — Content, maps, storage | ⬜ 0 / 5 |
+| G — Polish | ⬜ 0 / 4 |
+
+**Health at this checkpoint** — all green, verified by actually running them:
+
+```bash
+npm run test          # 327 passed, 15 files
+npm run lint          # clean
+npm run typecheck     # clean
+npm run format:check  # clean
+npm run build         # succeeds
+```
+
+**What exists so far.** The complete rules engine, pure and DOM-free, under
+`src/game-core/`: `models/` `app-state/` `typing/` `stats/` `timing/` `chase/` `scoring/`
+`random/` `content/`. Plus the Vite/React scaffold, design tokens, and a throwaway
+state-machine harness in `App.tsx` that phase E replaces.
+
+`src/game-runtime/loop/` now holds the frame driver: `drainAccumulator` (pure timestep
+arithmetic) and `GameLoop` (injected clock + scheduler, 60Hz fixed updates, interpolation
+alpha, frame and step clamps). Nothing calls it yet — C2 mounts it on a canvas.
+
+**What does not exist yet.** Nothing renders. There is no canvas, no bridge, no real
+screen, and no content data. `game-bridge/`, `storage/`, `components/`, `screens/`, and
+`src/content/` hold only their README contracts.
 
 ---
 
@@ -166,7 +219,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 
 ### Phase C — Runtime and first playable slice
 
-- [ ] **C1** Fixed-timestep game loop with an accumulator, decoupled from the React
+- [x] **C1** Fixed-timestep game loop with an accumulator, decoupled from the React
       render cycle.
 - [ ] **C2** Canvas 2D renderer scaffold: side-scrolling camera, parallax background
       layers, asset manifest file with isolated asset paths. Spec §10.

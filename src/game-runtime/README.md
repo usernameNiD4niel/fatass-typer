@@ -13,5 +13,17 @@ parallax, and the per-frame work.
 
 ## Contents
 
-Populated by phase C: fixed-timestep loop, canvas scaffold, MC animation state machine,
-dog rendering. Obstacle rendering follows in phase D. See CLAUDE.md §5.
+- `loop/` — `drainAccumulator` (pure fixed-timestep arithmetic) and `GameLoop`, the frame
+  driver. The clock and the frame scheduler are injected via `LoopScheduler`, so tests
+  crank frames by hand instead of waiting on real time; `browserScheduler` is the
+  production one (`performance.now` + `requestAnimationFrame`).
+
+The simulation advances in constant 60Hz steps and the renderer gets an interpolation
+`alpha`, so the rules stay frame-rate independent. Two clamps protect the loop: a maximum
+frame length (a backgrounded tab reports a 60-second frame) and a maximum step count per
+frame (the spiral of death). Clamped time is dropped, never banked, and reported through
+`stats.droppedMs`. Callers must call `stop()` on unmount — a leaked rAF chain renders into
+a detached canvas forever.
+
+Still to come in phase C: canvas scaffold, MC animation state machine, dog rendering.
+Obstacle rendering follows in phase D. See CLAUDE.md §5.
