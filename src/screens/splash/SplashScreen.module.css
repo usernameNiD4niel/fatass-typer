@@ -1,0 +1,51 @@
+/*
+ * Splash / loading (spec §9, §16).
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  padding: var(--space-8);
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  color: var(--text-primary);
+}
+
+.tagline {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+}
+
+.progressTrack {
+  width: min(24rem, 80vw);
+  height: 0.5rem;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--accent-default);
+  border-radius: var(--radius-pill);
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+/* Text, not just the bar: a progress bar alone tells a screen-reader user
+   nothing, and tells a sighted user nothing about what is stuck. */
+.status {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}

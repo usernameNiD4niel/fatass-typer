@@ -1,28 +1,91 @@
-import type { JSX } from 'react';
+import { type JSX, useCallback } from 'react';
+
+import { MAPS } from './content';
 import { useAppMachine } from './hooks/useAppMachine';
+import { usePlayerProfile } from './hooks/usePlayerProfile';
 import { GameScreen } from './screens/game';
+import { hasProgress, MainMenu } from './screens/main-menu';
+import { SplashScreen } from './screens/splash';
 
 /**
- * Scaffold shell driving the app state machine directly.
+ * The app shell.
  *
- * This is a development harness, not the real UI — every state gets one button
- * per legal event so the graph from spec §4 can be walked by hand. Real screens
- * replace it in phase E.
+ * Navigation is the state machine's, never a local boolean (CLAUDE.md §3): this
+ * renders whatever screen the current state calls for and sends events back.
  *
- * The one real screen so far is the playable slice, which the harness mounts
- * whenever the machine is in a run state.
+ * States without a screen yet fall through to the development harness — a button
+ * per legal transition — so the graph in spec §4 stays walkable while phases E
+ * and F fill the gaps in. The harness disappears when the last screen lands.
  */
 export function App(): JSX.Element {
   const machine = useAppMachine();
-  const inRun = machine.state === 'Running' || machine.state === 'Paused';
+  const { profile } = usePlayerProfile();
 
+  const startRun = useCallback(() => {
+    machine.send('OPEN_MAP_SELECTION');
+  }, [machine]);
+
+  switch (machine.state) {
+    case 'Boot':
+      return (
+        <main>
+          <SplashScreen
+            onReady={() => {
+              machine.send('BOOT_COMPLETE');
+            }}
+          />
+        </main>
+      );
+
+    case 'MainMenu':
+      return (
+        <main>
+          <MainMenu
+            profile={profile}
+            maps={MAPS}
+            onStart={startRun}
+            // Only offered when there is something to come back to.
+            {...(hasProgress(profile, MAPS) ? { onContinue: startRun } : {})}
+            onMaps={() => {
+              machine.send('OPEN_MAP_SELECTION');
+            }}
+            // No `onStatistics`: the machine has no Statistics state yet, so the
+            // menu shows the control disabled rather than routing nowhere. E6
+            // adds the screen.
+            onSettings={() => {
+              machine.send('OPEN_SETTINGS');
+            }}
+          />
+        </main>
+      );
+
+    case 'Running':
+    case 'Paused':
+      return (
+        <main>
+          <GameScreen />
+          <MachineHarness machine={machine} />
+        </main>
+      );
+
+    default:
+      return (
+        <main>
+          <MachineHarness machine={machine} />
+        </main>
+      );
+  }
+}
+
+/**
+ * The development harness for states that have no screen yet.
+ *
+ * Every legal event gets a button, and only legal events do — the machine
+ * decides what is offered, so the harness cannot drift from the graph.
+ */
+function MachineHarness({ machine }: { machine: ReturnType<typeof useAppMachine> }): JSX.Element {
   return (
-    <main className="scaffold">
-      <h1 className="scaffold__title">Typing Chase</h1>
-      <p className="scaffold__subtitle">
-        Step A5 complete — the app state machine drives navigation. Real screens arrive in phase E.
-      </p>
-
+    <section className="scaffold">
       <p className="scaffold__state" aria-live="polite">
         State: <strong>{machine.state}</strong>
         {machine.context.settingsOrigin !== null && (
@@ -44,8 +107,6 @@ export function App(): JSX.Element {
           </button>
         ))}
       </nav>
-
-      {inRun && <GameScreen />}
-    </main>
+    </section>
   );
 }
