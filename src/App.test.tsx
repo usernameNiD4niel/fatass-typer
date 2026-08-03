@@ -11,7 +11,7 @@ import { App } from './App';
  * legal events, so it is a fair stand-in until phases E and F replace it.
  */
 
-/** Boots past the splash and lands on the main menu. */
+/** Boots past the splash, dismisses the first-run tutorial, lands on the menu. */
 async function boot(user: ReturnType<typeof userEvent.setup>) {
   render(<App />);
   await user.click(screen.getByRole('button', { name: 'Skip' }));
@@ -19,6 +19,8 @@ async function boot(user: ReturnType<typeof userEvent.setup>) {
   await waitFor(() => {
     expect(screen.getByRole('heading', { level: 1, name: 'Typing Chase' })).toBeInTheDocument();
   });
+
+  await user.click(screen.getByRole('button', { name: 'Got it' }));
 }
 
 describe('App', () => {
@@ -111,6 +113,25 @@ describe('App', () => {
     // Pausing is meaningless outside a run, so no such control exists.
     expect(screen.queryByRole('button', { name: 'PAUSE' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'RESUME' })).not.toBeInTheDocument();
+  });
+
+  it('shows the tutorial once, on the first visit to the menu', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'Skip' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'How Typing Chase works' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Got it' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // And it does not come back: dismissing it records that it was seen.
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('offers no Continue on a fresh profile', async () => {

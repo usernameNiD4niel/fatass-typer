@@ -1,9 +1,11 @@
 import { type JSX, useCallback, useState } from 'react';
 
+import { Button } from './components/ui';
 import { findMap, MAP_1, MAPS, obstaclesFor } from './content';
 import type { RunResult } from './game-core/models';
 import { useAppliedSettings } from './hooks/useAppliedSettings';
 import { useAppMachine } from './hooks/useAppMachine';
+import { useMinimumWidth } from './hooks/useMinimumWidth';
 import { usePlayerProfile } from './hooks/usePlayerProfile';
 import { GameScreen } from './screens/game';
 import { LevelBriefing } from './screens/level-briefing';
@@ -13,6 +15,8 @@ import { RunResults, unlockedMap } from './screens/results';
 import { SettingsScreen } from './screens/settings';
 import { SplashScreen } from './screens/splash';
 import { StatisticsScreen } from './screens/statistics';
+import { Tutorial } from './screens/tutorial';
+import { WidthGuard } from './screens/width-guard';
 
 /**
  * The app shell.
@@ -20,13 +24,17 @@ import { StatisticsScreen } from './screens/statistics';
  * Navigation is the state machine's, never a local boolean (CLAUDE.md §3): this
  * renders whatever screen the current state calls for and sends events back.
  *
- * States without a screen yet fall through to the development harness — a button
- * per legal transition — so the graph in spec §4 stays walkable while phases E
- * and F fill the gaps in. The harness disappears when the last screen lands.
+ * Every state now has a real screen — the development harness that stood in for
+ * them through phases A to E is gone. The `switch` is exhaustive, so adding a
+ * state to the machine fails the build here until it has somewhere to go.
  */
+/** Below this the game is not playable; spec §9 asks for an explanation, not a squeeze. */
+const MINIMUM_WIDTH_PX = 1024;
+
 export function App(): JSX.Element {
   const machine = useAppMachine();
   const { profile, setProfile, resetProgress } = usePlayerProfile();
+  const wideEnough = useMinimumWidth(MINIMUM_WIDTH_PX);
 
   // Theme, prompt size, and reduced motion reach the document from here.
   useAppliedSettings(profile.settings);
@@ -41,6 +49,10 @@ export function App(): JSX.Element {
   const startRun = useCallback(() => {
     machine.send('OPEN_MAP_SELECTION');
   }, [machine]);
+
+  const completeTutorial = useCallback(() => {
+    setProfile({ ...profile, settings: { ...profile.settings, tutorialCompleted: true } });
+  }, [profile, setProfile]);
 
   const chooseMap = useCallback(
     (mapId: string) => {
@@ -64,6 +76,16 @@ export function App(): JSX.Element {
     [machine],
   );
 
+  // Checked before anything else: there is no point rendering a HUD the player
+  // cannot use, and no point mounting a canvas they cannot see.
+  if (!wideEnough) {
+    return (
+      <main>
+        <WidthGuard minimumWidthPx={MINIMUM_WIDTH_PX} />
+      </main>
+    );
+  }
+
   switch (machine.state) {
     case 'Boot':
       return (
@@ -79,6 +101,8 @@ export function App(): JSX.Element {
     case 'MainMenu':
       return (
         <main>
+          {/* Once, before the first run. Dismissing it records that it was seen. */}
+          <Tutorial open={!profile.settings.tutorialCompleted} onDismiss={completeTutorial} />
           <MainMenu
             profile={profile}
             maps={MAPS}
@@ -181,7 +205,13 @@ export function App(): JSX.Element {
       return (
         <main>
           {lastResult === null ? (
-            <MachineHarness machine={machine} />
+            // No result to show: only reachable if a run ended without reporting
+            // one. Say so and offer the way out rather than showing empty stats.
+            <NoResult
+              onReturnToMaps={() => {
+                machine.send(machine.can('RETURN_TO_MAPS') ? 'RETURN_TO_MAPS' : 'SHOW_RESULTS');
+              }}
+            />
           ) : (
             <RunResults
               result={lastResult}
@@ -207,45 +237,26 @@ export function App(): JSX.Element {
         </main>
       );
 
-    default:
+    case 'PlayerHit':
+      // A collision is part of the run, not a screen of its own: the canvas
+      // shows it and the simulation carries on.
       return (
         <main>
-          <MachineHarness machine={machine} />
+          <GameScreen mapId={selectedMapId} onRunEnded={endRun} />
         </main>
       );
   }
 }
 
-/**
- * The development harness for states that have no screen yet.
- *
- * Every legal event gets a button, and only legal events do — the machine
- * decides what is offered, so the harness cannot drift from the graph.
- */
-function MachineHarness({ machine }: { machine: ReturnType<typeof useAppMachine> }): JSX.Element {
+/** The one dead end worth handling: a concluded run with nothing to report. */
+function NoResult({ onReturnToMaps }: { onReturnToMaps: () => void }): JSX.Element {
   return (
-    <section className="scaffold">
-      <p className="scaffold__state" aria-live="polite">
-        State: <strong>{machine.state}</strong>
-        {machine.context.settingsOrigin !== null && (
-          <span className="scaffold__origin"> (returns to {machine.context.settingsOrigin})</span>
-        )}
-      </p>
-
-      <nav className="scaffold__events" aria-label="Legal transitions">
-        {machine.available.map((type) => (
-          <button
-            key={type}
-            type="button"
-            className="scaffold__event"
-            onClick={() => {
-              machine.send(type);
-            }}
-          >
-            {type}
-          </button>
-        ))}
-      </nav>
+    <section className="fallback" aria-label="No result">
+      <h1>That run did not report a result</h1>
+      <p>Nothing was recorded, so there is nothing to show.</p>
+      <Button variant="primary" onClick={onReturnToMaps}>
+        Return to maps
+      </Button>
     </section>
   );
 }

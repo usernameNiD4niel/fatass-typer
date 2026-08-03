@@ -41,6 +41,12 @@ results, settings, statistics, tutorial.
   settings, since those are preferences, not achievements.
 - `statistics/` — the lifetime view (step E6). The headline is the sustainable peak, with a
   note saying what it means. A map never played shows a dash, not a zero.
+- `tutorial/` — four things, once, before the first run (step E7). A dialog rather than a
+  screen: the player asked to start, and this is a short interruption to that, not a detour
+  they have to navigate back out of. Dismissing it records that it was seen.
+- `width-guard/` — shown below 1024px (step E7). The game needs a physical keyboard and a
+  wide view of the track, so a narrow window is a real limitation rather than a layout that
+  could be squeezed — but it names the width to reach instead of being a dead end.
 - `game/` — the playable screen (step C7). Mounts a canvas, attaches a bridge to it via
   `attachGame`, and renders what comes back: the active prompt, a minimal HUD, the typing
   field, and the run outcome. Step E4 designs the real HUD and E5 the results screens.
@@ -49,8 +55,9 @@ It imports `game-bridge` and never `game-runtime`. Everything it shows arrives a
 bridge's ~10Hz, so no per-frame data reaches React. Unmounting tears down the loop, the
 canvas, and the bridge together.
 
-States with no screen yet fall through to the development harness in `App.tsx` — a button
-per legal transition. It shrinks as phase E lands and disappears with the last screen.
+Every state now has a screen, and the development harness that stood in for them is gone.
+`App.tsx` switches exhaustively over the machine's states, so adding a state fails the build
+until it has somewhere to go.
 
 Which map the player picked lives in `App.tsx` state. That is _data_, not navigation: where
 the player is stays the machine's business (CLAUDE.md §3).
@@ -61,4 +68,4 @@ hook only says _which_: `data-theme`, `--prompt-font-size`, `data-reduced-motion
 reduced-motion setting **removes** the attribute rather than setting it off, so a system
 asking for less motion is never overruled by a default.
 
-The rest of the screens arrive in phase E. See CLAUDE.md §5.
+See CLAUDE.md §5 for what remains.

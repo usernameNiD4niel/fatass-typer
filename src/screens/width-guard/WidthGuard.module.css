@@ -1,0 +1,34 @@
+/*
+ * Desktop width guard (spec §9).
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-8);
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.body {
+  max-width: 32rem;
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.detail {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}

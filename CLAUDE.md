@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 31 / 41 steps complete.** Phases A, B, C, and D are finished. **Map 1 is
+**Progress: 32 / 41 steps complete.** Phases A through E are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **E6** — settings and statistics screens |
-| **Next up** | **E7** — tutorial, width guard, theme wiring (awaiting approval) |
+| **Last completed** | **E7** — tutorial, width guard, harness retired |
+| **Next up** | **F1** — the word and phrase content files (awaiting approval) |
 
 **Open tuning finding (for F2).** A 10 WPM typist — *half* the advertised speed — still
 finishes Map 1 comfortably. Map 1 is meant to be forgiving, but that much slack means the
@@ -152,14 +152,14 @@ chase is doing less work than the label implies. Recorded as a test in
 | B — `game-core` pure rules | ✅ 8 / 8 |
 | C — Runtime + playable slice | ✅ 7 / 7 |
 | D — Obstacles & map rules | ✅ 5 / 5 |
-| E — UI shell | 🟨 6 / 7 |
+| E — UI shell | ✅ 7 / 7 |
 | F — Content, maps, storage | ⬜ 0 / 5 |
 | G — Polish | ⬜ 0 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 830 passed, 48 files
+npm run test          # 843 passed, 51 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -202,11 +202,12 @@ consequences applied to chase distance, combo, score, and run statistics. Escape
 anywhere on the screen.
 
 `src/screens/` now has the splash, main menu, map selection, level briefing, run results,
-settings, and statistics alongside the game screen, and `App.tsx` routes to them from the state machine. Choosing a
-map on the selection screen is what the run actually uses, and a finished run reports its
-result up to the shell, which owns what happens next. States without a screen still fall through
-to the development harness. `src/hooks/usePlayerProfile.ts` holds the profile in memory —
-a placeholder F5 replaces with the `StorageAdapter`.
+settings, statistics, tutorial, and width guard alongside the game screen. `App.tsx` routes
+to them exhaustively from the state machine, so a new state fails the build until it has a
+screen — the development harness is gone. Choosing a map is what the run actually uses, and
+a finished run reports its result up to the shell, which owns what happens next.
+`src/hooks/usePlayerProfile.ts` holds the profile in memory — a placeholder F5 replaces with
+the `StorageAdapter`.
 
 **What does not exist yet.** No
 persistence — `storage/` is still a README, and progress does not survive a reload. The UI
@@ -315,7 +316,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
       mistakes, new records, unlocks, Retry / Next Map / Return to Maps).
 - [x] **E6** Settings screen (theme, reduced motion, prompt text size, mistake behavior,
       volumes, dev-only reset progress) + Statistics screen.
-- [ ] **E7** First-run tutorial + desktop width guard (polished message below 1024px) +
+- [x] **E7** First-run tutorial + desktop width guard (polished message below 1024px) +
       light/dark theme wiring across all screens.
 
 ### Phase F — Content, maps, storage
