@@ -34,7 +34,9 @@ a detached canvas forever.
   running, boosting, jumping, sliding, stumbling, hit, victory, caught) — pure, with
   interrupt priorities so a collision can cut a jump short but never the reverse.
   `mc-renderer.ts` draws him from vector shapes in body units, so `heightPx` is the only
-  dial and a sprite sheet can replace the file wholesale.
+  dial and a sprite sheet can replace the file wholesale. `dog-pack.ts` turns the chase
+  model's single gap number into three animals; `dog-renderer.ts` draws them with danger
+  cues that escalate with `chaseThreat`.
 - `assets/` — the asset manifest. Every asset path in the game is declared here and
   nowhere else; nothing builds a path by concatenation. All entries are currently
   `optional`, because the scene is drawn from vector shapes (spec §10 permits this for the
@@ -47,8 +49,12 @@ setting.
 Testing the renderer: `src/test/fake-canvas.ts` provides a recording `Canvas2D` stub. jsdom
 has no 2D context, and the narrow interface exists so tests can assert on draw calls.
 
+There is one chase, not three. The dogs' positions are derived from `ChaseState` on the
+frame they are drawn, so the picture and the HUD number cannot disagree. Nothing in
+`actors/` can change the gap or decide a catch.
+
 Animation never drives the world. The run cycle advances by distance travelled, so speed
 comes from the rules and the legs follow — never the other way round (CLAUDE.md §5).
 
-Still to come in phase C: dog rendering. Obstacle rendering follows in phase D.
-See CLAUDE.md §5.
+Still to come in phase C: the bridge, typing input, and the vertical slice. Obstacle
+rendering follows in phase D. See CLAUDE.md §5.

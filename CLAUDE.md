@@ -130,12 +130,12 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 16 / 41 steps complete.** Phases A and B are finished; phase C has started.
+**Progress: 17 / 41 steps complete.** Phases A and B are finished; phase C has started.
 
 | | |
 |---|---|
-| **Last completed** | **C3** — MC vector placeholder + animation state machine |
-| **Next up** | **C4** — three dogs, driven by the B6 chase model (awaiting user approval) |
+| **Last completed** | **C4** — three dogs driven by the B6 chase model |
+| **Next up** | **C5** — the `game-bridge` command/event bus (awaiting user approval) |
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -143,7 +143,7 @@ wait. Do not begin the next step unprompted.
 |---|---|
 | A — Foundation | ✅ 5 / 5 |
 | B — `game-core` pure rules | ✅ 8 / 8 |
-| C — Runtime + playable slice | 🟨 3 / 7 |
+| C — Runtime + playable slice | 🟨 4 / 7 |
 | D — Obstacles & map rules | ⬜ 0 / 5 |
 | E — UI shell | ⬜ 0 / 7 |
 | F — Content, maps, storage | ⬜ 0 / 5 |
@@ -152,7 +152,7 @@ wait. Do not begin the next step unprompted.
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 413 passed, 22 files
+npm run test          # 442 passed, 24 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -168,8 +168,8 @@ state-machine harness in `App.tsx` that phase E replaces.
 `GameLoop` with an injected clock and scheduler, 60Hz fixed updates, interpolation alpha,
 frame and step clamps), `render/` (camera, parallax layers, theme palettes, HiDPI canvas
 sizing, `drawScene`, and the `CanvasRenderer` that owns the element), `actors/` (the MC's animation
-state machine and his vector placeholder art), and `assets/` (the manifest — all entries
-optional, since the scene is vector placeholder art).
+state machine and vector art, plus the three-dog pack derived from `ChaseState`), and
+`assets/` (the manifest — all entries optional, since the art is vector placeholders).
 
 **What does not exist yet.** Nothing is on screen: no React component mounts a canvas and
 no loop is wired to a renderer. That is C3–C7. There is no bridge, no real screen, and no
@@ -230,7 +230,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 - [x] **C3** MC placeholder from vector shapes + animation state machine: idle, running,
       boosting, jumping, sliding, stumbling, hit, victory, caught. World speed is driven
       by game rules, not by animation speed. Spec §5, §10.
-- [ ] **C4** Three dogs rendered, positions driven by B6, with escalating visual danger
+- [x] **C4** Three dogs rendered, positions driven by B6, with escalating visual danger
       cues as they close in.
 - [ ] **C5** Bridge: `GameCommand` in, `GameEvent` out per spec §13. Validate messages
       at the boundary. Emit stats at a fixed ~10Hz, never per frame. Clean up listeners
