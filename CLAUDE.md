@@ -130,12 +130,12 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 14 / 41 steps complete.** Phases A and B are finished; phase C has started.
+**Progress: 15 / 41 steps complete.** Phases A and B are finished; phase C has started.
 
 | | |
 |---|---|
-| **Last completed** | **C1** — fixed-timestep game loop |
-| **Next up** | **C2** — canvas 2D renderer scaffold (awaiting user approval to start) |
+| **Last completed** | **C2** — canvas renderer scaffold (camera, parallax, asset manifest) |
+| **Next up** | **C3** — MC placeholder + animation state machine (awaiting user approval) |
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -143,7 +143,7 @@ wait. Do not begin the next step unprompted.
 |---|---|
 | A — Foundation | ✅ 5 / 5 |
 | B — `game-core` pure rules | ✅ 8 / 8 |
-| C — Runtime + playable slice | 🟨 1 / 7 |
+| C — Runtime + playable slice | 🟨 2 / 7 |
 | D — Obstacles & map rules | ⬜ 0 / 5 |
 | E — UI shell | ⬜ 0 / 7 |
 | F — Content, maps, storage | ⬜ 0 / 5 |
@@ -152,7 +152,7 @@ wait. Do not begin the next step unprompted.
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 327 passed, 15 files
+npm run test          # 379 passed, 20 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -164,13 +164,16 @@ npm run build         # succeeds
 `random/` `content/`. Plus the Vite/React scaffold, design tokens, and a throwaway
 state-machine harness in `App.tsx` that phase E replaces.
 
-`src/game-runtime/loop/` now holds the frame driver: `drainAccumulator` (pure timestep
-arithmetic) and `GameLoop` (injected clock + scheduler, 60Hz fixed updates, interpolation
-alpha, frame and step clamps). Nothing calls it yet — C2 mounts it on a canvas.
+`src/game-runtime/` now holds `loop/` (the frame driver — `drainAccumulator` plus
+`GameLoop` with an injected clock and scheduler, 60Hz fixed updates, interpolation alpha,
+frame and step clamps), `render/` (camera, parallax layers, theme palettes, HiDPI canvas
+sizing, `drawScene`, and the `CanvasRenderer` that owns the element), and `assets/` (the
+manifest — all entries optional, since the scene is vector placeholder art).
 
-**What does not exist yet.** Nothing renders. There is no canvas, no bridge, no real
-screen, and no content data. `game-bridge/`, `storage/`, `components/`, `screens/`, and
-`src/content/` hold only their README contracts.
+**What does not exist yet.** Nothing is on screen: no React component mounts a canvas and
+no loop is wired to a renderer. That is C3–C7. There is no bridge, no real screen, and no
+content data — `game-bridge/`, `storage/`, `components/`, `screens/`, and `src/content/`
+hold only their README contracts.
 
 ---
 
@@ -221,7 +224,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 
 - [x] **C1** Fixed-timestep game loop with an accumulator, decoupled from the React
       render cycle.
-- [ ] **C2** Canvas 2D renderer scaffold: side-scrolling camera, parallax background
+- [x] **C2** Canvas 2D renderer scaffold: side-scrolling camera, parallax background
       layers, asset manifest file with isolated asset paths. Spec §10.
 - [ ] **C3** MC placeholder from vector shapes + animation state machine: idle, running,
       boosting, jumping, sliding, stumbling, hit, victory, caught. World speed is driven

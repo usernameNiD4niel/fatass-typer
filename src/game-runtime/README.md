@@ -25,5 +25,22 @@ frame (the spiral of death). Clamped time is dropped, never banked, and reported
 `stats.droppedMs`. Callers must call `stop()` on unmount — a leaked rAF chain renders into
 a detached canvas forever.
 
-Still to come in phase C: canvas scaffold, MC animation state machine, dog rendering.
-Obstacle rendering follows in phase D. See CLAUDE.md §5.
+- `render/` — the canvas scaffold. `camera.ts` (pure meters↔pixels, side-scroll clamping),
+  `parallax.ts` (depth-scrolled tiling layers), `palette.ts` (one scene palette per map
+  theme), `canvas-surface.ts` (HiDPI sizing + the narrow `Canvas2D` interface the renderer
+  draws through), `scene-renderer.ts` (`drawScene`, `groundYPx`), and `canvas-renderer.ts`
+  (`CanvasRenderer`, the one stateful object — owns the element, camera, and palette).
+- `assets/` — the asset manifest. Every asset path in the game is declared here and
+  nowhere else; nothing builds a path by concatenation. All entries are currently
+  `optional`, because the scene is drawn from vector shapes (spec §10 permits this for the
+  first implementation) — the manifest exists so real art can land without a refactor.
+
+Canvas colour comes from `render/palette.ts`, keyed by map theme. It is deliberately not
+wired to the light/dark design tokens: the scene is themed by the map, the UI by the user's
+setting.
+
+Testing the renderer: `src/test/fake-canvas.ts` provides a recording `Canvas2D` stub. jsdom
+has no 2D context, and the narrow interface exists so tests can assert on draw calls.
+
+Still to come in phase C: MC animation state machine, dog rendering. Obstacle rendering
+follows in phase D. See CLAUDE.md §5.
