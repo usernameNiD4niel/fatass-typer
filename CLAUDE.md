@@ -130,12 +130,12 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 18 / 41 steps complete.** Phases A and B are finished; phase C has started.
+**Progress: 19 / 41 steps complete.** Phases A and B are finished; phase C is nearly done.
 
 | | |
 |---|---|
-| **Last completed** | **C5** — the `game-bridge` command/event bus |
-| **Next up** | **C6** — typing input through a real focused `<input>` (awaiting approval) |
+| **Last completed** | **C6** — typing input through a real focused `<input>` |
+| **Next up** | **C7** — the vertical slice: first playable build (awaiting approval) |
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -143,7 +143,7 @@ wait. Do not begin the next step unprompted.
 |---|---|
 | A — Foundation | ✅ 5 / 5 |
 | B — `game-core` pure rules | ✅ 8 / 8 |
-| C — Runtime + playable slice | 🟨 5 / 7 |
+| C — Runtime + playable slice | 🟨 6 / 7 |
 | D — Obstacles & map rules | ⬜ 0 / 5 |
 | E — UI shell | ⬜ 0 / 7 |
 | F — Content, maps, storage | ⬜ 0 / 5 |
@@ -152,7 +152,7 @@ wait. Do not begin the next step unprompted.
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 478 passed, 26 files
+npm run test          # 506 passed, 28 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -175,9 +175,13 @@ state machine and vector art, plus the three-dog pack derived from `ChaseState`)
 validation, and `GameBridge` — which throttles live stats to ~10Hz and drops every listener
 on `destroy`. No host is attached to it yet; C7 supplies one.
 
-**What does not exist yet.** Nothing is on screen: no React component mounts a canvas and
-no loop is wired to a renderer. That is C6–C7. There is no real screen and no content data —
-`storage/`, `components/`, `screens/`, and `src/content/` hold only their README contracts.
+`src/components/typing-input/` is the first real component: a focused `<input>` that
+normalises text and sends whole values through the bridge.
+
+**What does not exist yet.** Nothing is on screen: no component mounts a canvas, no loop is
+wired to a renderer, and nothing handles the commands the typing field sends. That is C7.
+There is no real screen and no content data — `storage/`, `screens/`, and `src/content/`
+hold only their README contracts, and `components/` has only the typing field.
 
 ---
 
@@ -238,7 +242,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 - [x] **C5** Bridge: `GameCommand` in, `GameEvent` out per spec §13. Validate messages
       at the boundary. Emit stats at a fixed ~10Hz, never per frame. Clean up listeners
       on canvas unmount.
-- [ ] **C6** Typing input: a real focused `<input>` element — not global `keydown` — for
+- [x] **C6** Typing input: a real focused `<input>` element — not global `keydown` — for
       text construction. Backspace, punctuation, spaces. Ignore unsupported control keys.
       Send normalized input events through the bridge.
 - [ ] **C7** **Vertical slice.** Boost prompts grant a visible speed boost, the finish

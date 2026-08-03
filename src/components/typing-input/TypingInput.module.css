@@ -1,0 +1,57 @@
+/*
+ * The typing field.
+ *
+ * It is a real, visible, focusable <input>. It is not hidden off-screen: a
+ * screen-reader user needs to find it, and a sighted player needs to see where
+ * their text is going and whether the game still has focus (spec §12).
+ */
+
+.field {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font-family: inherit;
+  font-size: var(--font-size-lg);
+  line-height: 1.4;
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition:
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.field::placeholder {
+  color: var(--text-tertiary);
+}
+
+.field:focus-visible,
+.field:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring);
+}
+
+/*
+ * Focus lost mid-run. Colour alone would not carry this, so the component also
+ * renders a text message next to the field.
+ */
+.fieldUnfocused {
+  border-color: var(--status-warning);
+}
+
+.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.hint {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.hintWarning {
+  color: var(--status-warning);
+  font-weight: 600;
+}
