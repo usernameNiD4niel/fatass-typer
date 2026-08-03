@@ -186,6 +186,9 @@
      glassmorphism that harms readability. */
   --surface-translucent: rgb(255 255 255 / 0.82);
   --surface-scrim: rgb(14 17 22 / 0.44);
+  /* Panels that float over the canvas. Translucent, so the run stays visible. */
+  --surface-glass: rgb(255 255 255 / 0.82);
+  --surface-glass-strong: rgb(255 255 255 / 0.94);
 
   /* Text */
   --text-primary: var(--color-neutral-900);
@@ -253,6 +256,8 @@
   --surface-inverse: var(--color-neutral-50);
   --surface-translucent: rgb(24 28 35 / 0.84);
   --surface-scrim: rgb(0 0 0 / 0.58);
+  --surface-glass: rgb(20 24 31 / 0.78);
+  --surface-glass-strong: rgb(20 24 31 / 0.92);
 
   --text-primary: var(--color-neutral-50);
   --text-secondary: var(--color-neutral-300);
@@ -314,6 +319,8 @@
     --surface-inverse: var(--color-neutral-50);
     --surface-translucent: rgb(24 28 35 / 0.84);
     --surface-scrim: rgb(0 0 0 / 0.58);
+  --surface-glass: rgb(20 24 31 / 0.78);
+  --surface-glass-strong: rgb(20 24 31 / 0.92);
 
     --text-primary: var(--color-neutral-50);
     --text-secondary: var(--color-neutral-300);

@@ -11,7 +11,7 @@ import {
   threatLevel,
 } from '../../components/hud';
 import { type CommandSink, TypingInput } from '../../components/typing-input';
-import { Button, VisuallyHidden } from '../../components/ui';
+import { Button, classes, VisuallyHidden } from '../../components/ui';
 import { attachGame, type GameBridge } from '../../game-bridge';
 import type {
   DeadlinePressureLevel,
@@ -36,8 +36,15 @@ import styles from './GameScreen.module.css';
  * it: everything below arrives at the bridge's ~10Hz.
  */
 
-const CANVAS_WIDTH = 1024;
-const CANVAS_HEIGHT = 448;
+/**
+ * Size the canvas starts at, before the first measurement.
+ *
+ * The run fills the browser viewport, so the real size comes from the element
+ * itself — but a canvas needs *a* size to be created with, and a stage that
+ * flashed at the wrong aspect ratio for one frame would be visible.
+ */
+const FALLBACK_WIDTH = 1280;
+const FALLBACK_HEIGHT = 720;
 
 /**
  * Stands in for the bridge on the single render before the mount effect runs.
@@ -153,10 +160,13 @@ export function GameScreen({
   useEffect(() => {
     const map = mapId === undefined ? undefined : findMap(mapId);
 
+    const canvas = canvasRef.current;
+    const bounds = canvas?.getBoundingClientRect();
+
     const game = attachGame({
-      canvas: canvasRef.current,
-      widthPx: CANVAS_WIDTH,
-      heightPx: CANVAS_HEIGHT,
+      canvas,
+      widthPx: Math.round(bounds?.width ?? FALLBACK_WIDTH) || FALLBACK_WIDTH,
+      heightPx: Math.round(bounds?.height ?? FALLBACK_HEIGHT) || FALLBACK_HEIGHT,
       devicePixelRatio: window.devicePixelRatio,
       reducedMotion,
       // A new seed per run. The clock is read here, at the edge, because
@@ -236,9 +246,32 @@ export function GameScreen({
 
     game.bridge.send({ type: 'initialize', canvasId: 'game-canvas' });
 
+    /*
+     * The canvas follows the window.
+     *
+     * A `ResizeObserver` rather than a `resize` listener: the element can change
+     * size without the window doing so — a scrollbar appearing is enough — and
+     * a stretched backing store is the most visible bug a canvas can have.
+     */
+    const observer =
+      canvas === null || typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver((entries) => {
+            const entry = entries[0];
+            if (entry === undefined) return;
+
+            const { width, height } = entry.contentRect;
+            if (width < 1 || height < 1) return;
+
+            game.resize(Math.round(width), Math.round(height), window.devicePixelRatio);
+          });
+
+    if (canvas !== null) observer?.observe(canvas);
+
     // Everything is torn down together: a leaked loop would keep rendering into
     // a detached canvas and hold the whole run in memory.
     return () => {
+      observer?.disconnect();
       unsubscribe();
       game.destroy();
       bridgeRef.current = null;
@@ -356,68 +389,82 @@ export function GameScreen({
 
   return (
     <section className={styles.screen} aria-label="Typing Chase run">
-      <div className={styles.stage}>
-        <canvas
-          ref={canvasRef}
-          id="game-canvas"
-          className={styles.canvas}
-          width={CANVAS_WIDTH}
-          height={CANVAS_HEIGHT}
-          role="img"
-          aria-label="The runner and the chasing dogs"
-        />
-        {error !== null && <p className={styles.error}>{error}</p>}
-        {state === 'paused' && (
-          <PauseOverlay
-            onResume={togglePause}
-            onRestart={restart}
-            onQuit={() => {
-              onQuit?.();
-            }}
+      <canvas
+        ref={canvasRef}
+        id="game-canvas"
+        className={styles.canvas}
+        role="img"
+        aria-label="The runner, the track ahead, and the chasing dogs"
+      />
+
+      {/*
+        Everything below floats over the canvas and lets clicks through, except
+        the controls themselves. The grid is three rows: readouts up top, the
+        occasional message in the middle, the prompt where the eye already is.
+      */}
+      <div className={styles.overlay}>
+        <div className={styles.topBar}>
+          <Hud
+            stats={stats}
+            onPause={togglePause}
+            paused={state === 'paused'}
+            canPause={running || state === 'paused'}
           />
-        )}
+        </div>
+
+        <div className={styles.middle}>
+          {error !== null && <p className={classes(styles.banner, styles.error)}>{error}</p>}
+          {result !== null && (
+            <p className={styles.outcome}>
+              {result.completed
+                ? `Finished! Score ${String(Math.round(result.score))} at ${formatWpm(result.averageWpm)} WPM.`
+                : `Caught by the dogs. Score ${String(Math.round(result.score))}.`}
+            </p>
+          )}
+        </div>
+
+        <div className={styles.bottom}>
+          <div className={styles.console}>
+            <PromptDisplay
+              prompt={running || state === 'paused' ? prompt : null}
+              typed={typed}
+              deadlineMs={deadline.remainingMs}
+              pressure={deadline.pressure}
+              idleMessage={finished ? 'Run over' : 'Press Start when you are ready'}
+            />
+
+            <TypingInput
+              bridge={bridgeRef.current ?? DISCONNECTED_SINK}
+              disabled={!running}
+              promptId={prompt?.promptId ?? null}
+              label={prompt ? `Type: ${prompt.text}` : 'Type the prompt'}
+              onValueChange={handleTyped}
+              onEscape={togglePause}
+            />
+          </div>
+
+          <div className={styles.controls}>
+            {!running && (
+              <Button variant="primary" onClick={start} disabled={!ready}>
+                {finished ? 'Run again' : 'Start run'}
+              </Button>
+            )}
+            {/* Stated, not hidden in a tutorial the player saw once (spec §12). */}
+            <p className={styles.shortcuts}>
+              <kbd>Esc</kbd> pause · <kbd>Ctrl</kbd> + <kbd>Enter</kbd> restart
+            </p>
+          </div>
+        </div>
       </div>
 
-      <PromptDisplay
-        prompt={running || state === 'paused' ? prompt : null}
-        typed={typed}
-        deadlineMs={deadline.remainingMs}
-        pressure={deadline.pressure}
-        idleMessage={finished ? 'Run over' : 'Press Start when you are ready'}
-      />
-
-      <Hud
-        stats={stats}
-        onPause={togglePause}
-        paused={state === 'paused'}
-        canPause={running || state === 'paused'}
-      />
-
-      <div className={styles.controls}>
-        <Button variant="primary" onClick={start} disabled={!ready}>
-          {finished ? 'Run again' : 'Start run'}
-        </Button>
-        {/* Stated, not hidden in a tutorial the player saw once (spec §12). */}
-        <p className={styles.shortcuts}>
-          <kbd>Esc</kbd> pause · <kbd>Ctrl</kbd> + <kbd>Enter</kbd> restart
-        </p>
-      </div>
-
-      <TypingInput
-        bridge={bridgeRef.current ?? DISCONNECTED_SINK}
-        disabled={!running}
-        promptId={prompt?.promptId ?? null}
-        label={prompt ? `Type: ${prompt.text}` : 'Type the prompt'}
-        onValueChange={handleTyped}
-        onEscape={togglePause}
-      />
-
-      {result !== null && (
-        <p className={styles.outcome}>
-          {result.completed
-            ? `Finished! Score ${String(Math.round(result.score))} at ${formatWpm(result.averageWpm)} WPM.`
-            : `Caught by the dogs. Score ${String(Math.round(result.score))}.`}
-        </p>
+      {state === 'paused' && (
+        <PauseOverlay
+          onResume={togglePause}
+          onRestart={restart}
+          onQuit={() => {
+            onQuit?.();
+          }}
+        />
       )}
 
       {/*

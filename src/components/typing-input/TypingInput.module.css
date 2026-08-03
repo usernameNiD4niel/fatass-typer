@@ -8,14 +8,15 @@
 
 .field {
   width: 100%;
-  padding: var(--space-3) var(--space-4);
-  font-family: inherit;
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-prompt);
   font-size: var(--font-size-lg);
   line-height: 1.4;
-  color: var(--text-primary);
-  background: var(--surface-raised);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-align: center;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
   outline: none;
   transition:
     border-color var(--duration-fast) ease,
@@ -46,9 +47,10 @@
 }
 
 .hint {
-  margin-top: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  margin-top: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-align: center;
 }
 
 .hintWarning {

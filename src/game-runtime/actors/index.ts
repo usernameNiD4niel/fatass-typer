@@ -13,15 +13,15 @@ export type {
   DogTrait,
   DogView,
 } from './dog-pack';
-export { DOG_COLORS, dogHeightPx, drawDog, drawDogPack } from './dog-renderer';
-export type { DogDrawOptions, DogPackDrawOptions } from './dog-renderer';
+export { DOG_COLORS, drawPack } from './pack-renderer';
+export type { PackDrawOptions } from './pack-renderer';
 export {
-  drawObstacle,
-  drawObstacles,
+  ACTION_COLORS,
+  drawObstacleCourse,
   OBSTACLE_COLORS,
-  obstacleHeightPx,
-} from './obstacle-renderer';
-export type { DrawObstacleOptions, DrawObstaclesOptions } from './obstacle-renderer';
+  obstacleZ,
+} from './obstacle-course-renderer';
+export type { ObstacleCourseOptions } from './obstacle-course-renderer';
 export {
   advanceMcAnimation,
   animationForMove,
@@ -42,5 +42,12 @@ export type {
   McAnimationState,
   McLocomotionState,
 } from './mc-animation';
-export { drawMc, MC_COLORS, MC_HEIGHT_METERS, mcHeightPx } from './mc-renderer';
-export type { McDrawOptions } from './mc-renderer';
+export {
+  drawRunner,
+  JUMP_HEIGHT_METERS,
+  MC_COLORS,
+  MC_HEIGHT_METERS,
+  runnerWorldPoint,
+  SIDESTEP_METERS,
+} from './runner-renderer';
+export type { RunnerDrawOptions } from './runner-renderer';

@@ -137,7 +137,13 @@ export function TypingInput({
 
       <p
         id="typing-input-hint"
-        className={classes(styles.hint, !hasFocus && !disabled && styles.hintWarning)}
+        className={classes(
+          styles.hint,
+          // Always in the DOM — it is the field's description — but out of the
+          // way while everything is fine. It is only news when focus is lost.
+          hasFocus && !disabled && 'visually-hidden',
+          !hasFocus && !disabled && styles.hintWarning,
+        )}
         // Not a live region: it is already the field's description, and a node
         // that is both announces itself twice on every focus change.
       >

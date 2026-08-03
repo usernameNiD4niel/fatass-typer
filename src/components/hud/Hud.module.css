@@ -1,9 +1,12 @@
 /*
- * The HUD around the prompt (spec §9).
+ * The HUD, floating over the run (spec §9).
  *
  * Deliberately quiet. Everything here is secondary to the prompt, so it is
  * smaller, lower contrast, and laid out in one calm row — spec §4 warns against
  * overloading the HUD, and six competing readouts is exactly how that happens.
+ *
+ * It sits on glass rather than a solid card because it covers the track: a
+ * player has to be able to see what is coming *through* their own readouts.
  */
 
 .hud {
@@ -12,9 +15,13 @@
   gap: var(--space-5);
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   padding: var(--space-3) var(--space-5);
-  background: var(--surface-raised);
-  border-radius: var(--radius-md);
+  background: var(--surface-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(14px);
 }
 
 .stats {
@@ -75,7 +82,7 @@
 }
 
 .track {
-  height: 0.45rem;
+  height: 0.5rem;
   overflow: hidden;
   background: var(--surface-sunken);
   border-radius: var(--radius-pill);

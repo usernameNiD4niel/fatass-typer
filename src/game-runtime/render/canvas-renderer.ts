@@ -1,4 +1,3 @@
-import { type Camera, type CameraConfig, createCamera, followPlayer, resizeCamera } from './camera';
 import {
   type Canvas2D,
   resizeSurface,
@@ -6,17 +5,23 @@ import {
   type SurfaceSize,
 } from './canvas-surface';
 import { DEFAULT_SCENE_PALETTE, scenePalette, type ScenePalette } from './palette';
-import { type ParallaxLayer } from './parallax';
-import { drawScene } from './scene-renderer';
+import {
+  advanceView,
+  createView,
+  type PerspectiveConfig,
+  type PerspectiveView,
+  resizeView,
+} from './perspective';
+import { drawTrack } from './track-renderer';
 import { type MapTheme } from '../../game-core/models/map';
 
 /**
- * Owns the canvas element and the current view.
+ * Owns the canvas element and the current shot.
  *
  * The one stateful object in the render layer: everything below it is pure
- * functions over a camera. Callers (the C5 bridge, then the C7 game view) hold
- * a renderer, call `resize` when the element changes size, and `draw` once per
- * frame from `GameLoop`'s render callback.
+ * functions over a view. Callers hold a renderer, call `resize` when the element
+ * changes size, and `draw` once per frame from `GameLoop`'s render callback.
+ * Actors are drawn on top by the host, using `view`.
  */
 
 export interface CanvasRendererOptions {
@@ -24,64 +29,66 @@ export interface CanvasRendererOptions {
   readonly context: Canvas2D;
   readonly worldLengthMeters: number;
   readonly viewport: SurfaceSize;
-  readonly cameraConfig?: CameraConfig;
+  readonly perspective?: PerspectiveConfig;
   readonly theme?: MapTheme;
-  readonly layers?: readonly ParallaxLayer[];
+  /** Holds the scenery still for a player who asked for less motion (spec §12). */
+  readonly reducedMotion?: boolean;
 }
 
 export class CanvasRenderer {
   private readonly canvas: SizableCanvas;
   private readonly context: Canvas2D;
-  private readonly layers: readonly ParallaxLayer[] | undefined;
+  private readonly reducedMotion: boolean;
 
-  private camera: Camera;
+  private perspective: PerspectiveView;
   private palette: ScenePalette;
 
   constructor(options: CanvasRendererOptions) {
     this.canvas = options.canvas;
     this.context = options.context;
-    this.layers = options.layers;
+    this.reducedMotion = options.reducedMotion ?? false;
     this.palette = options.theme ? scenePalette(options.theme) : DEFAULT_SCENE_PALETTE;
 
     const size = resizeSurface(this.canvas, this.context, options.viewport);
-    this.camera = createCamera(
+    this.perspective = createView(
       { widthPx: size.widthPx, heightPx: size.heightPx },
       options.worldLengthMeters,
-      options.cameraConfig,
+      options.perspective,
     );
   }
 
-  /** Current camera, for the modules that draw on top of the scene. */
-  get view(): Camera {
-    return this.camera;
+  /** The current shot, for the modules that draw actors on top of the scene. */
+  get view(): PerspectiveView {
+    return this.perspective;
   }
 
   setTheme(theme: MapTheme): void {
     this.palette = scenePalette(theme);
   }
 
-  /** Re-sizes the backing store and the camera together. */
+  /** Re-sizes the backing store and the view together. */
   resize(size: SurfaceSize): void {
     const applied = resizeSurface(this.canvas, this.context, size);
-    this.camera = resizeCamera(this.camera, {
+    this.perspective = resizeView(this.perspective, {
       widthPx: applied.widthPx,
       heightPx: applied.heightPx,
     });
   }
 
   /**
-   * Draws one frame for the given MC position.
+   * Draws the world for the given runner position.
    *
-   * Takes the interpolated position rather than reading a simulation state:
-   * the renderer stays ignorant of the rules, which is what lets `game-core`
-   * be replaced without touching this file.
+   * Takes the interpolated position rather than reading a simulation state: the
+   * renderer stays ignorant of the rules, which is what lets `game-core` be
+   * replaced without touching this file.
    */
   draw(playerMeters: number): void {
-    this.camera = followPlayer(this.camera, playerMeters);
-    drawScene(this.context, {
-      camera: this.camera,
+    this.perspective = advanceView(this.perspective, playerMeters);
+    drawTrack(this.context, {
+      view: this.perspective,
       palette: this.palette,
-      ...(this.layers ? { layers: this.layers } : {}),
+      playerMeters,
+      reducedMotion: this.reducedMotion,
     });
   }
 }

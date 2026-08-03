@@ -23,7 +23,7 @@ async function startRun(page: Page): Promise<void> {
   // and the game screen's own Start run is the click that unlocks audio and
   // begins the simulation. Autoplay policy is why that second gesture exists.
   await page.getByRole('button', { name: 'Start run' }).click();
-  await page.getByRole('img', { name: 'The runner and the chasing dogs' }).waitFor();
+  await page.getByRole('img', { name: 'The runner, the track ahead, and the chasing dogs' }).waitFor();
   await page.getByRole('button', { name: 'Start run' }).click();
   await expect(page.getByRole('textbox')).toBeEnabled();
 }
@@ -38,7 +38,7 @@ async function currentPrompt(page: Page): Promise<string> {
 test('starts a run and drives the canvas', async ({ page }) => {
   await startRun(page);
 
-  await expect(page.getByRole('img', { name: 'The runner and the chasing dogs' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'The runner, the track ahead, and the chasing dogs' })).toBeVisible();
   // The fatal-error path is what a browser without a 2D context takes. Seeing
   // it here would mean the renderer never started.
   await expect(page.getByText(/did not provide a 2D canvas context/)).toHaveCount(0);

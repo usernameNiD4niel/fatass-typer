@@ -1,28 +1,21 @@
 /*
- * The playable screen (step C7).
+ * The run, full-bleed (spec §9).
  *
- * A first pass, not the finished HUD — step E4 designs that properly. What is
- * here already respects the rule that the active prompt is the visual priority.
+ * The canvas is the screen: it fills the browser viewport, and everything else
+ * floats over it. Two rules keep that readable rather than cluttered:
+ *
+ *   1. **The prompt owns the bottom third.** It is the only thing the player
+ *      actually reads while running, so nothing competes with it there.
+ *   2. **Overlays never eat clicks.** The layer is `pointer-events: none`;
+ *      only the controls inside it opt back in. A HUD that swallowed a click
+ *      meant for the typing field would be worse than no HUD.
  */
 
 .screen {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--space-4);
-}
-
-.stage {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 7;
+  position: fixed;
+  inset: 0;
   overflow: hidden;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  background: var(--surface-canvas);
 }
 
 .canvas {
@@ -31,108 +24,99 @@
   height: 100%;
 }
 
-.error {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-6);
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-/* The pause overlay. E5 designs the real one; this states the fact. */
 .overlay {
   position: absolute;
   inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  pointer-events: none;
+}
+
+.overlay > * {
+  min-width: 0;
+}
+
+/* --- Top bar ------------------------------------------------------------- */
+
+.topBar {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.topBar > * {
+  pointer-events: auto;
+}
+
+/* --- Middle: only ever used for a moment's message ------------------------ */
+
+.middle {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.banner {
+  padding: var(--space-4) var(--space-6);
   font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
-  background: var(--surface-scrim);
-}
-
-.prompt {
-  padding: var(--space-4);
-  font-size: var(--font-size-2xl);
-  font-weight: 600;
-  letter-spacing: 0.02em;
   text-align: center;
-  color: var(--text-primary);
   background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
 }
 
-.promptDone {
-  color: var(--status-success);
+.error {
+  color: var(--status-danger);
 }
 
-.hud {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-raised);
-  border-radius: var(--radius-md);
-}
+/* --- Bottom: the prompt, the field, and the shortcuts --------------------- */
 
-.stat {
+.bottom {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  min-width: 5rem;
+  gap: var(--space-3);
+  align-items: center;
+  width: min(52rem, 100%);
+  margin: 0 auto;
 }
 
-.statLabel {
-  font-size: var(--font-size-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-tertiary);
+.bottom > * {
+  width: 100%;
+  pointer-events: auto;
 }
 
-.statValue {
-  font-size: var(--font-size-lg);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-}
-
-.danger {
-  color: var(--status-danger);
+/*
+ * Prompt and field, as one object.
+ *
+ * They are read and used together — the prompt says what to type, the field is
+ * where it goes — and two separate floating cards made the eye travel between
+ * them at exactly the moment it should be on the track.
+ */
+.console {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6) var(--space-3);
+  background: var(--surface-glass-strong);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  backdrop-filter: blur(18px);
 }
 
 .controls {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-4);
   align-items: center;
+  justify-content: center;
 }
 
-.button {
-  padding: var(--space-2) var(--space-4);
-  font: inherit;
-  color: var(--text-primary);
-  cursor: pointer;
-  background: var(--surface-raised);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-}
-
-.button:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.outcome {
-  padding: var(--space-4);
-  font-size: var(--font-size-lg);
-  text-align: center;
-  background: var(--surface-raised);
-  border-radius: var(--radius-lg);
-}
-
-/* Keyboard shortcuts, stated on the screen they apply to (spec §12). */
 .shortcuts {
   display: flex;
   gap: var(--space-1);
@@ -147,7 +131,18 @@
   font-size: var(--font-size-xs);
   line-height: 1.6;
   color: var(--text-primary);
-  background: var(--surface-sunken);
+  background: var(--surface-raised);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-xs);
+}
+
+.outcome {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  text-align: center;
+  background: var(--surface-raised);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
 }

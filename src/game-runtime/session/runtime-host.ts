@@ -14,26 +14,17 @@ import {
   createDogPack,
   createMcAnimation,
   type DogPackState,
-  dogPackView,
-  drawDogPack,
-  drawMc,
-  drawObstacles,
+  drawObstacleCourse,
+  drawPack,
+  drawRunner,
   locomotionFor,
   type McAnimation,
-  mcHeightPx,
   play,
   setLocomotion,
 } from '../actors';
 import { GameLoop, type LoopScheduler } from '../loop';
-import {
-  type Camera,
-  type Canvas2D,
-  CanvasRenderer,
-  groundYPx,
-  stillLayers,
-  type SurfaceSize,
-  worldToScreenX,
-} from '../render';
+import { type Canvas2D, CanvasRenderer, type SurfaceSize } from '../render';
+import { chaseThreat, normalizedDistance } from '../../game-core/chase';
 import { obstaclePressure, remainingMs, timeToImpact } from '../../game-core/obstacles';
 import { sustainablePeakWpm } from '../../game-core/stats';
 import type { DeadlinePressure } from '../../game-core/timing';
@@ -221,7 +212,9 @@ export class RuntimeHost implements GameHost {
       worldLengthMeters: this.options.map.distanceMeters,
       viewport: this.options.viewport,
       theme: this.options.map.theme,
-      ...(this.options.reducedMotion === true ? { layers: stillLayers() } : {}),
+      ...(this.options.reducedMotion === undefined
+        ? {}
+        : { reducedMotion: this.options.reducedMotion }),
     });
 
     emit({ type: 'ready' });
@@ -430,40 +423,26 @@ export class RuntimeHost implements GameHost {
 
     renderer.draw(meters);
 
-    const camera = renderer.view;
+    const view = renderer.view;
     const context = this.options.context;
     if (!context) return;
 
-    // Obstacles sit behind the actors: the MC has to be visibly in front of the
-    // thing he is jumping over, or the avoidance reads as a collision.
-    drawObstacles(context, {
-      camera,
-      groundYPx: groundYPx(camera),
+    // Back to front, which is the only depth sorting a 2D canvas offers:
+    // obstacles down the track, then the pack behind the runner, then him.
+    drawObstacleCourse(context, {
+      view,
       obstacles: this.session.obstacles,
-      elapsedMs: this.session.elapsedMs,
+      playerMeters: meters,
     });
 
-    drawDogPack(context, {
-      camera,
-      groundYPx: groundYPx(camera),
-      pack: dogPackView({
-        state: this.dogs,
-        chase: this.session.chase,
-        profile: this.session.map.chase,
-        playerMeters: meters,
-      }),
+    drawPack(context, {
+      view,
+      normalizedGap: normalizedDistance(this.session.chase, this.session.map.chase),
+      threat: chaseThreat(this.session.chase, this.session.map.chase),
+      cyclePhase: this.dogs.cyclePhase,
     });
 
-    this.drawPlayer(context, camera, meters);
-  }
-
-  private drawPlayer(context: Canvas2D, camera: Camera, meters: number): void {
-    drawMc(context, {
-      xPx: worldToScreenX(camera, meters),
-      groundYPx: groundYPx(camera),
-      heightPx: mcHeightPx(camera),
-      animation: this.mc,
-    });
+    drawRunner(context, { view, animation: this.mc });
   }
 
   /** Diagnostics for the dev overlay and tests. */

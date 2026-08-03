@@ -45,7 +45,7 @@ export const MAP_1: MapConfig = {
      * scenery. At 2.0 a 20 WPM typist still has room and a 10 WPM typist is
      * caught, which is what the map's label promises.
      */
-    baseCatchUpMetersPerSecond: 1.8,
+    baseCatchUpMetersPerSecond: 1.7,
     collisionPenaltyMeters: 5,
     missedPromptPenaltyMeters: 3,
     streakRecoveryMeters: 2,

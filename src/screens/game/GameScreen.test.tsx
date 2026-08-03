@@ -18,7 +18,7 @@ describe('GameScreen', () => {
     render(<GameScreen />);
 
     expect(
-      screen.getByRole('img', { name: 'The runner and the chasing dogs' }),
+      screen.getByRole('img', { name: 'The runner, the track ahead, and the chasing dogs' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toBeInTheDocument();
   });
@@ -160,7 +160,7 @@ describe('GameScreen accessibility (spec §12)', () => {
     render(<GameScreen />);
 
     expect(
-      screen.getByRole('img', { name: 'The runner and the chasing dogs' }),
+      screen.getByRole('img', { name: 'The runner, the track ahead, and the chasing dogs' }),
     ).toBeInTheDocument();
   });
 });
