@@ -1,0 +1,14 @@
+/* The gap between asking for a screen and having it. Kept unremarkable. */
+
+.fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: var(--space-8);
+}
+
+.text {
+  font-size: var(--font-size-lg);
+  color: var(--text-secondary);
+}

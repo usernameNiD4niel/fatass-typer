@@ -6,9 +6,9 @@ import { App } from './App';
 /**
  * The shell, tested through the screens a player actually sees.
  *
- * States without a screen yet still fall through to the development harness,
- * and those transitions are covered here too — the harness only ever offers
- * legal events, so it is a fair stand-in until phases E and F replace it.
+ * Every screen but the splash, the menu, and the width guard is loaded lazily
+ * (spec §16), so navigation is asynchronous here: `findBy*` where a screen has
+ * to arrive first, `getBy*` only once it has.
  */
 
 /** Boots past the splash, dismisses the first-run tutorial, lands on the menu. */
@@ -20,7 +20,7 @@ async function boot(user: ReturnType<typeof userEvent.setup>) {
     expect(screen.getByRole('heading', { level: 1, name: 'Typing Chase' })).toBeInTheDocument();
   });
 
-  await user.click(screen.getByRole('button', { name: 'Got it' }));
+  await user.click(await screen.findByRole('button', { name: 'Got it' }));
 }
 
 describe('App', () => {
@@ -50,16 +50,18 @@ describe('App', () => {
     await boot(user);
 
     await user.click(screen.getByRole('button', { name: 'Start' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Choose a map' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Choose a map' }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Map 1: Neighborhood Dash/ }));
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Neighborhood Dash' }),
+      await screen.findByRole('heading', { level: 1, name: 'Neighborhood Dash' }),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Start run' }));
     expect(
-      screen.getByRole('img', { name: 'The runner and the chasing dogs' }),
+      await screen.findByRole('img', { name: 'The runner and the chasing dogs' }),
     ).toBeInTheDocument();
   });
 
@@ -68,10 +70,12 @@ describe('App', () => {
     await boot(user);
 
     await user.click(screen.getByRole('button', { name: 'Maps' }));
-    await user.click(screen.getByRole('button', { name: /Map 1: Neighborhood Dash/ }));
-    await user.click(screen.getByRole('button', { name: 'Back to maps' }));
+    await user.click(await screen.findByRole('button', { name: /Map 1: Neighborhood Dash/ }));
+    await user.click(await screen.findByRole('button', { name: 'Back to maps' }));
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Choose a map' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Choose a map' }),
+    ).toBeInTheDocument();
   });
 
   it('returns from Settings to the state it was opened from', async () => {
@@ -79,7 +83,7 @@ describe('App', () => {
     await boot(user);
 
     await user.click(screen.getByRole('button', { name: 'Settings' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.getByRole('button', { name: 'Maps' })).toBeInTheDocument();
@@ -90,7 +94,9 @@ describe('App', () => {
     await boot(user);
 
     await user.click(screen.getByRole('button', { name: 'Statistics' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Statistics' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Statistics' }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByRole('button', { name: 'Maps' })).toBeInTheDocument();
@@ -101,7 +107,7 @@ describe('App', () => {
     await boot(user);
 
     await user.click(screen.getByRole('button', { name: 'Settings' }));
-    await user.click(screen.getByRole('radio', { name: 'Dark' }));
+    await user.click(await screen.findByRole('radio', { name: 'Dark' }));
 
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
   });
@@ -129,7 +135,7 @@ describe('App', () => {
 
     // And it does not come back: dismissing it records that it was seen.
     await user.click(screen.getByRole('button', { name: 'Settings' }));
-    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await user.click(await screen.findByRole('button', { name: 'Done' }));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });

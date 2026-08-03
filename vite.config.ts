@@ -4,7 +4,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // Web app only. Desktop-first: min supported width 1024px.
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   resolve: {
     alias: {
@@ -18,7 +18,25 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    sourcemap: process.env.NODE_ENV !== 'production',
+    /*
+     * Source maps by environment (spec §16).
+     *
+     * On in every mode but production, and switchable back on there with
+     * `VITE_SOURCEMAP=true` — which is what makes a production stack trace
+     * readable when one actually needs reading.
+     */
+    sourcemap: process.env.VITE_SOURCEMAP === 'true' || mode !== 'production',
+    rollupOptions: {
+      output: {
+        /*
+         * Dependencies change far less often than the game does. Splitting them
+         * out means a gameplay tweak does not invalidate ~190kB of vendor code
+         * in everyone's cache. The screens split themselves, through `lazy()`
+         * in `App.tsx`.
+         */
+        manualChunks: (id: string) => (id.includes('node_modules') ? 'vendor' : undefined),
+      },
+    },
   },
   test: {
     environment: 'jsdom',
@@ -37,4 +55,4 @@ export default defineConfig({
       exclude: ['src/main.tsx', 'src/vite-env.d.ts', 'src/test/**'],
     },
   },
-});
+}));

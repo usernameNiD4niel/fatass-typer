@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 39 / 41 steps complete.** Phases A through F are finished. **Map 1 is
+**Progress: 40 / 41 steps complete.** Phases A through F are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **G2** — accessibility pass |
-| **Next up** | **G3** — performance pass (awaiting approval) |
+| **Last completed** | **G3** — performance pass, measured and recorded |
+| **Next up** | **G4** — e2e, docs, CI (awaiting approval) |
 
 **All six maps are tuned (F2, F3).** `session/playtest-harness.ts` drives a metronomic
 simulated typist; `map-1-playtest.test.ts` and `map-progression.test.ts` state the results as
@@ -169,6 +169,16 @@ rather than `disabled`: it stays in the tab order, because the unlock requiremen
 on it. `prefers-contrast: more` pushes the prompt colours to the ends of the ramps and
 thickens the focus ring. Reduced motion reaches the canvas too — `stillLayers()` holds the
 decorative parallax while the run itself keeps scrolling, since the scrolling *is* the game.
+
+**Performance is measured, and the numbers are written down (G3).** `docs/performance.md`
+holds them. `session/profile-harness.ts` drives the real host at 60Hz of simulated time
+through a draw-call-counting context, with a metronomic typist so a run reaches its finish
+line — profiling in a browser measures the browser, since an automated window is throttled
+to a fraction of a frame per second. Simulation plus scene assembly costs **0.003–0.010ms**
+of a 16.67ms frame, at ~290 draw calls, *flat* from the first minute of a map to the last.
+Screens past the menu are `lazy()`-loaded and the vendor code is its own chunk, so first
+load is **~77 kB gzipped** instead of a single 98 kB bundle, and the whole runtime arrives
+only when a run starts. Rasterisation is the one thing these numbers do not cover.
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -180,12 +190,12 @@ decorative parallax while the run itself keeps scrolling, since the scrolling *i
 | D — Obstacles & map rules | ✅ 5 / 5 |
 | E — UI shell | ✅ 7 / 7 |
 | F — Content, maps, storage | ✅ 5 / 5 |
-| G — Polish | 🟨 2 / 4 |
+| G — Polish | 🟨 3 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 992 passed, 59 files
+npm run test          # 1001 passed, 61 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -239,7 +249,7 @@ folded into the profile by `game-core/progress/` and appended to run history.
 
 **What does not exist yet.** Progress does not survive a reload — the
 storage seam is in place but its only implementation is in memory, and an IndexedDB one is
-explicitly deferred. No e2e tests, CI, or performance pass (G3, G4). The `mistakeBehavior`
+explicitly deferred. No e2e tests and no CI (G4). The `mistakeBehavior`
 and `caseSensitive` settings are stored and displayed but the typing engine still uses its
 defaults.
 
@@ -372,7 +382,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
 - [x] **G2** Accessibility pass: full keyboard navigation, visible focus indicators,
       reduced-motion setting, color-independent success/error indicators, high-contrast
       prompt text, descriptive labels, no flashing effects. Spec §12.
-- [ ] **G3** Performance pass: 60 FPS target, zero React re-renders per animation frame,
+- [x] **G3** Performance pass: 60 FPS target, zero React re-renders per animation frame,
       entity reuse, lazy-loaded non-essential screens, loading progress. Profile and
       record the results. Spec §16.
 - [ ] **G4** Playwright e2e desktop keyboard flows + README and docs + CI workflow

@@ -1,4 +1,4 @@
-import { type JSX, useCallback, useEffect, useState } from 'react';
+import { type JSX, lazy, type ReactNode, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { Button } from './components/ui';
 import { findMap, MAP_1, MAPS, obstaclesFor } from './content';
@@ -9,16 +9,46 @@ import { useAppMachine } from './hooks/useAppMachine';
 import { useMinimumWidth } from './hooks/useMinimumWidth';
 import { useReducedMotion } from './hooks/useReducedMotion';
 import { usePlayerProfile } from './hooks/usePlayerProfile';
-import { GameScreen } from './screens/game';
-import { LevelBriefing } from './screens/level-briefing';
+import { ScreenFallback } from './screens/ScreenFallback';
 import { hasProgress, MainMenu } from './screens/main-menu';
-import { MapSelection } from './screens/map-selection';
-import { RunResults, unlockedMap } from './screens/results';
-import { SettingsScreen } from './screens/settings';
+import { unlockedMap } from './screens/results/run-summary';
 import { SplashScreen } from './screens/splash';
-import { StatisticsScreen } from './screens/statistics';
-import { Tutorial } from './screens/tutorial';
 import { WidthGuard } from './screens/width-guard';
+
+/**
+ * Screens that are not the way in (spec §16).
+ *
+ * The splash, the menu, and the width guard are eager: they are the first thing
+ * a player sees, and a spinner in front of a menu is worse than the bytes it
+ * saves. Everything else — including the run, which drags the whole runtime
+ * behind it — is fetched when it is first needed, so the first load carries the
+ * menu and not the game.
+ *
+ * Imported from the module rather than the folder barrel: a barrel that also
+ * exports helpers would pull the component back into the main chunk through
+ * whichever helper the shell happens to use.
+ */
+const GameScreen = lazy(async () => ({
+  default: (await import('./screens/game/GameScreen')).GameScreen,
+}));
+const LevelBriefing = lazy(async () => ({
+  default: (await import('./screens/level-briefing/LevelBriefing')).LevelBriefing,
+}));
+const MapSelection = lazy(async () => ({
+  default: (await import('./screens/map-selection/MapSelection')).MapSelection,
+}));
+const RunResults = lazy(async () => ({
+  default: (await import('./screens/results/RunResults')).RunResults,
+}));
+const SettingsScreen = lazy(async () => ({
+  default: (await import('./screens/settings/SettingsScreen')).SettingsScreen,
+}));
+const StatisticsScreen = lazy(async () => ({
+  default: (await import('./screens/statistics/StatisticsScreen')).StatisticsScreen,
+}));
+const Tutorial = lazy(async () => ({
+  default: (await import('./screens/tutorial/Tutorial')).Tutorial,
+}));
 
 /**
  * The app shell.
@@ -108,29 +138,33 @@ export function App(): JSX.Element {
   // cannot use, and no point mounting a canvas they cannot see.
   if (!wideEnough) {
     return (
-      <main>
+      <Shell>
         <WidthGuard minimumWidthPx={MINIMUM_WIDTH_PX} />
-      </main>
+      </Shell>
     );
   }
 
   switch (machine.state) {
     case 'Boot':
       return (
-        <main>
+        <Shell>
           <SplashScreen
             onReady={() => {
               machine.send('BOOT_COMPLETE');
             }}
           />
-        </main>
+        </Shell>
       );
 
     case 'MainMenu':
       return (
-        <main>
+        <Shell>
           {/* Once, before the first run. Dismissing it records that it was seen. */}
-          <Tutorial open={!profile.settings.tutorialCompleted} onDismiss={completeTutorial} />
+          {/* Its own boundary, with no fallback: the menu behind it must not
+              flash a loading line while the tutorial chunk arrives. */}
+          <Suspense fallback={null}>
+            <Tutorial open={!profile.settings.tutorialCompleted} onDismiss={completeTutorial} />
+          </Suspense>
           <MainMenu
             profile={profile}
             maps={MAPS}
@@ -147,12 +181,12 @@ export function App(): JSX.Element {
               machine.send('OPEN_SETTINGS');
             }}
           />
-        </main>
+        </Shell>
       );
 
     case 'Settings':
       return (
-        <main>
+        <Shell>
           <SettingsScreen
             settings={profile.settings}
             onChange={(settings) => {
@@ -163,12 +197,12 @@ export function App(): JSX.Element {
             }}
             onResetProgress={resetProgress}
           />
-        </main>
+        </Shell>
       );
 
     case 'Statistics':
       return (
-        <main>
+        <Shell>
           <StatisticsScreen
             profile={profile}
             maps={MAPS}
@@ -176,12 +210,12 @@ export function App(): JSX.Element {
               machine.send('BACK');
             }}
           />
-        </main>
+        </Shell>
       );
 
     case 'MapSelection':
       return (
-        <main>
+        <Shell>
           <MapSelection
             maps={MAPS}
             profile={profile}
@@ -190,12 +224,12 @@ export function App(): JSX.Element {
               machine.send('BACK');
             }}
           />
-        </main>
+        </Shell>
       );
 
     case 'PreRunCountdown':
       return (
-        <main>
+        <Shell>
           <LevelBriefing
             map={selectedMap}
             profile={profile}
@@ -207,13 +241,13 @@ export function App(): JSX.Element {
               machine.send('BACK');
             }}
           />
-        </main>
+        </Shell>
       );
 
     case 'Running':
     case 'Paused':
       return (
-        <main>
+        <Shell>
           <GameScreen
             mapId={selectedMapId}
             audio={audio}
@@ -226,14 +260,14 @@ export function App(): JSX.Element {
               machine.send('QUIT_RUN');
             }}
           />
-        </main>
+        </Shell>
       );
 
     case 'LevelComplete':
     case 'GameOver':
     case 'Results':
       return (
-        <main>
+        <Shell>
           {lastResult === null ? (
             // No result to show: only reachable if a run ended without reporting
             // one. Say so and offer the way out rather than showing empty stats.
@@ -264,18 +298,32 @@ export function App(): JSX.Element {
               }}
             />
           )}
-        </main>
+        </Shell>
       );
 
     case 'PlayerHit':
       // A collision is part of the run, not a screen of its own: the canvas
       // shows it and the simulation carries on.
       return (
-        <main>
+        <Shell>
           <GameScreen mapId={selectedMapId} reducedMotion={reducedMotion} onRunEnded={endRun} />
-        </main>
+        </Shell>
       );
   }
+}
+
+/**
+ * The page, and the boundary every lazy screen loads inside.
+ *
+ * One `<main>` for the whole app: the landmark should not come and go as the
+ * player navigates.
+ */
+function Shell({ children }: { children: ReactNode }): JSX.Element {
+  return (
+    <main>
+      <Suspense fallback={<ScreenFallback />}>{children}</Suspense>
+    </main>
+  );
 }
 
 /** The one dead end worth handling: a concluded run with nothing to report. */
