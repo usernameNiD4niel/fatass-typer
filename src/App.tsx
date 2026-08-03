@@ -1,10 +1,12 @@
-import { type JSX, useCallback } from 'react';
+import { type JSX, useCallback, useState } from 'react';
 
-import { MAPS } from './content';
+import { findMap, MAP_1, MAPS, obstaclesFor } from './content';
 import { useAppMachine } from './hooks/useAppMachine';
 import { usePlayerProfile } from './hooks/usePlayerProfile';
 import { GameScreen } from './screens/game';
+import { LevelBriefing } from './screens/level-briefing';
 import { hasProgress, MainMenu } from './screens/main-menu';
+import { MapSelection } from './screens/map-selection';
 import { SplashScreen } from './screens/splash';
 
 /**
@@ -20,10 +22,23 @@ import { SplashScreen } from './screens/splash';
 export function App(): JSX.Element {
   const machine = useAppMachine();
   const { profile } = usePlayerProfile();
+  // Which map was chosen — data the player picked, not navigation. Where they
+  // are is the machine's business and stays there (CLAUDE.md §3).
+  const [selectedMapId, setSelectedMapId] = useState<string>(MAP_1.id);
+
+  const selectedMap = findMap(selectedMapId) ?? MAP_1;
 
   const startRun = useCallback(() => {
     machine.send('OPEN_MAP_SELECTION');
   }, [machine]);
+
+  const chooseMap = useCallback(
+    (mapId: string) => {
+      setSelectedMapId(mapId);
+      machine.send('SELECT_MAP');
+    },
+    [machine],
+  );
 
   switch (machine.state) {
     case 'Boot':
@@ -59,11 +74,42 @@ export function App(): JSX.Element {
         </main>
       );
 
+    case 'MapSelection':
+      return (
+        <main>
+          <MapSelection
+            maps={MAPS}
+            profile={profile}
+            onSelect={chooseMap}
+            onBack={() => {
+              machine.send('BACK');
+            }}
+          />
+        </main>
+      );
+
+    case 'PreRunCountdown':
+      return (
+        <main>
+          <LevelBriefing
+            map={selectedMap}
+            profile={profile}
+            obstacles={obstaclesFor(selectedMap.content.obstacleIds)}
+            onStart={() => {
+              machine.send('COUNTDOWN_COMPLETE');
+            }}
+            onBack={() => {
+              machine.send('BACK');
+            }}
+          />
+        </main>
+      );
+
     case 'Running':
     case 'Paused':
       return (
         <main>
-          <GameScreen />
+          <GameScreen mapId={selectedMapId} />
           <MachineHarness machine={machine} />
         </main>
       );

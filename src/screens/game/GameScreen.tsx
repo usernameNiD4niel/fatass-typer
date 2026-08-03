@@ -9,6 +9,7 @@ import {
   type GameState,
   type PromptViewModel,
 } from '../../game-bridge';
+import { findMap } from '../../content';
 import { EMPTY_LIVE_STATS, type LiveRunStats, type RunResult } from '../../game-core/models';
 import styles from './GameScreen.module.css';
 
@@ -46,7 +47,12 @@ function formatAccuracy(value: number): string {
   return `${String(Math.round(value * 100))}%`;
 }
 
-export function GameScreen(): JSX.Element {
+export interface GameScreenProps {
+  /** Which map to run. Defaults to Map 1 when the caller has not chosen. */
+  readonly mapId?: string;
+}
+
+export function GameScreen({ mapId }: GameScreenProps = {}): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bridgeRef = useRef<GameBridge | null>(null);
 
@@ -59,11 +65,16 @@ export function GameScreen(): JSX.Element {
   const [typed, setTyped] = useState('');
 
   useEffect(() => {
+    const map = mapId === undefined ? undefined : findMap(mapId);
+
     const game = attachGame({
       canvas: canvasRef.current,
       widthPx: CANVAS_WIDTH,
       heightPx: CANVAS_HEIGHT,
       devicePixelRatio: window.devicePixelRatio,
+      // An unknown id falls back to the default map rather than failing to
+      // start: the run matters more than the routing mistake behind it.
+      ...(map === undefined ? {} : { map }),
     });
 
     bridgeRef.current = game.bridge;
@@ -104,7 +115,9 @@ export function GameScreen(): JSX.Element {
       game.destroy();
       bridgeRef.current = null;
     };
-  }, []);
+    // Changing map tears the runtime down and builds a new one: a run belongs to
+    // exactly one map, and swapping it underneath a live loop would be worse.
+  }, [mapId]);
 
   const send = useCallback((command: Parameters<GameBridge['send']>[0]) => {
     bridgeRef.current?.send(command);

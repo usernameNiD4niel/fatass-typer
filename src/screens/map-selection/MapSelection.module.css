@@ -1,0 +1,103 @@
+/*
+ * Map selection (spec §9).
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: var(--layout-content-max);
+  margin: 0 auto;
+  padding: var(--space-10) var(--layout-gutter);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: var(--space-4);
+}
+
+.cardHead {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.number {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-tertiary);
+}
+
+/* Status is a word, never only a colour or an icon (spec §12). */
+.status {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  border-radius: var(--radius-pill);
+}
+
+.statusCompleted {
+  color: var(--status-success);
+  background: var(--status-success-subtle);
+}
+
+.statusLocked {
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+}
+
+.theme {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+.target {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.bests {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.lock {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.footer {
+  display: flex;
+  gap: var(--space-3);
+}

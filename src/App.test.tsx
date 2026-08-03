@@ -48,15 +48,28 @@ describe('App', () => {
     await boot(user);
 
     await user.click(screen.getByRole('button', { name: 'Start' }));
-    expect(screen.getByText('MapSelection')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Choose a map' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'SELECT_MAP' }));
-    expect(screen.getByText('PreRunCountdown')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Map 1: Neighborhood Dash/ }));
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Neighborhood Dash' }),
+    ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'COUNTDOWN_COMPLETE' }));
+    await user.click(screen.getByRole('button', { name: 'Start run' }));
     expect(
       screen.getByRole('img', { name: 'The runner and the chasing dogs' }),
     ).toBeInTheDocument();
+  });
+
+  it('can back out of a map choice without starting a run', async () => {
+    const user = userEvent.setup();
+    await boot(user);
+
+    await user.click(screen.getByRole('button', { name: 'Maps' }));
+    await user.click(screen.getByRole('button', { name: /Map 1: Neighborhood Dash/ }));
+    await user.click(screen.getByRole('button', { name: 'Back to maps' }));
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Choose a map' })).toBeInTheDocument();
   });
 
   it('returns from Settings to the state it was opened from', async () => {

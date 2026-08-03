@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 27 / 41 steps complete.** Phases A, B, C, and D are finished. **Map 1 is
+**Progress: 28 / 41 steps complete.** Phases A, B, C, and D are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **E2** — splash screen and main menu |
-| **Next up** | **E3** — map selection cards and level briefing (awaiting approval) |
+| **Last completed** | **E3** — map selection cards and level briefing |
+| **Next up** | **E4** — the game HUD (awaiting approval) |
 
 **Open tuning finding (for F2).** A 10 WPM typist — *half* the advertised speed — still
 finishes Map 1 comfortably. Map 1 is meant to be forgiving, but that much slack means the
@@ -152,14 +152,14 @@ chase is doing less work than the label implies. Recorded as a test in
 | B — `game-core` pure rules | ✅ 8 / 8 |
 | C — Runtime + playable slice | ✅ 7 / 7 |
 | D — Obstacles & map rules | ✅ 5 / 5 |
-| E — UI shell | 🟨 2 / 7 |
+| E — UI shell | 🟨 3 / 7 |
 | F — Content, maps, storage | ⬜ 0 / 5 |
 | G — Polish | ⬜ 0 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 727 passed, 40 files
+npm run test          # 753 passed, 42 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -199,8 +199,9 @@ chevron and then a deadline bar, resolved as avoided, stumbled, or hit, with the
 consequences applied to chase distance, combo, score, and run statistics. Escape pauses from
 anywhere on the screen.
 
-`src/screens/` now has the splash screen and the main menu alongside the game screen, and
-`App.tsx` routes to them from the state machine. States without a screen still fall through
+`src/screens/` now has the splash, main menu, map selection, and level briefing alongside
+the game screen, and `App.tsx` routes to them from the state machine. Choosing a map on the
+selection screen is what the run actually uses. States without a screen still fall through
 to the development harness. `src/hooks/usePlayerProfile.ts` holds the profile in memory —
 a placeholder F5 replaces with the `StorageAdapter`.
 
@@ -300,7 +301,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
 - [x] **E2** Splash / loading screen + main menu: title, Start, Continue (when progress
       exists), Maps, Statistics, Settings, highest unlocked map, sustainable peak WPM,
       overall accuracy.
-- [ ] **E3** Map selection cards (name, target WPM, theme, locked state, best score,
+- [x] **E3** Map selection cards (name, target WPM, theme, locked state, best score,
       best accuracy, completion status, unlock requirement) + level briefing screen.
 - [ ] **E4** Game HUD. The active prompt is the clear visual priority. Also: typed
       progress, current WPM, accuracy, combo, progress to finish, dog threat distance,
