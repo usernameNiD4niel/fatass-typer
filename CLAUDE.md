@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 20 / 41 steps complete.** Phases A, B, and C are finished. **The game is
+**Progress: 21 / 41 steps complete.** Phases A, B, and C are finished. **The game is
 playable**: boost prompts speed the MC up, the finish line is reachable, and the dogs can
 catch him and end the run (spec §19 milestone 1).
 
 | | |
 |---|---|
-| **Last completed** | **C7** — the vertical slice, verified in a real browser |
-| **Next up** | **D1** — obstacle definitions and the spawner (awaiting approval) |
+| **Last completed** | **D1** — obstacle definitions and the map-driven spawner |
+| **Next up** | **D2** — time-to-impact, prompt attachment, early warning (awaiting approval) |
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -146,7 +146,7 @@ catch him and end the run (spec §19 milestone 1).
 | A — Foundation | ✅ 5 / 5 |
 | B — `game-core` pure rules | ✅ 8 / 8 |
 | C — Runtime + playable slice | ✅ 7 / 7 |
-| D — Obstacles & map rules | ⬜ 0 / 5 |
+| D — Obstacles & map rules | 🟨 1 / 5 |
 | E — UI shell | ⬜ 0 / 7 |
 | F — Content, maps, storage | ⬜ 0 / 5 |
 | G — Polish | ⬜ 0 / 4 |
@@ -154,7 +154,7 @@ catch him and end the run (spec §19 milestone 1).
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 539 passed, 30 files
+npm run test          # 571 passed, 32 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -181,9 +181,12 @@ on `destroy`. No host is attached to it yet; C7 supplies one.
 and sends whole values through the bridge. `src/screens/game/` mounts the canvas and renders
 the prompt, HUD, and outcome. `src/game-runtime/session/` holds the run itself — a pure
 `run-session` plus the `RuntimeHost` that gives it a loop, a renderer, and a clock.
-`src/content/` has Map 1 and a starter vocabulary.
+`src/content/` has Map 1, the seven obstacle definitions, and a starter vocabulary.
+`src/game-core/obstacles/` schedules them — seeded, jittered, map-driven.
 
-**What does not exist yet.** No obstacles (phase D), so the run is boost prompts only. No
+**What does not exist yet.** Obstacles are defined and scheduled but not yet spawned into a
+run: D2 attaches their prompts and timing, D3 resolves them. Until then a run is boost
+prompts only. No
 persistence — `storage/` is still a README, and progress does not survive a reload. The UI
 is a placeholder: `App.tsx` is the A5 harness with the game screen bolted on, and the real
 screens, primitives, and HUD arrive in phase E. Maps 2–6 and the full content set are
@@ -257,7 +260,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 
 ### Phase D — Obstacles and map rules
 
-- [ ] **D1** Obstacle definitions and data: crate, low barrier, hanging sign, puddle,
+- [x] **D1** Obstacle definitions and data: crate, low barrier, hanging sign, puddle,
       trash bin, roadwork barrier, narrow passage. Spawner driven by map config. Spec §5.
 - [ ] **D2** Time-to-impact calculation, prompt attachment, and an early warning event,
       using B5 timing so the prompt appears early enough for the map's target WPM.

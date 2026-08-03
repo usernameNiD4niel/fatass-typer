@@ -44,8 +44,11 @@ export const MAP_1: MapConfig = {
   },
   content: {
     promptCategories: ['short-word', 'medium-word', 'short-phrase'],
-    // Obstacles arrive in phase D; the slice runs on boost prompts alone.
-    obstacleIds: [],
+    // The three gentlest obstacles, all avoided by jumping. Nothing overhead and
+    // nothing needing a phrase — those start on later maps.
+    obstacleIds: ['crate', 'low-barrier', 'puddle'],
+    // Spawning is wired into the run in D2/D3; until then this schedule is data
+    // the spawner can be tested against.
     obstacleIntervalSeconds: 9,
     obstacleIntervalJitter: 0.25,
     themeTags: ['street', 'chase'],
