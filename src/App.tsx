@@ -253,8 +253,10 @@ export function App(): JSX.Element {
             audio={audio}
             reducedMotion={reducedMotion}
             onRunEnded={endRun}
-            onRestart={() => {
-              machine.send('RESTART_RUN');
+            /* The runtime restarts itself in place; the machine only has to
+               know the run is live again, which `onPauseChange` reports. */
+            onPauseChange={(paused) => {
+              machine.send(paused ? 'PAUSE' : 'RESUME');
             }}
             onQuit={() => {
               machine.send('QUIT_RUN');

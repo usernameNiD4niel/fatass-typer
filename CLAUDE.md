@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 40 / 41 steps complete.** Phases A through F are finished. **Map 1 is
-playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
-finishes it (spec §19 milestone 2).
+**Progress: 41 / 41 steps complete — the build plan is finished.** All six maps are
+playable end to end with obstacles, and a simulated typist at each map's advertised speed
+finishes it (spec §19 milestones 1 and 2).
 
 | | |
 |---|---|
-| **Last completed** | **G3** — performance pass, measured and recorded |
-| **Next up** | **G4** — e2e, docs, CI (awaiting approval) |
+| **Last completed** | **G4** — Playwright e2e, README, CI |
+| **Next up** | nothing scheduled — every planned step is done |
 
 **All six maps are tuned (F2, F3).** `session/playtest-harness.ts` drives a metronomic
 simulated typist; `map-1-playtest.test.ts` and `map-progression.test.ts` state the results as
@@ -179,6 +179,17 @@ of a 16.67ms frame, at ~290 draw calls, *flat* from the first minute of a map to
 Screens past the menu are `lazy()`-loaded and the vendor code is its own chunk, so first
 load is **~77 kB gzipped** instead of a single 98 kB bundle, and the whole runtime arrives
 only when a run starts. Rasterisation is the one thing these numbers do not cover.
+
+**The e2e suite found two real bugs (G4).** 13 Playwright tests run against the production
+build in Chromium: keyboard-only navigation, and a whole run — start, type, pause, restart,
+quit, get caught. They caught what unit tests structurally could not. First, the app machine
+never entered `Paused`, because pausing happened in the runtime and was never reported
+upward — so the pause overlay offered Quit and Restart from a state where the machine
+rejected both, silently. `GameScreen` now reports pause changes through `onPauseChange` and
+the machine follows. Second, `restart()` delegated to the shell when `onRestart` was given,
+so the screen said "restarted" while the same run carried on underneath; the runtime is now
+always restarted in place. `README.md`, `e2e/README.md`, and `.github/workflows/ci.yml`
+round the step out.
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -190,12 +201,13 @@ only when a run starts. Rasterisation is the one thing these numbers do not cove
 | D — Obstacles & map rules | ✅ 5 / 5 |
 | E — UI shell | ✅ 7 / 7 |
 | F — Content, maps, storage | ✅ 5 / 5 |
-| G — Polish | 🟨 3 / 4 |
+| G — Polish | ✅ 4 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
 npm run test          # 1001 passed, 61 files
+npm run test:e2e      # 13 passed, Chromium against the production build
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -249,7 +261,7 @@ folded into the profile by `game-core/progress/` and appended to run history.
 
 **What does not exist yet.** Progress does not survive a reload — the
 storage seam is in place but its only implementation is in memory, and an IndexedDB one is
-explicitly deferred. No e2e tests and no CI (G4). The `mistakeBehavior`
+explicitly deferred. The `mistakeBehavior`
 and `caseSensitive` settings are stored and displayed but the typing engine still uses its
 defaults.
 
@@ -385,7 +397,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
 - [x] **G3** Performance pass: 60 FPS target, zero React re-renders per animation frame,
       entity reuse, lazy-loaded non-essential screens, loading progress. Profile and
       record the results. Spec §16.
-- [ ] **G4** Playwright e2e desktop keyboard flows + README and docs + CI workflow
+- [x] **G4** Playwright e2e desktop keyboard flows + README and docs + CI workflow
       (build, lint, test).
 
 **41 steps total.**

@@ -76,7 +76,17 @@ export interface GameScreenProps {
    */
   readonly onRunEnded?: (result: RunResult) => void;
   readonly onQuit?: () => void;
+  /** Notified after a restart. The runtime is restarted here regardless. */
   readonly onRestart?: () => void;
+  /**
+   * The *runtime* paused or resumed.
+   *
+   * The shell needs this because pausing happens down here — Escape, or the HUD
+   * control — while the state machine is what decides whether quitting or
+   * restarting is legal. Without it the two drift apart and the pause overlay
+   * offers buttons the machine then rejects.
+   */
+  readonly onPauseChange?: (paused: boolean) => void;
 }
 
 export function GameScreen({
@@ -86,6 +96,7 @@ export function GameScreen({
   onRunEnded,
   onQuit,
   onRestart,
+  onPauseChange,
 }: GameScreenProps = {}): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bridgeRef = useRef<GameBridge | null>(null);
@@ -97,6 +108,8 @@ export function GameScreen({
   // down — because a parent handed over a fresh audio object.
   const audioRef = useRef(audio);
   audioRef.current = audio;
+  const pauseChangeRef = useRef(onPauseChange);
+  pauseChangeRef.current = onPauseChange;
   const typedRef = useRef('');
   // The last threat level announced, so a player hovering on a boundary is not
   // told about it forty times (spec §12).
@@ -153,6 +166,10 @@ export function GameScreen({
           break;
         case 'stateChanged':
           setState(event.state);
+          // Kept in step with the shell, so the machine's idea of "paused"
+          // matches the runtime's.
+          if (event.state === 'paused') pauseChangeRef.current?.(true);
+          else if (event.state === 'running') pauseChangeRef.current?.(false);
           break;
         case 'promptChanged':
           setPrompt(event.prompt);
@@ -260,8 +277,11 @@ export function GameScreen({
     threatRef.current = 'safe';
     setResult(null);
 
-    if (onRestart === undefined) send({ type: 'restart' });
-    else onRestart();
+    // The runtime is restarted here, always. Leaving it to the shell was a bug
+    // the e2e tests caught: the screen said "restarted" while the same run
+    // carried on underneath.
+    send({ type: 'restart' });
+    onRestart?.();
 
     announce({ kind: 'started' });
   }, [onRestart, send, announce]);
