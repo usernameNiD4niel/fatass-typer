@@ -11,6 +11,7 @@ import {
   dogPackView,
   drawDogPack,
   drawMc,
+  drawObstacles,
   locomotionFor,
   type McAnimation,
   mcHeightPx,
@@ -386,6 +387,15 @@ export class RuntimeHost implements GameHost {
     const camera = renderer.view;
     const context = this.options.context;
     if (!context) return;
+
+    // Obstacles sit behind the actors: the MC has to be visibly in front of the
+    // thing he is jumping over, or the avoidance reads as a collision.
+    drawObstacles(context, {
+      camera,
+      groundYPx: groundYPx(camera),
+      obstacles: this.session.obstacles,
+      elapsedMs: this.session.elapsedMs,
+    });
 
     drawDogPack(context, {
       camera,

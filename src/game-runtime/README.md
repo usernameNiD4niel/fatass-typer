@@ -53,8 +53,15 @@ the completion means. Consequences — chase distance, combo, score, run statist
 applied in one place (`applyResolution`), so a new outcome cannot be added and silently
 forgotten by one of the four.
 
-Obstacles are not drawn on the canvas yet; the prompt is currently the only cue. That is
-D5's work.
+`obstacle-renderer.ts` draws them: one silhouette per definition, sized in world meters so
+they scale with the camera. An approaching obstacle carries a warning chevron; once its
+prompt attaches, that becomes a deadline bar whose **length and colour both** shrink, so the
+urgency survives colour-blindness (spec §12).
+
+`session/map-1-playtest.test.ts` plays the whole map at exactly its advertised 20 WPM — one
+character every 600ms, no corrections — and asserts that such a player finishes. A browser
+playtest cannot answer that question: a throttled or occluded tab runs the loop at a
+fraction of real time. The rules are pure, so the honest place to ask is a test.
 
 - `assets/` — the asset manifest. Every asset path in the game is declared here and
   nowhere else; nothing builds a path by concatenation. All entries are currently

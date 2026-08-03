@@ -42,6 +42,18 @@
   text-align: center;
 }
 
+/* The pause overlay. E5 designs the real one; this states the fact. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+  background: var(--surface-scrim);
+}
+
 .prompt {
   padding: var(--space-4);
   font-size: var(--font-size-2xl);

@@ -129,6 +129,24 @@ export function GameScreen(): JSX.Element {
     send(finished ? { type: 'restart' } : { type: 'startRun' });
   }, [finished, send]);
 
+  // Escape pauses from anywhere on the screen, not only from the typing field —
+  // a player who clicked away still expects it to work (spec §4).
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key !== 'Escape') return;
+      // The field handles its own Escape; reacting twice would toggle back.
+      if (event.target instanceof HTMLInputElement) return;
+
+      togglePause();
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [togglePause]);
+
   return (
     <section className={styles.screen} aria-label="Typing Chase run">
       <div className={styles.stage}>
@@ -142,6 +160,11 @@ export function GameScreen(): JSX.Element {
           aria-label="The runner and the chasing dogs"
         />
         {error !== null && <p className={styles.error}>{error}</p>}
+        {state === 'paused' && (
+          <p className={styles.overlay} role="status">
+            Paused — press Escape to resume
+          </p>
+        )}
       </div>
 
       <p className={styles.prompt} aria-live="polite">

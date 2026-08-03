@@ -16,6 +16,13 @@ export type {
 export { DOG_COLORS, dogHeightPx, drawDog, drawDogPack } from './dog-renderer';
 export type { DogDrawOptions, DogPackDrawOptions } from './dog-renderer';
 export {
+  drawObstacle,
+  drawObstacles,
+  OBSTACLE_COLORS,
+  obstacleHeightPx,
+} from './obstacle-renderer';
+export type { DrawObstacleOptions, DrawObstaclesOptions } from './obstacle-renderer';
+export {
   advanceMcAnimation,
   animationForMove,
   createMcAnimation,

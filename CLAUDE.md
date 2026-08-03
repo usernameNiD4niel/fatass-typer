@@ -130,14 +130,19 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 24 / 41 steps complete.** Phases A, B, and C are finished. **The game is
-playable**: boost prompts speed the MC up, the finish line is reachable, and the dogs can
-catch him and end the run (spec §19 milestone 1).
+**Progress: 25 / 41 steps complete.** Phases A, B, C, and D are finished. **Map 1 is
+playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
+finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **D4** — obstacles and their consequences wired into a run |
-| **Next up** | **D5** — pause/resume/restart, obstacle rendering, Map 1 end to end (awaiting approval) |
+| **Last completed** | **D5** — obstacle rendering, Escape to pause, Map 1 playtested |
+| **Next up** | **E1** — accessible UI primitives (awaiting approval) |
+
+**Open tuning finding (for F2).** A 10 WPM typist — *half* the advertised speed — still
+finishes Map 1 comfortably. Map 1 is meant to be forgiving, but that much slack means the
+chase is doing less work than the label implies. Recorded as a test in
+`session/map-1-playtest.test.ts` so F2 has a starting measurement.
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -146,7 +151,7 @@ catch him and end the run (spec §19 milestone 1).
 | A — Foundation | ✅ 5 / 5 |
 | B — `game-core` pure rules | ✅ 8 / 8 |
 | C — Runtime + playable slice | ✅ 7 / 7 |
-| D — Obstacles & map rules | 🟨 4 / 5 |
+| D — Obstacles & map rules | ✅ 5 / 5 |
 | E — UI shell | ⬜ 0 / 7 |
 | F — Content, maps, storage | ⬜ 0 / 5 |
 | G — Polish | ⬜ 0 / 4 |
@@ -154,7 +159,7 @@ catch him and end the run (spec §19 milestone 1).
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 639 passed, 35 files
+npm run test          # 666 passed, 37 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -187,12 +192,12 @@ derived from the B5 timing budget so the prompt is always on screen early enough
 map's stated WPM, plus resolution — avoided, stumbled, or hit, decided once. See that
 folder's README for the three moments and the three endings.
 
-Runs now include obstacles end to end: spawned on schedule, prompts attaching in time,
-resolved as avoided, stumbled, or hit, with the consequences applied to chase distance,
-combo, score, and run statistics.
+Runs include obstacles end to end: spawned on schedule, drawn on the canvas with a warning
+chevron and then a deadline bar, resolved as avoided, stumbled, or hit, with the
+consequences applied to chase distance, combo, score, and run statistics. Escape pauses from
+anywhere on the screen.
 
-**What does not exist yet.** Obstacles are not drawn on the canvas — the prompt is the only
-cue a player gets, which D5 fixes along with Escape-to-pause and a Map 1 playtest. No
+**What does not exist yet.** No
 persistence — `storage/` is still a README, and progress does not survive a reload. The UI
 is a placeholder: `App.tsx` is the A5 harness with the game screen bolted on, and the real
 screens, primitives, and HUD arrive in phase E. Maps 2–6 and the full content set are
@@ -275,7 +280,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
       resolution.
 - [x] **D4** Consequences wired through: dog distance, combo break, score, run
       statistics. Tests for resolution and timing edge cases.
-- [ ] **D5** Pause / resume / restart, Escape to pause. Map 1 fully data-driven and
+- [x] **D5** Pause / resume / restart, Escape to pause. Map 1 fully data-driven and
       playable end to end. Spec §19 Milestone 2.
 
 ### Phase E — UI shell

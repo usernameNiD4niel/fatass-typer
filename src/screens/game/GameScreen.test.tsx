@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 
 import { GameScreen } from './GameScreen';
 
@@ -60,5 +61,34 @@ describe('GameScreen', () => {
     render(<GameScreen />);
 
     expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument();
+  });
+
+  it('listens for Escape while mounted and stops on unmount', () => {
+    const added: string[] = [];
+    const removed: string[] = [];
+    const addSpy = vi.spyOn(window, 'addEventListener').mockImplementation((type) => {
+      added.push(type);
+    });
+    const removeSpy = vi.spyOn(window, 'removeEventListener').mockImplementation((type) => {
+      removed.push(type);
+    });
+
+    render(<GameScreen />).unmount();
+
+    // A leaked key listener would keep pausing a run that no longer exists.
+    expect(added).toContain('keydown');
+    expect(removed).toContain('keydown');
+
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
+  });
+
+  it('ignores Escape when nothing is running', async () => {
+    const user = userEvent.setup();
+    render(<GameScreen />);
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByText(/Paused/)).not.toBeInTheDocument();
   });
 });
