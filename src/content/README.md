@@ -12,4 +12,14 @@ Data only. No logic.
 
 ## Contents
 
-Populated by phase F, and by D1 for obstacle data. See CLAUDE.md §5.
+- `maps.ts` — `MAP_1`, the only map so far. Distance, base speed, reaction buffer, chase
+  profile, boost profile, prompt categories, and unlock rule, all as data. Steps F2 and F3
+  tune it and add maps 2 to 6 without touching code.
+- `prompts.ts` — the starter vocabulary for the vertical slice. Step F1 expands it into
+  proper category files. `normalizedText` is derived from `text` rather than typed by hand,
+  so the two cannot disagree.
+
+Map 1's chase numbers are set so all three dogs are on screen at the starting gap. A gap
+wider than the camera can show turns the chase into an invisible timer.
+
+Obstacle data arrives in D1; the rest of the content set in phase F. See CLAUDE.md §5.

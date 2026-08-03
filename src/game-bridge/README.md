@@ -21,13 +21,19 @@ A single stable object. Commands go in, events come out.
   Unknown properties are dropped, not forwarded.
 - `bridge.ts` — `GameBridge`: validation, throttling, lifetime. The runtime attaches through
   `setHost`; React attaches through `subscribe`.
+- `attach.ts` — `attachGame`, the **only** module that knows both sides exist. It is why
+  React never imports `game-runtime`: a screen asks for a bridge attached to a canvas and
+  gets back the same narrow object any runtime would hand it. Swapping in Rust + WASM means
+  rewriting this file and nothing above it.
 
 `GameState` is narrower than `game-core/app-state` on purpose. React owns navigation
 (menus, settings); the bridge only reports what the run is doing.
 
 **Throttling.** `publishStats` / `publishDogDistance` can be called every simulation step;
 at most one update per 100ms leaves, and it is always the newest sample. A run-ending event
-flushes the withheld sample first, so the final numbers are never 90ms stale.
+flushes the withheld sample first, so the final numbers are never 90ms stale. A timestamp
+that jumps backwards resets the throttle — a restart puts run time back to zero, and
+without that the HUD would freeze for the length of the previous run.
 
 **Lifetime.** `destroy()` clears every listener and turns all further calls into no-ops —
 unmount ordering is not fully controllable, so a late event must be harmless. A throwing

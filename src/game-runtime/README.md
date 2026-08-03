@@ -37,6 +37,11 @@ a detached canvas forever.
   dial and a sprite sheet can replace the file wholesale. `dog-pack.ts` turns the chase
   model's single gap number into three animals; `dog-renderer.ts` draws them with danger
   cues that escalate with `chaseThreat`.
+- `session/` — the run. `run-session.ts` is the whole simulation as pure functions: time
+  arrives as deltas, randomness from a seed, and every call returns a new session plus its
+  events, so a full run can be played out in a test without rendering a frame.
+  `runtime-host.ts` is the impure half — it owns the loop, the renderer, and the clock, and
+  implements the bridge's `GameHost`.
 - `assets/` — the asset manifest. Every asset path in the game is declared here and
   nowhere else; nothing builds a path by concatenation. All entries are currently
   `optional`, because the scene is drawn from vector shapes (spec §10 permits this for the
@@ -56,5 +61,4 @@ frame they are drawn, so the picture and the HUD number cannot disagree. Nothing
 Animation never drives the world. The run cycle advances by distance travelled, so speed
 comes from the rules and the legs follow — never the other way round (CLAUDE.md §5).
 
-Still to come in phase C: the bridge, typing input, and the vertical slice. Obstacle
-rendering follows in phase D. See CLAUDE.md §5.
+Obstacles — spawning, timing, and rendering — arrive in phase D. See CLAUDE.md §5.

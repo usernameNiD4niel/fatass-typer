@@ -12,4 +12,12 @@ results, settings, statistics, tutorial.
 
 ## Contents
 
-Populated by phase E. See CLAUDE.md §5.
+- `game/` — the playable screen (step C7). Mounts a canvas, attaches a bridge to it via
+  `attachGame`, and renders what comes back: the active prompt, a minimal HUD, the typing
+  field, and the run outcome. Step E4 designs the real HUD and E5 the results screens.
+
+It imports `game-bridge` and never `game-runtime`. Everything it shows arrives at the
+bridge's ~10Hz, so no per-frame data reaches React. Unmounting tears down the loop, the
+canvas, and the bridge together.
+
+The rest of the screens arrive in phase E. See CLAUDE.md §5.

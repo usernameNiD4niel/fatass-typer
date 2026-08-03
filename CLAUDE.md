@@ -130,12 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 19 / 41 steps complete.** Phases A and B are finished; phase C is nearly done.
+**Progress: 20 / 41 steps complete.** Phases A, B, and C are finished. **The game is
+playable**: boost prompts speed the MC up, the finish line is reachable, and the dogs can
+catch him and end the run (spec §19 milestone 1).
 
 | | |
 |---|---|
-| **Last completed** | **C6** — typing input through a real focused `<input>` |
-| **Next up** | **C7** — the vertical slice: first playable build (awaiting approval) |
+| **Last completed** | **C7** — the vertical slice, verified in a real browser |
+| **Next up** | **D1** — obstacle definitions and the spawner (awaiting approval) |
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -143,7 +145,7 @@ wait. Do not begin the next step unprompted.
 |---|---|
 | A — Foundation | ✅ 5 / 5 |
 | B — `game-core` pure rules | ✅ 8 / 8 |
-| C — Runtime + playable slice | 🟨 6 / 7 |
+| C — Runtime + playable slice | ✅ 7 / 7 |
 | D — Obstacles & map rules | ⬜ 0 / 5 |
 | E — UI shell | ⬜ 0 / 7 |
 | F — Content, maps, storage | ⬜ 0 / 5 |
@@ -152,7 +154,7 @@ wait. Do not begin the next step unprompted.
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 506 passed, 28 files
+npm run test          # 539 passed, 30 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -175,13 +177,17 @@ state machine and vector art, plus the three-dog pack derived from `ChaseState`)
 validation, and `GameBridge` — which throttles live stats to ~10Hz and drops every listener
 on `destroy`. No host is attached to it yet; C7 supplies one.
 
-`src/components/typing-input/` is the first real component: a focused `<input>` that
-normalises text and sends whole values through the bridge.
+`src/components/typing-input/` is the typing field: a focused `<input>` that normalises text
+and sends whole values through the bridge. `src/screens/game/` mounts the canvas and renders
+the prompt, HUD, and outcome. `src/game-runtime/session/` holds the run itself — a pure
+`run-session` plus the `RuntimeHost` that gives it a loop, a renderer, and a clock.
+`src/content/` has Map 1 and a starter vocabulary.
 
-**What does not exist yet.** Nothing is on screen: no component mounts a canvas, no loop is
-wired to a renderer, and nothing handles the commands the typing field sends. That is C7.
-There is no real screen and no content data — `storage/`, `screens/`, and `src/content/`
-hold only their README contracts, and `components/` has only the typing field.
+**What does not exist yet.** No obstacles (phase D), so the run is boost prompts only. No
+persistence — `storage/` is still a README, and progress does not survive a reload. The UI
+is a placeholder: `App.tsx` is the A5 harness with the game screen bolted on, and the real
+screens, primitives, and HUD arrive in phase E. Maps 2–6 and the full content set are
+phase F.
 
 ---
 
@@ -245,7 +251,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 - [x] **C6** Typing input: a real focused `<input>` element — not global `keydown` — for
       text construction. Backspace, punctuation, spaces. Ignore unsupported control keys.
       Send normalized input events through the bridge.
-- [~] **C7** **Vertical slice.** Boost prompts grant a visible speed boost, the finish
+- [x] **C7** **Vertical slice.** Boost prompts grant a visible speed boost, the finish
       line is reachable, the dogs can catch the MC and end the run. First genuinely
       playable build. Spec §19 Milestone 1 acceptance criteria.
 
