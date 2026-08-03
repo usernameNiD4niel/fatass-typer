@@ -1,19 +1,42 @@
 import {
   advanceChase,
+  breakStreak,
   type ChaseState,
   chaseThreat,
+  registerCollision as chaseCollision,
+  registerMissedPrompt as chaseMissedPrompt,
+  registerPromptCompleted as chasePromptCompleted,
   createChaseState,
   normalizedDistance,
-  registerPromptCompleted as chasePromptCompleted,
-  breakStreak,
 } from '../../game-core/chase';
 import { createPromptSelector, nextPrompt, type PromptSelector } from '../../game-core/content';
-import type { LiveRunStats, MapConfig, PromptEntry } from '../../game-core/models';
+import type {
+  LiveRunStats,
+  MapConfig,
+  ObstacleDefinition,
+  PromptEntry,
+} from '../../game-core/models';
+import {
+  type ActiveObstacle,
+  advanceObstacles,
+  advanceSpawner,
+  type AvoidanceMove,
+  createSpawner,
+  expireObstacle,
+  moveForOutcome,
+  type ObstacleOutcome,
+  placeObstacle,
+  type ResolvedObstacle,
+  resolveAvoided,
+  type SpawnerState,
+} from '../../game-core/obstacles';
 import { createRngFromString } from '../../game-core/random';
 import {
   breakCombo,
   createScoreState,
   type PromptOutcome,
+  registerCollision as scoreCollision,
+  registerMissedPrompt as scoreMissedPrompt,
   registerPromptCompleted as scorePromptCompleted,
   type ScoreState,
 } from '../../game-core/scoring';
@@ -36,9 +59,15 @@ import { applyInput, createTypingState, type TypingState } from '../../game-core
  * plus the events it produced. That is what lets the whole slice be tested
  * without rendering a frame — and what keeps a Rust reimplementation possible.
  *
- * The slice covers boost prompts, the finish line, and being caught. Obstacles
- * are phase D, and nothing here assumes their absence: obstacle prompts simply
- * have not been added to the prompt queue yet.
+ * Two kinds of prompt share one typing field. A **boost prompt** is optional
+ * speed and is always available; an **obstacle prompt** is mandatory, takes the
+ * field the moment it attaches, and carries a deadline. Completing either is the
+ * same keystrokes — only the consequences differ, which is why
+ * `promptObstacleId` decides which path a completion takes rather than the two
+ * having separate input handling.
+ *
+ * A run with no obstacle definitions is legitimate and behaves exactly as the
+ * vertical slice did.
  */
 
 export type RunPhase = 'ready' | 'running' | 'paused' | 'levelComplete' | 'gameOver';
@@ -59,13 +88,30 @@ export interface RunSession {
   readonly typing: TypingState;
   /** When the current prompt was first shown, in run time. */
   readonly promptStartedMs: number;
+  /**
+   * Which obstacle the current prompt belongs to, or `null` for a boost prompt.
+   *
+   * An obstacle prompt is mandatory and takes the field the moment it attaches;
+   * a boost prompt is optional speed. Tracking the owner is what lets one code
+   * path handle completion for both.
+   */
+  readonly promptObstacleId: string | null;
 
   readonly selector: PromptSelector;
   readonly chase: ChaseState;
   readonly stats: RunStats;
   readonly score: ScoreState;
 
+  readonly obstaclePool: readonly ObstacleDefinition[];
+  readonly spawner: SpawnerState;
+  /** Obstacles currently in the world, nearest last. */
+  readonly obstacles: readonly ActiveObstacle[];
+
   readonly completedPrompts: number;
+  readonly obstaclesFaced: number;
+  readonly obstaclesAvoided: number;
+  readonly stumbles: number;
+  readonly collisions: number;
 }
 
 export type SessionEvent =
@@ -73,6 +119,17 @@ export type SessionEvent =
   | { readonly type: 'promptCompleted'; readonly prompt: PromptEntry; readonly points: number }
   | { readonly type: 'boostStarted' }
   | { readonly type: 'boostEnded' }
+  | { readonly type: 'obstacleSpawned'; readonly obstacle: ActiveObstacle }
+  | { readonly type: 'obstacleWarning'; readonly obstacle: ActiveObstacle }
+  | { readonly type: 'obstacleAttached'; readonly obstacle: ActiveObstacle }
+  | {
+      readonly type: 'obstacleResolved';
+      readonly obstacle: ActiveObstacle;
+      readonly outcome: ObstacleOutcome;
+      /** What the MC should be seen doing. The runtime maps it to a pose. */
+      readonly move: AvoidanceMove;
+      readonly points: number;
+    }
   | { readonly type: 'phaseChanged'; readonly phase: RunPhase };
 
 export interface RunSessionResult {
@@ -80,7 +137,7 @@ export interface RunSessionResult {
   readonly events: readonly SessionEvent[];
 }
 
-/** Draws the next prompt and resets the typing state onto it. */
+/** Draws the next boost prompt and resets the typing state onto it. */
 function withNextPrompt(session: RunSession): RunSessionResult {
   const { prompt, selector } = nextPrompt(session.selector, session.pool, {
     mapNumber: session.map.mapNumber,
@@ -96,6 +153,7 @@ function withNextPrompt(session: RunSession): RunSessionResult {
       prompt,
       typing: createTypingState(prompt?.text ?? ''),
       promptStartedMs: session.elapsedMs,
+      promptObstacleId: null,
     },
     events: [{ type: 'promptChanged', prompt }],
   };
@@ -104,11 +162,15 @@ function withNextPrompt(session: RunSession): RunSessionResult {
 export interface CreateRunSessionInput {
   readonly map: MapConfig;
   readonly pool: readonly PromptEntry[];
+  /** Obstacle definitions the map may draw from. Empty means a run with none. */
+  readonly obstacles?: readonly ObstacleDefinition[];
   /** Same seed, same run — the property the whole test suite leans on. */
   readonly seed: string;
 }
 
 export function createRunSession(input: CreateRunSessionInput): RunSession {
+  // Two generators from one seed. Sharing one would couple prompt selection to
+  // obstacle spacing: changing a word list would silently reshuffle the map.
   const base: RunSession = {
     map: input.map,
     pool: input.pool,
@@ -119,11 +181,19 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     prompt: null,
     typing: createTypingState(''),
     promptStartedMs: 0,
-    selector: createPromptSelector(createRngFromString(input.seed)),
+    promptObstacleId: null,
+    selector: createPromptSelector(createRngFromString(`${input.seed}:prompts`)),
     chase: createChaseState(input.map.chase),
     stats: createRunStats(),
     score: createScoreState(),
+    obstaclePool: input.obstacles ?? [],
+    spawner: createSpawner(createRngFromString(`${input.seed}:obstacles`), input.map.content),
+    obstacles: [],
     completedPrompts: 0,
+    obstaclesFaced: 0,
+    obstaclesAvoided: 0,
+    stumbles: 0,
+    collisions: 0,
   };
 
   return withNextPrompt(base).session;
@@ -165,6 +235,212 @@ export function resumeRun(session: RunSession): RunSessionResult {
   return session.phase === 'paused' ? toPhase(session, 'running') : { session, events: [] };
 }
 
+/* -------------------------------------------------------------------------- */
+/* Obstacles                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Spawns whatever the schedule says is due and places it in the world. */
+function spawnDueObstacles(session: RunSession): RunSessionResult {
+  if (session.obstaclePool.length === 0) return { session, events: [] };
+
+  const due = advanceSpawner(session.spawner, session.elapsedMs, {
+    content: session.map.content,
+    mapNumber: session.map.mapNumber,
+    pool: session.obstaclePool,
+  });
+
+  if (due.spawned.length === 0) return { session: { ...session, spawner: due.state }, events: [] };
+
+  const events: SessionEvent[] = [];
+  let selector = session.selector;
+  const placed: ActiveObstacle[] = [];
+  let index = session.obstaclesFaced;
+
+  for (const definition of due.spawned) {
+    const drawn = nextPrompt(selector, session.pool, {
+      mapNumber: session.map.mapNumber,
+      categories: [definition.promptCategory],
+      usage: 'obstacle',
+      preferredTags: session.map.content.themeTags,
+    });
+    selector = drawn.selector;
+
+    // No prompt in the pool fits this obstacle's category. Skipping it is the
+    // honest failure: spawning something untypeable would be a free collision.
+    if (drawn.prompt === null) continue;
+
+    index += 1;
+    const obstacle = placeObstacle({
+      instanceId: `obstacle-${String(index)}`,
+      definition,
+      prompt: drawn.prompt,
+      map: session.map,
+      playerMeters: session.playerMeters,
+      elapsedMs: session.elapsedMs,
+    });
+
+    placed.push(obstacle);
+    events.push({ type: 'obstacleSpawned', obstacle });
+  }
+
+  return {
+    session: {
+      ...session,
+      spawner: due.state,
+      selector,
+      obstacles: [...session.obstacles, ...placed],
+      obstaclesFaced: index,
+    },
+    events,
+  };
+}
+
+/** Hands the typing field to an obstacle. Its prompt is mandatory. */
+function attachObstaclePrompt(session: RunSession, obstacle: ActiveObstacle): RunSessionResult {
+  return {
+    session: {
+      ...session,
+      prompt: obstacle.prompt,
+      typing: createTypingState(obstacle.prompt.text),
+      promptStartedMs: session.elapsedMs,
+      promptObstacleId: obstacle.instanceId,
+    },
+    events: [
+      { type: 'obstacleAttached', obstacle },
+      { type: 'promptChanged', prompt: obstacle.prompt },
+    ],
+  };
+}
+
+/**
+ * Applies what an ending costs or earns (spec §5, §8).
+ *
+ * The one place obstacle outcomes touch the chase, the score, and the run
+ * statistics — so a new outcome cannot be added and silently forgotten by one
+ * of the three.
+ */
+function applyResolution(session: RunSession, resolved: ResolvedObstacle): RunSessionResult {
+  const { outcome, obstacle } = resolved;
+  const profile = session.map.chase;
+
+  const replaced = session.obstacles.map((entry) =>
+    entry.instanceId === obstacle.instanceId ? obstacle : entry,
+  );
+
+  let next: RunSession = { ...session, obstacles: replaced };
+  let points = 0;
+
+  if (outcome === 'avoided') {
+    const scored = scorePromptCompleted(next.score, {
+      correctCharacters: next.typing.correctCharacters,
+      incorrectCharacters: next.typing.incorrectCharacters,
+      isObstacle: true,
+      expectedTypingMs: obstacle.timing.expectedTypingMs,
+      actualTypingMs: next.elapsedMs - next.promptStartedMs,
+      // Finishing early is worth something: it is the difference between
+      // clearing an obstacle and scraping past it.
+      remainingMs: resolved.remainingMs,
+    });
+
+    points = scored.score - next.score.score;
+    next = {
+      ...next,
+      score: scored,
+      chase:
+        next.typing.incorrectCharacters === 0
+          ? chasePromptCompleted(next.chase, profile)
+          : next.chase,
+      obstaclesAvoided: next.obstaclesAvoided + 1,
+      completedPrompts: next.completedPrompts + 1,
+      // Clearing an obstacle grants the same boost a typed word does — the
+      // reward for good typing should not depend on which prompt it was.
+      boostRemainingMs: next.map.boost.durationMs,
+    };
+  } else if (outcome === 'stumbled') {
+    // Cheaper than a collision, and it still breaks the combo.
+    next = {
+      ...next,
+      chase: chaseMissedPrompt(next.chase, profile),
+      score: scoreMissedPrompt(next.score),
+      stumbles: next.stumbles + 1,
+    };
+    points = next.score.score - session.score.score;
+  } else {
+    next = {
+      ...next,
+      chase: chaseCollision(next.chase, profile),
+      score: scoreCollision(next.score),
+      collisions: next.collisions + 1,
+    };
+    points = next.score.score - session.score.score;
+  }
+
+  const resolvedEvent: SessionEvent = {
+    type: 'obstacleResolved',
+    obstacle,
+    outcome,
+    move: moveForOutcome(outcome, obstacle.definition.action),
+    points,
+  };
+
+  // The field goes back to boost prompts, whatever the ending was.
+  const restored = withNextPrompt(next);
+
+  return { session: restored.session, events: [resolvedEvent, ...restored.events] };
+}
+
+/** Removes an obstacle that has finished with the world. */
+function forget(session: RunSession, instanceId: string): RunSession {
+  return {
+    ...session,
+    obstacles: session.obstacles.filter((entry) => entry.instanceId !== instanceId),
+  };
+}
+
+/** Runs every live obstacle's clock and reacts to what it reports. */
+function advanceObstacleLifecycle(session: RunSession): RunSessionResult {
+  if (session.obstacles.length === 0) return { session, events: [] };
+
+  const advanced = advanceObstacles(session.obstacles, {
+    playerMeters: session.playerMeters,
+    speedMetersPerSecond: currentSpeed(session),
+    elapsedMs: session.elapsedMs,
+  });
+
+  let current: RunSession = { ...session, obstacles: advanced.obstacles };
+  const events: SessionEvent[] = [];
+
+  for (const event of advanced.events) {
+    if (event.type === 'obstacleWarning') {
+      events.push({ type: 'obstacleWarning', obstacle: event.obstacle });
+      continue;
+    }
+
+    if (event.type === 'promptAttached') {
+      const attached = attachObstaclePrompt(current, event.obstacle);
+      current = attached.session;
+      events.push(...attached.events);
+      continue;
+    }
+
+    // The deadline passed. `expireObstacle` decides stumble or hit, and its
+    // guard is what stops a second charge if this fires again.
+    const expiring = current.obstacles.find(
+      (entry) => entry.instanceId === event.obstacle.instanceId,
+    );
+    if (expiring === undefined) continue;
+
+    const expired = expireObstacle(expiring, current.typing, current.elapsedMs);
+    if (expired.resolved === null) continue;
+
+    const applied = applyResolution(current, expired.resolved);
+    current = forget(applied.session, event.obstacle.instanceId);
+    events.push(...applied.events);
+  }
+
+  return { session: current, events };
+}
+
 /**
  * Advances the simulation by one fixed step.
  *
@@ -192,24 +468,34 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
     }),
   };
 
+  // Obstacles run after movement, so their time-to-impact is measured against
+  // where the MC actually is this step rather than where they were last step.
+  const spawned = spawnDueObstacles(advanced);
+  const lifecycle = advanceObstacleLifecycle(spawned.session);
+
+  const withObstacles = lifecycle.session;
+  const allEvents = [...events, ...spawned.events, ...lifecycle.events];
+
   // Finishing wins ties. Crossing the line and being caught on the same step is
   // vanishingly rare, but the player who reached the finish earned it.
-  if (advanced.playerMeters >= advanced.map.distanceMeters) {
+  if (withObstacles.playerMeters >= withObstacles.map.distanceMeters) {
     const finished = toPhase(
-      { ...advanced, playerMeters: advanced.map.distanceMeters },
+      { ...withObstacles, playerMeters: withObstacles.map.distanceMeters },
       'levelComplete',
     );
 
-    return { session: finished.session, events: [...events, ...finished.events] };
+    return { session: finished.session, events: [...allEvents, ...finished.events] };
   }
 
-  if (advanced.chase.caught) {
-    const over = toPhase(advanced, 'gameOver');
+  // A collision can be what closes the gap, so this is checked after the
+  // obstacle lifecycle rather than before it.
+  if (withObstacles.chase.caught) {
+    const over = toPhase(withObstacles, 'gameOver');
 
-    return { session: over.session, events: [...events, ...over.events] };
+    return { session: over.session, events: [...allEvents, ...over.events] };
   }
 
-  return { session: advanced, events };
+  return { session: withObstacles, events: allEvents };
 }
 
 /**
@@ -241,10 +527,30 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
     };
   }
 
-  return completePrompt(typed);
+  // An obstacle prompt and a boost prompt are typed identically; only what
+  // completing them means differs.
+  return typed.promptObstacleId === null
+    ? completePrompt(typed)
+    : completeObstaclePrompt(typed, typed.promptObstacleId);
 }
 
-/** Everything that happens when a prompt is finished. */
+/** The prompt attached to an obstacle was finished in time. */
+function completeObstaclePrompt(session: RunSession, instanceId: string): RunSessionResult {
+  const obstacle = session.obstacles.find((entry) => entry.instanceId === instanceId);
+
+  // The obstacle is gone — expired on the same step, or already resolved. The
+  // guard in `resolveAvoided` covers the rest; this covers the lookup.
+  if (obstacle === undefined) return withNextPrompt(session);
+
+  const result = resolveAvoided(obstacle, session.typing, session.elapsedMs);
+  if (result.resolved === null) return withNextPrompt(session);
+
+  const applied = applyResolution(session, result.resolved);
+
+  return { session: forget(applied.session, instanceId), events: applied.events };
+}
+
+/** Everything that happens when a boost prompt is finished. */
 function completePrompt(session: RunSession): RunSessionResult {
   const prompt = session.prompt;
   if (prompt === null) return { session, events: [] };
@@ -293,6 +599,21 @@ export function liveStats(session: RunSession): LiveRunStats {
     dogDistanceNormalized: normalizedDistance(session.chase, session.map.chase),
     elapsedMs: session.elapsedMs,
   };
+}
+
+/** The obstacle currently holding the typing field, if any. */
+export function activeObstacle(session: RunSession): ActiveObstacle | null {
+  if (session.promptObstacleId === null) return null;
+
+  return session.obstacles.find((entry) => entry.instanceId === session.promptObstacleId) ?? null;
+}
+
+/** Obstacles cleared as a fraction of obstacles faced. 1 when none were faced. */
+export function obstacleSuccessRate(session: RunSession): number {
+  const resolvedCount = session.obstaclesAvoided + session.stumbles + session.collisions;
+  if (resolvedCount === 0) return 1;
+
+  return session.obstaclesAvoided / resolvedCount;
 }
 
 export function sessionThreat(session: RunSession): ReturnType<typeof chaseThreat> {

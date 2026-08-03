@@ -45,6 +45,17 @@ a detached canvas forever.
   events, so a full run can be played out in a test without rendering a frame.
   `runtime-host.ts` is the impure half — it owns the loop, the renderer, and the clock, and
   implements the bridge's `GameHost`.
+
+Obstacles share the typing field with boost prompts: an obstacle prompt is mandatory and
+takes the field the moment it attaches, a boost prompt is optional speed. Completing either
+is the same keystrokes, so one input path handles both and `promptObstacleId` decides what
+the completion means. Consequences — chase distance, combo, score, run statistics — are
+applied in one place (`applyResolution`), so a new outcome cannot be added and silently
+forgotten by one of the four.
+
+Obstacles are not drawn on the canvas yet; the prompt is currently the only cue. That is
+D5's work.
+
 - `assets/` — the asset manifest. Every asset path in the game is declared here and
   nowhere else; nothing builds a path by concatenation. All entries are currently
   `optional`, because the scene is drawn from vector shapes (spec §10 permits this for the
@@ -64,4 +75,4 @@ frame they are drawn, so the picture and the HUD number cannot disagree. Nothing
 Animation never drives the world. The run cycle advances by distance travelled, so speed
 comes from the rules and the legs follow — never the other way round (CLAUDE.md §5).
 
-Obstacles — spawning, timing, and rendering — arrive in phase D. See CLAUDE.md §5.
+See CLAUDE.md §5 for what remains.

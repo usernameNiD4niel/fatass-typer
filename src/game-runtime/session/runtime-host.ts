@@ -1,9 +1,10 @@
 import type { GameCommand, GameEvent, GameHost } from '../../game-bridge';
-import type { MapConfig, PromptEntry, RunResult } from '../../game-core/models';
+import type { MapConfig, ObstacleDefinition, PromptEntry, RunResult } from '../../game-core/models';
 import { CURRENT_SCHEMA_VERSION } from '../../game-core/models';
 import {
   advanceDogPack,
   advanceMcAnimation,
+  animationForMove,
   createDogPack,
   createMcAnimation,
   type DogPackState,
@@ -25,13 +26,16 @@ import {
   type SurfaceSize,
   worldToScreenX,
 } from '../render';
+import { timeToImpact } from '../../game-core/obstacles';
 import {
+  activeObstacle,
   advanceRunSession,
   applyRunInput,
   createRunSession,
   currentSpeed,
   isBoosting,
   liveStats,
+  obstacleSuccessRate,
   pauseRun,
   type RunSession,
   resumeRun,
@@ -58,6 +62,7 @@ export interface RuntimeHostOptions {
   readonly context: Canvas2D | null;
   readonly map: MapConfig;
   readonly prompts: readonly PromptEntry[];
+  readonly obstacles?: readonly ObstacleDefinition[];
   readonly seed: string;
   readonly viewport: SurfaceSize;
   readonly scheduler?: LoopScheduler;
@@ -87,6 +92,7 @@ export class RuntimeHost implements GameHost {
     this.session = createRunSession({
       map: options.map,
       pool: options.prompts,
+      obstacles: options.obstacles ?? [],
       seed: options.seed,
     });
 
@@ -194,6 +200,7 @@ export class RuntimeHost implements GameHost {
     this.session = createRunSession({
       map: this.options.map,
       pool: this.options.prompts,
+      obstacles: this.options.obstacles ?? [],
       // A restart is a fresh run, not a replay: a new seed means new prompts.
       seed: `${this.options.seed}:${String(Math.round(this.now()))}`,
     });
@@ -209,6 +216,12 @@ export class RuntimeHost implements GameHost {
   }
 
   private emitPrompt(prompt: PromptEntry | null, emit: (event: GameEvent) => void): void {
+    const obstacle = activeObstacle(this.session);
+    // An obstacle prompt is mandatory and carries a deadline; a boost prompt is
+    // optional speed. The HUD styles them differently, so the kind is not
+    // cosmetic.
+    const attached = obstacle !== null && obstacle.prompt.id === prompt?.id;
+
     emit({
       type: 'promptChanged',
       prompt:
@@ -219,8 +232,8 @@ export class RuntimeHost implements GameHost {
               text: prompt.text,
               typedLength: 0,
               mistakeCount: 0,
-              kind: 'boost',
-              remainingMs: null,
+              kind: attached ? 'obstacle' : 'boost',
+              remainingMs: attached ? obstacle.timing.availableMs : null,
             },
     });
   }
@@ -242,10 +255,38 @@ export class RuntimeHost implements GameHost {
           this.mc = play(this.mc, 'boosting');
           break;
 
+        case 'obstacleWarning':
+          emit({
+            type: 'obstacleWarning',
+            obstacle: {
+              obstacleId: event.obstacle.definition.id,
+              action: event.obstacle.definition.action,
+              promptText: event.obstacle.prompt.text,
+              secondsUntilImpact:
+                timeToImpact(
+                  event.obstacle,
+                  this.session.playerMeters,
+                  currentSpeed(this.session),
+                ) / 1_000,
+            },
+          });
+          break;
+
+        case 'obstacleResolved':
+          // The pose comes from the rules' own verdict, so what the player sees
+          // can never disagree with what they were charged.
+          this.mc = play(this.mc, animationForMove(event.move));
+          if (event.outcome !== 'avoided') {
+            emit({ type: 'playerHit', reason: event.outcome });
+          }
+          break;
+
         case 'phaseChanged':
           this.onPhaseChanged(emit);
           break;
 
+        case 'obstacleSpawned':
+        case 'obstacleAttached':
         case 'boostStarted':
         case 'boostEnded':
           break;
@@ -303,8 +344,8 @@ export class RuntimeHost implements GameHost {
       incorrectCharacters: this.session.stats.incorrectCharacters,
       correctedErrors: this.session.stats.correctedErrors,
       completedPrompts: this.session.completedPrompts,
-      missedPrompts: 0,
-      obstacleSuccessRate: 0,
+      missedPrompts: this.session.stumbles + this.session.collisions,
+      obstacleSuccessRate: obstacleSuccessRate(this.session),
       longestCombo: this.session.score.longestCombo,
     };
   }

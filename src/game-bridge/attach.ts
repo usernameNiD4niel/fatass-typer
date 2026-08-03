@@ -1,5 +1,5 @@
-import { MAP_1, STARTER_PROMPTS } from '../content';
-import type { MapConfig, PromptEntry } from '../game-core/models';
+import { MAP_1, OBSTACLES, STARTER_PROMPTS } from '../content';
+import type { MapConfig, ObstacleDefinition, PromptEntry } from '../game-core/models';
 import type { Canvas2D } from '../game-runtime/render';
 import { liveStats, RuntimeHost } from '../game-runtime/session';
 import { GameBridge } from './bridge';
@@ -20,6 +20,7 @@ export interface AttachGameOptions {
   readonly devicePixelRatio?: number;
   readonly map?: MapConfig;
   readonly prompts?: readonly PromptEntry[];
+  readonly obstacles?: readonly ObstacleDefinition[];
   /** Fixing the seed makes a run reproducible — used by tests and bug reports. */
   readonly seed?: string;
 }
@@ -64,6 +65,7 @@ export function attachGame(options: AttachGameOptions): AttachedGame {
     context: get2dContext(options.canvas),
     map: options.map ?? MAP_1,
     prompts: options.prompts ?? STARTER_PROMPTS,
+    obstacles: options.obstacles ?? OBSTACLES,
     seed: options.seed ?? 'typing-chase',
     viewport: {
       widthPx: options.widthPx,
