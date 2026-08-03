@@ -1,3 +1,4 @@
+export { earnsRecovery, RECOVERY_ACCURACY } from './chase';
 export {
   advanceChase,
   breakStreak,

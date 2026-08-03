@@ -1,6 +1,6 @@
 import type { PromptId } from '../models/ids';
 import type { PromptCategory, PromptEntry } from '../models/prompt';
-import { pick } from '../random/rng';
+import { nextFloat, pick } from '../random/rng';
 import type { Rng } from '../random/rng';
 
 /**
@@ -25,8 +25,22 @@ export interface PromptCriteria {
   /** Optional difficulty band, 0..1. */
   readonly minDifficulty?: number;
   readonly maxDifficulty?: number;
+  /**
+   * Longest prompt to consider, in characters.
+   *
+   * Used for the first prompt of a run: the gap only opens while boosting, and
+   * a boost is only earned by finishing something. Opening on a phrase that
+   * takes longer to type than the starting gap survives is a run lost before
+   * the player has done anything wrong.
+   */
+  readonly maxCharacters?: number;
   /** Tags to prefer, for map-themed vocabulary. Never a hard requirement. */
   readonly preferredTags?: readonly string[];
+  /**
+   * How often a themed prompt is drawn, 0..1. Defaults to
+   * `DEFAULT_THEMED_SHARE`.
+   */
+  readonly themedShare?: number;
 }
 
 /** Prompts that satisfy the hard filters. */
@@ -41,6 +55,12 @@ export function filterPrompts(
     if (prompt.minimumMap > criteria.mapNumber) return false;
     if (prompt.usage !== 'both' && prompt.usage !== criteria.usage) return false;
     if (prompt.difficulty < min || prompt.difficulty > max) return false;
+    if (
+      criteria.maxCharacters !== undefined &&
+      prompt.normalizedText.length > criteria.maxCharacters
+    ) {
+      return false;
+    }
     if (criteria.categories.length > 0 && !criteria.categories.includes(prompt.category)) {
       return false;
     }
@@ -63,7 +83,18 @@ export interface PromptSelector {
  * Deep enough that a map with a healthy vocabulary does not feel repetitive,
  * shallow enough that a small themed pool is not starved.
  */
-export const DEFAULT_HISTORY_SIZE = 5;
+export const DEFAULT_HISTORY_SIZE = 8;
+
+/**
+ * How much of a run is themed vocabulary.
+ *
+ * Themed prompts are the flavour of a map, and there are only a handful per
+ * theme — six on Map 1. Drawing them *whenever they exist* turned a pool of 78
+ * words into a loop of six, on every map, which is the bug this constant
+ * exists to prevent. One prompt in three keeps the theme audible without the
+ * run becoming a chant.
+ */
+export const DEFAULT_THEMED_SHARE = 1 / 3;
 
 export function createPromptSelector(rng: Rng, historySize = DEFAULT_HISTORY_SIZE): PromptSelector {
   return { rng, recentIds: [], historySize: Math.max(0, historySize) };
@@ -100,20 +131,30 @@ function avoidRepeats(
 }
 
 /**
- * Splits candidates into those matching a preferred tag and the rest.
- * Themed vocabulary is a preference, never a requirement.
+ * Narrows to themed vocabulary *some* of the time.
+ *
+ * A preference, and genuinely one: the roll travels with the generator, so the
+ * sequence stays deterministic under a fixed seed. Falls back to the whole set
+ * whenever the theme has nothing to offer.
  */
 function preferTagged(
   candidates: readonly PromptEntry[],
   preferredTags: readonly string[] | undefined,
-): readonly PromptEntry[] {
-  if (preferredTags === undefined || preferredTags.length === 0) return candidates;
+  share: number,
+  rng: Rng,
+): { readonly candidates: readonly PromptEntry[]; readonly rng: Rng } {
+  if (preferredTags === undefined || preferredTags.length === 0 || share <= 0) {
+    return { candidates, rng };
+  }
+
+  const roll = nextFloat(rng);
+  if (roll.value >= share) return { candidates, rng: roll.rng };
 
   const tagged = candidates.filter((prompt) =>
     prompt.tags.some((tag) => preferredTags.includes(tag)),
   );
 
-  return tagged.length > 0 ? tagged : candidates;
+  return { candidates: tagged.length > 0 ? tagged : candidates, rng: roll.rng };
 }
 
 export interface PromptSelectionResult {
@@ -131,8 +172,14 @@ export function nextPrompt(
   const eligible = filterPrompts(pool, criteria);
   if (eligible.length === 0) return { prompt: null, selector };
 
-  const candidates = avoidRepeats(preferTagged(eligible, criteria.preferredTags), selector);
-  const { value, rng } = pick(selector.rng, candidates);
+  const themed = preferTagged(
+    eligible,
+    criteria.preferredTags,
+    criteria.themedShare ?? DEFAULT_THEMED_SHARE,
+    selector.rng,
+  );
+  const candidates = avoidRepeats(themed.candidates, selector);
+  const { value, rng } = pick(themed.rng, candidates);
 
   if (value === null) return { prompt: null, selector: { ...selector, rng } };
 

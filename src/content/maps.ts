@@ -45,7 +45,7 @@ export const MAP_1: MapConfig = {
      * scenery. At 2.0 a 20 WPM typist still has room and a 10 WPM typist is
      * caught, which is what the map's label promises.
      */
-    baseCatchUpMetersPerSecond: 2.0,
+    baseCatchUpMetersPerSecond: 1.8,
     collisionPenaltyMeters: 5,
     missedPromptPenaltyMeters: 3,
     streakRecoveryMeters: 2,
@@ -95,7 +95,7 @@ export const MAP_2: MapConfig = {
   },
   chase: {
     startingDistanceMeters: 16,
-    baseCatchUpMetersPerSecond: 2.5,
+    baseCatchUpMetersPerSecond: 2.1,
     collisionPenaltyMeters: 5.5,
     missedPromptPenaltyMeters: 3.5,
     streakRecoveryMeters: 2,
@@ -104,7 +104,7 @@ export const MAP_2: MapConfig = {
   },
   boost: {
     speedMultiplier: 1.55,
-    durationMs: 2500,
+    durationMs: 2800,
   },
   content: {
     promptCategories: ['short-word', 'medium-word', 'short-phrase', 'themed', 'punctuation'],
@@ -139,8 +139,8 @@ export const MAP_3: MapConfig = {
     fixedVisualLeadTimeMs: 800,
   },
   chase: {
-    startingDistanceMeters: 15,
-    baseCatchUpMetersPerSecond: 3.0,
+    startingDistanceMeters: 18,
+    baseCatchUpMetersPerSecond: 2.3,
     collisionPenaltyMeters: 6,
     missedPromptPenaltyMeters: 4,
     streakRecoveryMeters: 2,
@@ -199,8 +199,8 @@ export const MAP_4: MapConfig = {
     fixedVisualLeadTimeMs: 750,
   },
   chase: {
-    startingDistanceMeters: 15,
-    baseCatchUpMetersPerSecond: 3.8,
+    startingDistanceMeters: 24,
+    baseCatchUpMetersPerSecond: 2.4,
     collisionPenaltyMeters: 6.5,
     missedPromptPenaltyMeters: 4.5,
     streakRecoveryMeters: 2.5,
@@ -258,7 +258,7 @@ export const MAP_5: MapConfig = {
     fixedVisualLeadTimeMs: 700,
   },
   chase: {
-    startingDistanceMeters: 17,
+    startingDistanceMeters: 22,
     /**
      * Softer than the ladder below it would suggest.
      *
@@ -267,7 +267,7 @@ export const MAP_5: MapConfig = {
      * that gate would only be reachable by someone typing well above target —
      * the map would be asking for one thing and requiring another.
      */
-    baseCatchUpMetersPerSecond: 4.0,
+    baseCatchUpMetersPerSecond: 2.9,
     collisionPenaltyMeters: 7,
     missedPromptPenaltyMeters: 5,
     streakRecoveryMeters: 2.5,
@@ -320,9 +320,9 @@ export const MAP_6: MapConfig = {
     fixedVisualLeadTimeMs: 650,
   },
   chase: {
-    startingDistanceMeters: 15,
+    startingDistanceMeters: 18,
     // Same reasoning as Map 5: the 92% gate has to be reachable at 50 WPM.
-    baseCatchUpMetersPerSecond: 5.0,
+    baseCatchUpMetersPerSecond: 3.4,
     collisionPenaltyMeters: 8,
     missedPromptPenaltyMeters: 5.5,
     streakRecoveryMeters: 3,

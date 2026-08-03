@@ -99,6 +99,25 @@ export function advanceChase(
 }
 
 /**
+ * How accurate a prompt has to be to buy ground back.
+ *
+ * Not perfection. Perfection meant a player mistyping one character in twelve —
+ * 92% accuracy, which is the gate Map 6 asks for — never recovered a single
+ * metre all run, on any map. Ground is earned by typing well, and 90% of a
+ * prompt is typing well; the mistake still costs time, and still breaks the
+ * streak that leads to the next recovery.
+ */
+export const RECOVERY_ACCURACY = 0.85;
+
+/** Whether a finished prompt was accurate enough to earn ground back. */
+export function earnsRecovery(correctCharacters: number, incorrectCharacters: number): boolean {
+  const total = correctCharacters + incorrectCharacters;
+  if (total <= 0) return false;
+
+  return correctCharacters / total >= RECOVERY_ACCURACY;
+}
+
+/**
  * The player hit an obstacle. The largest single penalty, and it breaks the
  * streak — spec §5 wants collisions to visibly bring the dogs closer.
  */

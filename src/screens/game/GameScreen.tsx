@@ -63,6 +63,12 @@ function formatWpm(value: number): string {
 export interface GameScreenProps {
   /** Which map to run. Defaults to Map 1 when the caller has not chosen. */
   readonly mapId?: string;
+  /**
+   * Fixes the run's prompt sequence. Omitted in play, where every run gets a
+   * fresh seed — otherwise the second attempt at a map is word-for-word the
+   * first. Tests and bug reports pass one to get a run back.
+   */
+  readonly seed?: string;
   /** The app's audio. Absent means a silent run, which is always acceptable. */
   readonly audio?: GameAudio;
   /**
@@ -91,6 +97,7 @@ export interface GameScreenProps {
 
 export function GameScreen({
   mapId,
+  seed,
   audio,
   reducedMotion = false,
   onRunEnded,
@@ -152,6 +159,9 @@ export function GameScreen({
       heightPx: CANVAS_HEIGHT,
       devicePixelRatio: window.devicePixelRatio,
       reducedMotion,
+      // A new seed per run. The clock is read here, at the edge, because
+      // `game-core` may not read one (CLAUDE.md §3).
+      seed: seed ?? `run-${String(Date.now())}`,
       // An unknown id falls back to the default map rather than failing to
       // start: the run matters more than the routing mistake behind it.
       ...(map === undefined ? {} : { map }),
@@ -238,7 +248,7 @@ export function GameScreen({
     // Changing the motion preference rebuilds the runtime, which is why it is
     // a setting rather than a mid-run control: the player is in Settings when
     // they change it, not on the road.
-  }, [mapId, reducedMotion, announce]);
+  }, [mapId, seed, reducedMotion, announce]);
 
   const send = useCallback((command: Parameters<GameBridge['send']>[0]) => {
     bridgeRef.current?.send(command);

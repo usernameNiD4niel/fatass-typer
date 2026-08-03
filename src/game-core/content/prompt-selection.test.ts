@@ -187,6 +187,28 @@ describe('selection — coverage and preferences', () => {
     expect(ids).toContain('market stall');
   });
 
+  it('does not let a small theme swallow the whole run', () => {
+    // The bug this pins: themed vocabulary used to be a hard filter whenever
+    // any tagged prompt existed, so a map with 78 eligible words drew from the
+    // six that carried its theme — and the same six on every map, since the
+    // themes share tags.
+    const criteria: PromptCriteria = {
+      mapNumber: 3,
+      categories: ['short-word', 'short-phrase'],
+      usage: 'obstacle',
+      preferredTags: ['market-district'],
+    };
+    const tagged = new Set(
+      filterPrompts(POOL, criteria)
+        .filter((prompt) => prompt.tags.includes('market-district'))
+        .map((prompt) => prompt.id),
+    );
+    const ids = drawIds(createPromptSelector(createRng(7)), 40, criteria);
+    const untagged = ids.filter((id) => !tagged.has(id));
+
+    expect(untagged.length).toBeGreaterThan(ids.length / 2);
+  });
+
   it('falls back to untagged prompts rather than starving', () => {
     const criteria: PromptCriteria = {
       ...MAP_1,

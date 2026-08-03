@@ -7,6 +7,7 @@ import {
   registerMissedPrompt as chaseMissedPrompt,
   registerPromptCompleted as chasePromptCompleted,
   createChaseState,
+  earnsRecovery,
   normalizedDistance,
 } from '../../game-core/chase';
 import {
@@ -57,7 +58,7 @@ import {
   runAccuracy,
   type RunStats,
 } from '../../game-core/stats';
-import { expectedTypingMs } from '../../game-core/timing';
+import { boostDurationMs, expectedTypingMs } from '../../game-core/timing';
 import { applyInput, createTypingState, type TypingState } from '../../game-core/typing';
 
 /**
@@ -149,6 +150,31 @@ export interface RunSessionResult {
   readonly events: readonly SessionEvent[];
 }
 
+/**
+ * Longest first prompt of a run, in characters.
+ *
+ * The gap only opens while boosting, and a boost is only earned by finishing a
+ * prompt. Opening on a long phrase therefore means watching the dogs close the
+ * entire starting gap while typing it — a run lost before the player did
+ * anything wrong. Every prompt after the first is cushioned by the boost the
+ * one before it earned.
+ */
+export const WARM_UP_PROMPT_CHARACTERS = 10;
+
+/**
+ * Sizes the running boost to the prompt now on screen.
+ *
+ * Applied after a prompt is drawn, so the reward for the last one is what
+ * carries the player through the next one. Never shortens a boost already
+ * running — a reward is not taken back.
+ */
+function withBoostForCurrentPrompt(session: RunSession): RunSession {
+  const characters = session.prompt?.normalizedText.length ?? 0;
+  const earned = boostDurationMs(session.map.boost, characters);
+
+  return { ...session, boostRemainingMs: Math.max(session.boostRemainingMs, earned) };
+}
+
 /** Draws the next boost prompt and resets the typing state onto it. */
 function withNextPrompt(session: RunSession): RunSessionResult {
   const { prompt, selector } = nextPrompt(session.selector, session.pool, {
@@ -156,6 +182,7 @@ function withNextPrompt(session: RunSession): RunSessionResult {
     categories: session.map.content.promptCategories,
     usage: 'boost',
     preferredTags: session.map.content.themeTags,
+    ...(session.completedPrompts === 0 ? { maxCharacters: WARM_UP_PROMPT_CHARACTERS } : {}),
   });
 
   return {
@@ -365,15 +392,15 @@ function applyResolution(session: RunSession, resolved: ResolvedObstacle): RunSe
     next = {
       ...next,
       score: scored,
-      chase:
-        next.typing.incorrectCharacters === 0
-          ? chasePromptCompleted(next.chase, profile)
-          : next.chase,
+      chase: earnsRecovery(next.typing.correctCharacters, next.typing.incorrectCharacters)
+        ? chasePromptCompleted(next.chase, profile)
+        : next.chase,
       obstaclesAvoided: next.obstaclesAvoided + 1,
       completedPrompts: next.completedPrompts + 1,
       // Clearing an obstacle grants the same boost a typed word does — the
       // reward for good typing should not depend on which prompt it was.
-      boostRemainingMs: next.map.boost.durationMs,
+      boostRemainingMs: boostDurationMs(next.map.boost, obstacle.prompt.normalizedText.length),
+
       assistance: registerSuccess(next.assistance, next.assistanceConfig),
     };
   } else if (outcome === 'stumbled') {
@@ -591,22 +618,24 @@ function completePrompt(session: RunSession): RunSessionResult {
 
   const score = scorePromptCompleted(session.score, outcome);
   const points = score.score - session.score.score;
-  const perfect = session.typing.incorrectCharacters === 0;
+  const accurate = earnsRecovery(
+    session.typing.correctCharacters,
+    session.typing.incorrectCharacters,
+  );
 
   const rewarded: RunSession = {
     ...session,
     score,
-    // Only a clean prompt buys ground back — otherwise the dogs would be a
+    // Only accurate typing buys ground back — otherwise the dogs would be a
     // formality for anyone typing quickly but badly.
-    chase: perfect ? chasePromptCompleted(session.chase, session.map.chase) : session.chase,
-    boostRemainingMs: session.map.boost.durationMs,
+    chase: accurate ? chasePromptCompleted(session.chase, session.map.chase) : session.chase,
     completedPrompts: session.completedPrompts + 1,
   };
 
   const next = withNextPrompt(rewarded);
 
   return {
-    session: next.session,
+    session: withBoostForCurrentPrompt(next.session),
     events: [{ type: 'promptCompleted', prompt, points }, { type: 'boostStarted' }, ...next.events],
   };
 }
