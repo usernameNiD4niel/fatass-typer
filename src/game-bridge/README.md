@@ -13,4 +13,22 @@ A single stable object. Commands go in, events come out.
 
 ## Contents
 
-Populated by step C5. See CLAUDE.md §5.
+- `messages.ts` — the whole public surface: `GameCommand`, `GameEvent`, `GameState`, and the
+  view models (`PromptViewModel`, `ObstacleViewModel`). Plain serialisable data only; no
+  renderer type or canvas handle appears here, which is what makes the runtime swappable.
+- `validate.ts` — `parseGameCommand(unknown)`. Returns a reason instead of throwing, so a
+  malformed command becomes a `fatalError` event rather than an exception in the loop.
+  Unknown properties are dropped, not forwarded.
+- `bridge.ts` — `GameBridge`: validation, throttling, lifetime. The runtime attaches through
+  `setHost`; React attaches through `subscribe`.
+
+`GameState` is narrower than `game-core/app-state` on purpose. React owns navigation
+(menus, settings); the bridge only reports what the run is doing.
+
+**Throttling.** `publishStats` / `publishDogDistance` can be called every simulation step;
+at most one update per 100ms leaves, and it is always the newest sample. A run-ending event
+flushes the withheld sample first, so the final numbers are never 90ms stale.
+
+**Lifetime.** `destroy()` clears every listener and turns all further calls into no-ops —
+unmount ordering is not fully controllable, so a late event must be harmless. A throwing
+listener is contained: one broken subscriber never stops the others or reaches the loop.
