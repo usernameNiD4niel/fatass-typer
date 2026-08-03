@@ -16,7 +16,13 @@ export { clampDevicePixelRatio, MAX_DEVICE_PIXEL_RATIO, resizeSurface } from './
 export type { Canvas2D, SizableCanvas, SurfaceSize } from './canvas-surface';
 export { allScenePalettes, DEFAULT_SCENE_PALETTE, scenePalette } from './palette';
 export type { ScenePalette } from './palette';
-export { DEFAULT_PARALLAX_LAYERS, layerBounds, layerOffsetPx, tilePlacement } from './parallax';
+export {
+  DEFAULT_PARALLAX_LAYERS,
+  layerBounds,
+  layerOffsetPx,
+  stillLayers,
+  tilePlacement,
+} from './parallax';
 export type { LayerBounds, ParallaxLayer, TilePlacement } from './parallax';
 export { drawScene, GROUND_TOP_RATIO, groundYPx } from './scene-renderer';
 export type { SceneView } from './scene-renderer';

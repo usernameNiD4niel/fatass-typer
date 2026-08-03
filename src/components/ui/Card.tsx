@@ -70,14 +70,30 @@ export function SelectableCard({
   return (
     <button
       type="button"
-      onClick={onSelect}
-      disabled={disabled}
+      onClick={disabled ? undefined : onSelect}
+      /*
+       * `aria-disabled`, not `disabled` (spec §12).
+       *
+       * A disabled button leaves the tab order, and these cards carry the very
+       * information a player needs when they cannot choose one — what a locked
+       * map is, and what would unlock it. Announced as unavailable, still
+       * reachable, and inert to clicks and Enter alike.
+       */
+      aria-disabled={disabled}
+      onKeyDown={
+        disabled
+          ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') event.preventDefault();
+            }
+          : undefined
+      }
       // Selection is state, not styling: a screen reader has to hear it too.
       aria-pressed={selected}
       {...(label === undefined ? {} : { 'aria-label': label })}
       className={classes(
         styles.card,
         styles.cardInteractive,
+        disabled && styles.cardDisabled,
         selected && styles.cardSelected,
         className,
       )}

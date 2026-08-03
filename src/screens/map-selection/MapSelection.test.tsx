@@ -121,10 +121,22 @@ describe('MapSelection', () => {
     const { user, onSelect } = setup();
     const locked = screen.getByRole('button', { name: /Map 2: Downtown Sprint/ });
 
-    expect(locked).toBeDisabled();
+    // Announced as unavailable but still focusable: the unlock requirement is
+    // written on this card, and `disabled` would take it out of the tab order
+    // for the very players who most need to read it (spec §12).
+    expect(locked).toHaveAttribute('aria-disabled', 'true');
     await user.click(locked);
 
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('lets a keyboard user reach a locked map to read why it is locked', async () => {
+    const { user } = setup();
+
+    await user.tab();
+    await user.tab();
+
+    expect(screen.getByRole('button', { name: /Map 2: Downtown Sprint/ })).toHaveFocus();
   });
 
   it('says what would unlock a locked map, in words', () => {

@@ -138,7 +138,8 @@ export function TypingInput({
       <p
         id="typing-input-hint"
         className={classes(styles.hint, !hasFocus && !disabled && styles.hintWarning)}
-        aria-live="polite"
+        // Not a live region: it is already the field's description, and a node
+        // that is both announces itself twice on every focus change.
       >
         {disabled
           ? 'Typing is paused.'

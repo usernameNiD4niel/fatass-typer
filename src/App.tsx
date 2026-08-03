@@ -7,6 +7,7 @@ import { useAppliedSettings } from './hooks/useAppliedSettings';
 import { useGameAudio } from './hooks/useGameAudio';
 import { useAppMachine } from './hooks/useAppMachine';
 import { useMinimumWidth } from './hooks/useMinimumWidth';
+import { useReducedMotion } from './hooks/useReducedMotion';
 import { usePlayerProfile } from './hooks/usePlayerProfile';
 import { GameScreen } from './screens/game';
 import { LevelBriefing } from './screens/level-briefing';
@@ -40,6 +41,9 @@ export function App(): JSX.Element {
   // Theme, prompt size, and reduced motion reach the document from here.
   useAppliedSettings(profile.settings);
   const audio = useGameAudio(profile.settings);
+  // CSS handles reduced motion on its own; the canvas cannot, so it is resolved
+  // here and handed to the run (spec §12).
+  const reducedMotion = useReducedMotion(profile.settings.reducedMotion);
 
   const inRun = machine.state === 'Running' || machine.state === 'Paused';
 
@@ -213,6 +217,7 @@ export function App(): JSX.Element {
           <GameScreen
             mapId={selectedMapId}
             audio={audio}
+            reducedMotion={reducedMotion}
             onRunEnded={endRun}
             onRestart={() => {
               machine.send('RESTART_RUN');
@@ -267,7 +272,7 @@ export function App(): JSX.Element {
       // shows it and the simulation carries on.
       return (
         <main>
-          <GameScreen mapId={selectedMapId} onRunEnded={endRun} />
+          <GameScreen mapId={selectedMapId} reducedMotion={reducedMotion} onRunEnded={endRun} />
         </main>
       );
   }

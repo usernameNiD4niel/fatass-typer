@@ -30,6 +30,7 @@ import {
   type Canvas2D,
   CanvasRenderer,
   groundYPx,
+  stillLayers,
   type SurfaceSize,
   worldToScreenX,
 } from '../render';
@@ -74,6 +75,11 @@ export interface RuntimeHostOptions {
   readonly obstacles?: readonly ObstacleDefinition[];
   readonly seed: string;
   readonly viewport: SurfaceSize;
+  /**
+   * Holds the background still (spec §12). The run itself still scrolls — that
+   * is the game — but the decorative parallax stops swimming.
+   */
+  readonly reducedMotion?: boolean;
   readonly scheduler?: LoopScheduler;
   readonly emit: (event: GameEvent) => void;
   /** Offers a stats sample; the bridge decides whether it leaves. */
@@ -215,6 +221,7 @@ export class RuntimeHost implements GameHost {
       worldLengthMeters: this.options.map.distanceMeters,
       viewport: this.options.viewport,
       theme: this.options.map.theme,
+      ...(this.options.reducedMotion === true ? { layers: stillLayers() } : {}),
     });
 
     emit({ type: 'ready' });

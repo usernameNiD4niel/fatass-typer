@@ -34,6 +34,22 @@ export const DEFAULT_PARALLAX_LAYERS: readonly ParallaxLayer[] = [
   { id: 'near', depth: 0.75, tileWidthPx: 260, topRatio: 0.5, heightRatio: 0.22 },
 ];
 
+/**
+ * The same bands, held still (spec §12).
+ *
+ * A side-scroller cannot honour "reduced motion" by not scrolling — the
+ * scrolling is the game. What it can do is stop the *decoration* from moving:
+ * the skyline and the silhouettes behind the road carry no information, and
+ * they are the layers that produce the swimming, depth-shifting effect reduced
+ * motion exists to spare people. The runner, the dogs, and the obstacles are
+ * gameplay and keep moving.
+ */
+export function stillLayers(
+  layers: readonly ParallaxLayer[] = DEFAULT_PARALLAX_LAYERS,
+): readonly ParallaxLayer[] {
+  return layers.map((layer) => ({ ...layer, depth: 0 }));
+}
+
 /** How far a layer has scrolled, in pixels, always within one tile. */
 export function layerOffsetPx(camera: Camera, layer: ParallaxLayer): number {
   if (layer.tileWidthPx <= 0) return 0;

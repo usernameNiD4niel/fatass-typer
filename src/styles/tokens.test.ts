@@ -68,6 +68,25 @@ describe('design tokens', () => {
     expect(reduced).toContain('--duration-slower: 0ms');
   });
 
+  it('answers a request for more contrast in both themes (spec §12)', () => {
+    const contrast = blockBody('@media (prefers-contrast: more) and (prefers-color-scheme: light)');
+    const dark = blockBody('@media (prefers-contrast: more) and (prefers-color-scheme: dark)');
+
+    // The prompt is where legibility matters most, so it is the thing checked:
+    // an override block that forgot it would be decorative.
+    expect(contrast).toContain('--prompt-text-correct');
+    expect(contrast).toContain('--prompt-text-incorrect');
+    expect(dark).toContain('--prompt-text-correct');
+    expect(dark).toContain('--prompt-text-incorrect');
+  });
+
+  it('thickens the focus ring under increased contrast', () => {
+    const start = css.indexOf('@media (prefers-contrast: more)');
+
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(css.slice(start)).toContain('--focus-ring-width: 4px');
+  });
+
   it('keeps the documented desktop minimum width', () => {
     expect(css).toContain('--layout-min-width: 1024px');
   });

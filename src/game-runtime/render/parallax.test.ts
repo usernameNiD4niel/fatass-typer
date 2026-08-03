@@ -6,6 +6,7 @@ import {
   layerBounds,
   layerOffsetPx,
   type ParallaxLayer,
+  stillLayers,
   tilePlacement,
 } from './parallax';
 
@@ -79,5 +80,37 @@ describe('parallax', () => {
 
     expect(new Set(ids).size).toBe(ids.length);
     expect(DEFAULT_PARALLAX_LAYERS.every((entry) => entry.tileWidthPx > 0)).toBe(true);
+  });
+});
+
+describe('stillLayers (spec §12)', () => {
+  it('stops every background band from scrolling', () => {
+    const still = stillLayers();
+
+    expect(still.every((layer) => layer.depth === 0)).toBe(true);
+  });
+
+  it('keeps the geometry, so the scene looks the same standing still', () => {
+    const still = stillLayers();
+
+    expect(still.map((layer) => layer.id)).toEqual(DEFAULT_PARALLAX_LAYERS.map((l) => l.id));
+    expect(still.map((layer) => layer.tileWidthPx)).toEqual(
+      DEFAULT_PARALLAX_LAYERS.map((l) => l.tileWidthPx),
+    );
+  });
+
+  it('really does hold still as the camera travels', () => {
+    const [layer] = stillLayers();
+    if (layer === undefined) throw new Error('no layers');
+
+    expect(layerOffsetPx(cameraAt(0), layer)).toBe(layerOffsetPx(cameraAt(500), layer));
+  });
+
+  it('leaves the defaults alone', () => {
+    stillLayers();
+
+    // The shared table is module state; mutating it would flatten the scene for
+    // everyone, reduced motion or not.
+    expect(DEFAULT_PARALLAX_LAYERS.some((layer) => layer.depth > 0)).toBe(true);
   });
 });

@@ -97,3 +97,70 @@ describe('GameScreen', () => {
     expect(screen.queryByText(/Paused/)).not.toBeInTheDocument();
   });
 });
+
+describe('GameScreen accessibility (spec §12)', () => {
+  it('restarts on Ctrl+Enter from anywhere on the screen', async () => {
+    const user = userEvent.setup();
+    const onRestart = vi.fn();
+    render(<GameScreen onRestart={onRestart} />);
+
+    await user.keyboard('{Control>}{Enter}{/Control}');
+
+    expect(onRestart).toHaveBeenCalledTimes(1);
+  });
+
+  it('restarts on Meta+Enter too', async () => {
+    const user = userEvent.setup();
+    const onRestart = vi.fn();
+    render(<GameScreen onRestart={onRestart} />);
+
+    await user.keyboard('{Meta>}{Enter}{/Meta}');
+
+    expect(onRestart).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not restart on a bare Enter, which the typing field owns', async () => {
+    const user = userEvent.setup();
+    const onRestart = vi.fn();
+    render(<GameScreen onRestart={onRestart} />);
+
+    await user.keyboard('{Enter}');
+
+    expect(onRestart).not.toHaveBeenCalled();
+  });
+
+  it('states its keyboard shortcuts on the screen they apply to', () => {
+    render(<GameScreen />);
+
+    expect(screen.getByText('Esc')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl')).toBeInTheDocument();
+  });
+
+  it('carries one polite live region for the run', () => {
+    render(<GameScreen />);
+
+    // `status` rather than `alert`: the run should not interrupt whatever the
+    // player is being told, and there is nothing here urgent enough to.
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
+  });
+
+  it('does not narrate what was typed', async () => {
+    const user = userEvent.setup();
+    render(<GameScreen />);
+
+    const [region] = screen.getAllByRole('status');
+    await user.keyboard('hello');
+
+    // The live region is for moments, not characters. The prompt itself is the
+    // field's accessible name, which is where a screen reader reads it from.
+    expect(region?.textContent ?? '').not.toContain('hello');
+  });
+
+  it('gives the canvas a description rather than leaving it unlabelled', () => {
+    render(<GameScreen />);
+
+    expect(
+      screen.getByRole('img', { name: 'The runner and the chasing dogs' }),
+    ).toBeInTheDocument();
+  });
+});

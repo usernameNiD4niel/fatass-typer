@@ -23,6 +23,8 @@ export interface AttachGameOptions {
   readonly obstacles?: readonly ObstacleDefinition[];
   /** Fixing the seed makes a run reproducible — used by tests and bug reports. */
   readonly seed?: string;
+  /** Stops the decorative background from scrolling (spec §12). */
+  readonly reducedMotion?: boolean;
 }
 
 export interface AttachedGame {
@@ -67,6 +69,7 @@ export function attachGame(options: AttachGameOptions): AttachedGame {
     prompts: options.prompts ?? ALL_PROMPTS,
     obstacles: options.obstacles ?? OBSTACLES,
     seed: options.seed ?? 'typing-chase',
+    ...(options.reducedMotion === undefined ? {} : { reducedMotion: options.reducedMotion }),
     viewport: {
       widthPx: options.widthPx,
       heightPx: options.heightPx,

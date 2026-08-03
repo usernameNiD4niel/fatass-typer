@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 38 / 41 steps complete.** Phases A through F are finished. **Map 1 is
+**Progress: 39 / 41 steps complete.** Phases A through F are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **G1** — synthesised audio: cues, music, danger layer |
-| **Next up** | **G2** — accessibility pass (awaiting approval) |
+| **Last completed** | **G2** — accessibility pass |
+| **Next up** | **G3** — performance pass (awaiting approval) |
 
 **All six maps are tuned (F2, F3).** `session/playtest-harness.ts` drives a metronomic
 simulated typist; `map-1-playtest.test.ts` and `map-progression.test.ts` state the results as
@@ -158,6 +158,17 @@ jsdom has no Web Audio, so a recording `FakeAudioContext` is what makes the 24 t
 on tones actually played rather than on mock calls. Nothing sounds before a user gesture
 (the Start button unlocks it), and every audio call is try/caught: silence is always an
 acceptable failure mode.
+
+**Accessibility is done to the edges of what a canvas allows (G2).** The run carries one
+polite live region that narrates *moments* — obstacle warning, collision, the dogs closing,
+the end of the run — and never keystrokes, because a region that updates per character is a
+screen reader that never stops talking. `components/hud/announcements.ts` owns the wording,
+pure and tested. Ctrl/Cmd+Enter restarts from anywhere including the typing field, and both
+shortcuts are printed on the screen they apply to. A locked map card is now `aria-disabled`
+rather than `disabled`: it stays in the tab order, because the unlock requirement is written
+on it. `prefers-contrast: more` pushes the prompt colours to the ends of the ramps and
+thickens the focus ring. Reduced motion reaches the canvas too — `stillLayers()` holds the
+decorative parallax while the run itself keeps scrolling, since the scrolling *is* the game.
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -169,12 +180,12 @@ acceptable failure mode.
 | D — Obstacles & map rules | ✅ 5 / 5 |
 | E — UI shell | ✅ 7 / 7 |
 | F — Content, maps, storage | ✅ 5 / 5 |
-| G — Polish | 🟨 1 / 4 |
+| G — Polish | 🟨 2 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 961 passed, 57 files
+npm run test          # 992 passed, 59 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -226,7 +237,7 @@ a finished run reports its result up to the shell, which owns what happens next.
 `src/storage/` — in memory today, so progress still resets on reload. A finished run is
 folded into the profile by `game-core/progress/` and appended to run history.
 
-**What does not exist yet.** No audio at all (G1). Progress does not survive a reload — the
+**What does not exist yet.** Progress does not survive a reload — the
 storage seam is in place but its only implementation is in memory, and an IndexedDB one is
 explicitly deferred. No e2e tests, CI, or performance pass (G3, G4). The `mistakeBehavior`
 and `caseSensitive` settings are stored and displayed but the typing engine still uses its
@@ -358,7 +369,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
       correct-character feedback, prompt-complete, boost, obstacle warning, collision,
       victory, game-over. Placeholders only, no copyrighted audio. Audio starts only
       after user interaction. Volume settings, music and SFX toggles. Spec §11.
-- [ ] **G2** Accessibility pass: full keyboard navigation, visible focus indicators,
+- [x] **G2** Accessibility pass: full keyboard navigation, visible focus indicators,
       reduced-motion setting, color-independent success/error indicators, high-contrast
       prompt text, descriptive labels, no flashing effects. Spec §12.
 - [ ] **G3** Performance pass: 60 FPS target, zero React re-renders per animation frame,

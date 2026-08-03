@@ -1,8 +1,17 @@
 import { type JSX, useCallback, useEffect, useRef, useState } from 'react';
 
-import { Hud, PauseOverlay, PromptDisplay } from '../../components/hud';
+import {
+  announcementFor,
+  Hud,
+  PauseOverlay,
+  PromptDisplay,
+  type RunMoment,
+  shouldAnnounceThreat,
+  type ThreatLevel,
+  threatLevel,
+} from '../../components/hud';
 import { type CommandSink, TypingInput } from '../../components/typing-input';
-import { Button } from '../../components/ui';
+import { Button, VisuallyHidden } from '../../components/ui';
 import { attachGame, type GameBridge } from '../../game-bridge';
 import type {
   DeadlinePressureLevel,
@@ -38,6 +47,15 @@ const CANVAS_HEIGHT = 448;
  */
 const DISCONNECTED_SINK: CommandSink = { send: () => false };
 
+/**
+ * A non-breaking space, appended and removed in turn.
+ *
+ * A live region only speaks when its text actually changes, so two collisions
+ * in a row would otherwise produce a single announcement. This character is not
+ * spoken, so alternating it costs nothing and fixes that.
+ */
+const NUDGE = '\u00a0';
+
 function formatWpm(value: number): string {
   return String(Math.round(value));
 }
@@ -47,6 +65,11 @@ export interface GameScreenProps {
   readonly mapId?: string;
   /** The app's audio. Absent means a silent run, which is always acceptable. */
   readonly audio?: GameAudio;
+  /**
+   * Holds the decorative background still (spec §12). The run still scrolls —
+   * that is the game — but the parallax stops swimming behind it.
+   */
+  readonly reducedMotion?: boolean;
   /**
    * The run ended. The shell decides what happens next — this screen reports
    * the outcome and stops there, so navigation stays with the state machine.
@@ -59,6 +82,7 @@ export interface GameScreenProps {
 export function GameScreen({
   mapId,
   audio,
+  reducedMotion = false,
   onRunEnded,
   onQuit,
   onRestart,
@@ -74,8 +98,12 @@ export function GameScreen({
   const audioRef = useRef(audio);
   audioRef.current = audio;
   const typedRef = useRef('');
+  // The last threat level announced, so a player hovering on a boundary is not
+  // told about it forty times (spec §12).
+  const threatRef = useRef<ThreatLevel>('safe');
 
   const [ready, setReady] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
   const [state, setState] = useState<GameState>('uninitialized');
   const [prompt, setPrompt] = useState<PromptViewModel | null>(null);
   const [stats, setStats] = useState<LiveRunStats>(EMPTY_LIVE_STATS);
@@ -87,6 +115,21 @@ export function GameScreen({
     pressure: DeadlinePressureLevel;
   }>({ remainingMs: null, pressure: 'safe' });
 
+  /**
+   * Says something once, in the run's live region.
+   *
+   * The trailing space alternates because a live region only speaks when its
+   * text actually changes: two collisions in a row would otherwise produce one
+   * announcement. The character is not spoken, so it costs nothing.
+   */
+  const announce = useCallback((moment: RunMoment) => {
+    setAnnouncement((previous) => {
+      const text = announcementFor(moment);
+
+      return previous.endsWith(NUDGE) ? text : `${text}${NUDGE}`;
+    });
+  }, []);
+
   useEffect(() => {
     const map = mapId === undefined ? undefined : findMap(mapId);
 
@@ -95,6 +138,7 @@ export function GameScreen({
       widthPx: CANVAS_WIDTH,
       heightPx: CANVAS_HEIGHT,
       devicePixelRatio: window.devicePixelRatio,
+      reducedMotion,
       // An unknown id falls back to the default map rather than failing to
       // start: the run matters more than the routing mistake behind it.
       ...(map === undefined ? {} : { map }),
@@ -117,16 +161,27 @@ export function GameScreen({
           // A new prompt starts with no deadline until the runtime reports one.
           setDeadline({ remainingMs: event.prompt?.remainingMs ?? null, pressure: 'safe' });
           break;
-        case 'statsUpdated':
+        case 'statsUpdated': {
           setStats(event.stats);
           // The danger layer follows the gap, at the bridge's ~10Hz.
           audioRef.current?.setDanger(1 - event.stats.dogDistanceNormalized);
+
+          // The dogs are behind the runner and off to the side of everything a
+          // screen reader can see, so the chase is narrated when it changes.
+          const level = threatLevel(event.stats.dogDistanceNormalized);
+          if (shouldAnnounceThreat(threatRef.current, level)) {
+            threatRef.current = level;
+            announce({ kind: 'threat', level });
+          }
           break;
+        }
         case 'obstacleWarning':
           audioRef.current?.play('obstacleWarning');
+          announce({ kind: 'obstacleWarning' });
           break;
         case 'playerHit':
           audioRef.current?.play(event.reason === 'stumbled' ? 'stumble' : 'collision');
+          announce({ kind: 'hit', reason: event.reason === 'stumbled' ? 'stumbled' : 'collided' });
           break;
         case 'deadlineChanged':
           setDeadline({ remainingMs: event.remainingMs, pressure: event.pressure });
@@ -134,6 +189,12 @@ export function GameScreen({
         case 'levelCompleted':
         case 'gameOver':
           setResult(event.result);
+          announce({
+            kind: 'finished',
+            completed: event.result.completed,
+            score: event.result.score,
+            wpm: event.result.averageWpm,
+          });
           audioRef.current?.setDanger(0);
           audioRef.current?.play(event.type === 'levelCompleted' ? 'victory' : 'gameOver');
           endedRef.current?.(event.result);
@@ -157,7 +218,10 @@ export function GameScreen({
     };
     // Changing map tears the runtime down and builds a new one: a run belongs to
     // exactly one map, and swapping it underneath a live loop would be worse.
-  }, [mapId]);
+    // Changing the motion preference rebuilds the runtime, which is why it is
+    // a setting rather than a mid-run control: the player is in Settings when
+    // they change it, not on the road.
+  }, [mapId, reducedMotion, announce]);
 
   const send = useCallback((command: Parameters<GameBridge['send']>[0]) => {
     bridgeRef.current?.send(command);
@@ -167,17 +231,40 @@ export function GameScreen({
   const finished = state === 'levelComplete' || state === 'gameOver';
 
   const togglePause = useCallback(() => {
-    if (state === 'running') send({ type: 'pause' });
-    else if (state === 'paused') send({ type: 'resume' });
-  }, [state, send]);
+    if (state === 'running') {
+      send({ type: 'pause' });
+      announce({ kind: 'paused' });
+    } else if (state === 'paused') {
+      send({ type: 'resume' });
+      announce({ kind: 'resumed' });
+    }
+  }, [state, send, announce]);
 
   const start = useCallback(() => {
     setResult(null);
+    threatRef.current = 'safe';
     // This is a click, so it is a legitimate moment to start the audio context.
     audioRef.current?.unlock();
     audioRef.current?.setTrack('running');
     send(finished ? { type: 'restart' } : { type: 'startRun' });
-  }, [finished, send]);
+    announce({ kind: 'started' });
+  }, [finished, send, announce]);
+
+  /**
+   * Restart, from the keyboard, from anywhere on the screen (spec §12).
+   *
+   * Ctrl or Cmd with Enter rather than a bare letter: the typing field owns
+   * every printable key, and a shortcut that fires mid-prompt would be a trap.
+   */
+  const restart = useCallback(() => {
+    threatRef.current = 'safe';
+    setResult(null);
+
+    if (onRestart === undefined) send({ type: 'restart' });
+    else onRestart();
+
+    announce({ kind: 'started' });
+  }, [onRestart, send, announce]);
 
   /**
    * Per-character feedback (spec §11).
@@ -214,6 +301,15 @@ export function GameScreen({
   // a player who clicked away still expects it to work (spec §4).
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
+      // Ctrl/Cmd+Enter restarts, including from inside the typing field: the
+      // modifier is what makes it safe to listen for there.
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        restart();
+
+        return;
+      }
+
       if (event.key !== 'Escape') return;
       // The field handles its own Escape; reacting twice would toggle back.
       if (event.target instanceof HTMLInputElement) return;
@@ -226,7 +322,7 @@ export function GameScreen({
     return () => {
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [togglePause]);
+  }, [togglePause, restart]);
 
   return (
     <section className={styles.screen} aria-label="Typing Chase run">
@@ -244,10 +340,7 @@ export function GameScreen({
         {state === 'paused' && (
           <PauseOverlay
             onResume={togglePause}
-            onRestart={() => {
-              if (onRestart === undefined) send({ type: 'restart' });
-              else onRestart();
-            }}
+            onRestart={restart}
             onQuit={() => {
               onQuit?.();
             }}
@@ -274,6 +367,10 @@ export function GameScreen({
         <Button variant="primary" onClick={start} disabled={!ready}>
           {finished ? 'Run again' : 'Start run'}
         </Button>
+        {/* Stated, not hidden in a tutorial the player saw once (spec §12). */}
+        <p className={styles.shortcuts}>
+          <kbd>Esc</kbd> pause · <kbd>Ctrl</kbd> + <kbd>Enter</kbd> restart
+        </p>
       </div>
 
       <TypingInput
@@ -285,13 +382,20 @@ export function GameScreen({
         onEscape={togglePause}
       />
 
-      <p aria-live="polite">
-        {result === null
-          ? `Typed: ${typed}`
-          : result.completed
+      {result !== null && (
+        <p className={styles.outcome}>
+          {result.completed
             ? `Finished! Score ${String(Math.round(result.score))} at ${formatWpm(result.averageWpm)} WPM.`
             : `Caught by the dogs. Score ${String(Math.round(result.score))}.`}
-      </p>
+        </p>
+      )}
+
+      {/*
+        The run's one live region. It narrates moments — a warning, a collision,
+        the dogs closing, the end — and never keystrokes: a region that updated
+        per character would be a screen reader that never stops talking.
+      */}
+      <VisuallyHidden live="polite">{announcement}</VisuallyHidden>
     </section>
   );
 }

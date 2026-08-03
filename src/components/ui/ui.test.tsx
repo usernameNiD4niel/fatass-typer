@@ -151,6 +151,31 @@ describe('SelectableCard', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  it('stays reachable by keyboard while unavailable (spec §12)', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(<SelectableCard title="Locked map" onSelect={onSelect} disabled />);
+    const card = screen.getByRole('button');
+
+    await user.tab();
+
+    // A `disabled` button leaves the tab order — and a locked map card is
+    // exactly where the unlock requirement is written.
+    expect(card).toHaveFocus();
+    expect(card).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('ignores Enter and Space while unavailable', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(<SelectableCard title="Locked map" onSelect={onSelect} disabled />);
+
+    screen.getByRole('button').focus();
+    await user.keyboard('{Enter} ');
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it('takes an explicit label when the title is not the whole story', () => {
     render(
       <SelectableCard

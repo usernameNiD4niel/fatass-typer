@@ -131,3 +131,23 @@
   background: var(--surface-raised);
   border-radius: var(--radius-lg);
 }
+
+/* Keyboard shortcuts, stated on the screen they apply to (spec §12). */
+.shortcuts {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.shortcuts kbd {
+  padding: 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+}

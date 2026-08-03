@@ -382,3 +382,77 @@
   --duration-slower: 0ms;
   --ease-spring: var(--ease-standard);
 }
+
+/* ------------------------------------------------------------------------ */
+/* 12. Increased contrast — spec §12.                                        */
+/*                                                                          */
+/*     The palette above is tuned for calm; someone who has asked their OS   */
+/*     for more contrast is telling us calm is costing them legibility. Only */
+/*     colour changes: no layout shifts, no motion, nothing moves.           */
+/*                                                                          */
+/*     The prompt is the priority. Every per-character state already carries */
+/*     a non-colour cue, but the colours themselves go to the ends of the    */
+/*     ramps here, and secondary text stops being secondary.                 */
+/* ------------------------------------------------------------------------ */
+
+@media (prefers-contrast: more) {
+  :root {
+    --focus-ring-width: 4px;
+    /* Muted text is the first thing to disappear, and the HUD is built from it. */
+    --text-secondary: var(--text-primary);
+    --text-tertiary: var(--text-primary);
+    --border-subtle: var(--border-strong);
+    --border-default: var(--border-strong);
+  }
+}
+
+@media (prefers-contrast: more) and (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --prompt-text-untyped: var(--color-neutral-600);
+    --prompt-text-correct: var(--color-success-600);
+    --prompt-text-incorrect: var(--color-danger-600);
+    --prompt-text-current: var(--color-neutral-950);
+    --prompt-caret: var(--color-accent-700);
+    --threat-safe: var(--color-success-600);
+    --threat-close: var(--color-warning-600);
+    --threat-critical: var(--color-danger-600);
+  }
+}
+
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --prompt-text-untyped: var(--color-neutral-300);
+    --prompt-text-correct: var(--color-success-400);
+    --prompt-text-incorrect: var(--color-danger-400);
+    --prompt-text-current: var(--color-neutral-0);
+    --prompt-caret: var(--color-accent-300);
+    --threat-safe: var(--color-success-400);
+    --threat-close: var(--color-warning-400);
+    --threat-critical: var(--color-danger-400);
+  }
+}
+
+/* The theme override wins over the OS preference, in both directions. */
+@media (prefers-contrast: more) {
+  :root[data-theme='light'] {
+    --prompt-text-untyped: var(--color-neutral-600);
+    --prompt-text-correct: var(--color-success-600);
+    --prompt-text-incorrect: var(--color-danger-600);
+    --prompt-text-current: var(--color-neutral-950);
+    --prompt-caret: var(--color-accent-700);
+    --threat-safe: var(--color-success-600);
+    --threat-close: var(--color-warning-600);
+    --threat-critical: var(--color-danger-600);
+  }
+
+  :root[data-theme='dark'] {
+    --prompt-text-untyped: var(--color-neutral-300);
+    --prompt-text-correct: var(--color-success-400);
+    --prompt-text-incorrect: var(--color-danger-400);
+    --prompt-text-current: var(--color-neutral-0);
+    --prompt-caret: var(--color-accent-300);
+    --threat-safe: var(--color-success-400);
+    --threat-close: var(--color-warning-400);
+    --threat-critical: var(--color-danger-400);
+  }
+}

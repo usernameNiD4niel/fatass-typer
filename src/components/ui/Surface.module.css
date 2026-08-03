@@ -30,12 +30,12 @@
     box-shadow var(--duration-fast) var(--ease-standard);
 }
 
-.cardInteractive:hover:not(:disabled) {
+.cardInteractive:hover:not(:disabled, .cardDisabled) {
   border-color: var(--border-strong);
   box-shadow: var(--shadow-sm);
 }
 
-.cardInteractive:active:not(:disabled) {
+.cardInteractive:active:not(:disabled, .cardDisabled) {
   transform: scale(0.995);
 }
 
@@ -44,9 +44,12 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-.cardInteractive:disabled {
+/* Unavailable, but still focusable and still readable: opacity stops short of
+   the point where the text stops being legible (spec §12). */
+.cardInteractive:disabled,
+.cardDisabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.7;
 }
 
 .cardSelected {
