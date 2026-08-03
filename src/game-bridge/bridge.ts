@@ -153,6 +153,11 @@ export class GameBridge {
 
     this.pendingStats = stats;
 
+    // A clock that jumped backwards means the caller restarted its timeline.
+    // Without this the throttle would wait for the old high-water mark and the
+    // HUD would freeze for the length of the previous run.
+    if (nowMs < this.lastStatsEmitMs) this.lastStatsEmitMs = Number.NEGATIVE_INFINITY;
+
     if (nowMs - this.lastStatsEmitMs >= this.statsIntervalMs) {
       this.lastStatsEmitMs = nowMs;
       this.flush();
@@ -167,6 +172,7 @@ export class GameBridge {
     const moved =
       previous === null || Math.abs(previous - normalizedDistance) >= DOG_DISTANCE_EPSILON;
 
+    if (nowMs < this.lastDogEmitMs) this.lastDogEmitMs = Number.NEGATIVE_INFINITY;
     if (!moved) return;
     if (nowMs - this.lastDogEmitMs < this.statsIntervalMs) return;
 

@@ -245,7 +245,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 - [x] **C6** Typing input: a real focused `<input>` element — not global `keydown` — for
       text construction. Backspace, punctuation, spaces. Ignore unsupported control keys.
       Send normalized input events through the bridge.
-- [ ] **C7** **Vertical slice.** Boost prompts grant a visible speed boost, the finish
+- [~] **C7** **Vertical slice.** Boost prompts grant a visible speed boost, the finish
       line is reachable, the dogs can catch the MC and end the run. First genuinely
       playable build. Spec §19 Milestone 1 acceptance criteria.
 

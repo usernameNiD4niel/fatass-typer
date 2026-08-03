@@ -1,3 +1,5 @@
+export { attachGame } from './attach';
+export type { AttachedGame, AttachGameOptions } from './attach';
 export { DEFAULT_STATS_INTERVAL_MS, GameBridge } from './bridge';
 export type { GameBridgeOptions, GameEventListener, GameHost } from './bridge';
 export { GAME_STATES, TERMINAL_EVENT_TYPES } from './messages';

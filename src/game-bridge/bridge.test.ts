@@ -200,6 +200,18 @@ describe('GameBridge stats throttling', () => {
     expect(events).toHaveLength(1);
   });
 
+  it('keeps emitting after the caller restarts its clock', () => {
+    const { bridge, events } = setup();
+
+    // A restart puts run time back to zero. Without a reset the throttle would
+    // wait for the old high-water mark and the HUD would freeze.
+    bridge.publishStats(statsWith({ score: 100 }), 30_000);
+    bridge.publishStats(statsWith({ score: 0 }), 0);
+
+    expect(events).toHaveLength(2);
+    expect(events[1]).toEqual({ type: 'statsUpdated', stats: statsWith({ score: 0 }) });
+  });
+
   it('honours a custom interval', () => {
     const bridge = new GameBridge({ statsIntervalMs: 500 });
     const events: GameEvent[] = [];
@@ -229,6 +241,17 @@ describe('GameBridge dog distance', () => {
     bridge.publishDogDistance(0.9999, 1000);
 
     expect(events).toHaveLength(1);
+  });
+
+  it('recovers when the clock restarts', () => {
+    const { bridge, events } = setup();
+
+    bridge.publishDogDistance(0.4, 30_000);
+    // A restart: run time back to zero, gap back to full.
+    bridge.publishDogDistance(1, 0);
+
+    expect(events).toHaveLength(2);
+    expect(events[1]).toEqual({ type: 'dogDistanceChanged', normalizedDistance: 1 });
   });
 
   it('throttles a steadily closing gap', () => {

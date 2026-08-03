@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 import { useAppMachine } from './hooks/useAppMachine';
+import { GameScreen } from './screens/game';
 
 /**
  * Scaffold shell driving the app state machine directly.
@@ -7,9 +8,13 @@ import { useAppMachine } from './hooks/useAppMachine';
  * This is a development harness, not the real UI — every state gets one button
  * per legal event so the graph from spec §4 can be walked by hand. Real screens
  * replace it in phase E.
+ *
+ * The one real screen so far is the playable slice, which the harness mounts
+ * whenever the machine is in a run state.
  */
 export function App(): JSX.Element {
   const machine = useAppMachine();
+  const inRun = machine.state === 'Running' || machine.state === 'Paused';
 
   return (
     <main className="scaffold">
@@ -39,6 +44,8 @@ export function App(): JSX.Element {
           </button>
         ))}
       </nav>
+
+      {inRun && <GameScreen />}
     </main>
   );
 }

@@ -22,9 +22,14 @@ export interface CameraConfig {
   readonly anchorRatio: number;
 }
 
+/**
+ * Zoom and anchor are chosen together so the pack is on screen at the map's
+ * starting gap: a chase the player cannot see is just a timer. At 24px/m the
+ * viewport holds ~43m, and an anchor at 0.55 leaves ~24m of it behind the MC.
+ */
 export const DEFAULT_CAMERA_CONFIG: CameraConfig = {
-  pixelsPerMeter: 28,
-  anchorRatio: 0.35,
+  pixelsPerMeter: 24,
+  anchorRatio: 0.55,
 };
 
 export interface Camera {

@@ -1,0 +1,121 @@
+/*
+ * The playable screen (step C7).
+ *
+ * A first pass, not the finished HUD — step E4 designs that properly. What is
+ * here already respects the rule that the active prompt is the visual priority.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 7;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.prompt {
+  padding: var(--space-4);
+  font-size: var(--font-size-2xl);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border-radius: var(--radius-lg);
+}
+
+.promptDone {
+  color: var(--status-success);
+}
+
+.hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 5rem;
+}
+
+.statLabel {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+
+.statValue {
+  font-size: var(--font-size-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.danger {
+  color: var(--status-danger);
+}
+
+.controls {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.button {
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  color: var(--text-primary);
+  cursor: pointer;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.outcome {
+  padding: var(--space-4);
+  font-size: var(--font-size-lg);
+  text-align: center;
+  background: var(--surface-raised);
+  border-radius: var(--radius-lg);
+}

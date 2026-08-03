@@ -1,6 +1,5 @@
 import { type ChangeEvent, type JSX, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 
-import type { GameBridge } from '../../game-bridge';
 import styles from './TypingInput.module.css';
 import { isIgnoredKey, MAX_INPUT_LENGTH, normalizeInput, shouldSubmit } from './normalize';
 
@@ -18,8 +17,19 @@ import { isIgnoredKey, MAX_INPUT_LENGTH, normalizeInput, shouldSubmit } from './
  * the bridge as `submitInput`, and reports nothing else.
  */
 
+/**
+ * Where commands go.
+ *
+ * Narrower than `GameBridge` on purpose: the field needs `send` and nothing
+ * else, and a screen that has not attached a bridge yet can pass a stub rather
+ * than the component having to cope with `null` on every keystroke.
+ */
+export interface CommandSink {
+  send(command: unknown): boolean;
+}
+
 export interface TypingInputProps {
-  readonly bridge: GameBridge;
+  readonly bridge: CommandSink;
   /** Turns the field off between prompts and while paused. */
   readonly disabled?: boolean;
   /**
