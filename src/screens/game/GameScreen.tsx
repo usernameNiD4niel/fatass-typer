@@ -1,14 +1,15 @@
 import { type JSX, useCallback, useEffect, useRef, useState } from 'react';
 
+import { Hud, PromptDisplay } from '../../components/hud';
 import { type CommandSink, TypingInput } from '../../components/typing-input';
-import { Button, classes, Panel } from '../../components/ui';
-import {
-  attachGame,
-  type GameBridge,
-  type GameEvent,
-  type GameState,
-  type PromptViewModel,
-} from '../../game-bridge';
+import { Button, Panel } from '../../components/ui';
+import { attachGame, type GameBridge } from '../../game-bridge';
+import type {
+  DeadlinePressureLevel,
+  GameEvent,
+  GameState,
+  PromptViewModel,
+} from '../../game-bridge/messages';
 import { findMap } from '../../content';
 import { EMPTY_LIVE_STATS, type LiveRunStats, type RunResult } from '../../game-core/models';
 import styles from './GameScreen.module.css';
@@ -36,15 +37,8 @@ const CANVAS_HEIGHT = 448;
  */
 const DISCONNECTED_SINK: CommandSink = { send: () => false };
 
-/** Below this fraction of the starting gap, the dogs are a stated emergency. */
-const DANGER_THRESHOLD = 0.35;
-
 function formatWpm(value: number): string {
   return String(Math.round(value));
-}
-
-function formatAccuracy(value: number): string {
-  return `${String(Math.round(value * 100))}%`;
 }
 
 export interface GameScreenProps {
@@ -63,6 +57,10 @@ export function GameScreen({ mapId }: GameScreenProps = {}): JSX.Element {
   const [result, setResult] = useState<RunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
+  const [deadline, setDeadline] = useState<{
+    remainingMs: number | null;
+    pressure: DeadlinePressureLevel;
+  }>({ remainingMs: null, pressure: 'safe' });
 
   useEffect(() => {
     const map = mapId === undefined ? undefined : findMap(mapId);
@@ -90,9 +88,14 @@ export function GameScreen({ mapId }: GameScreenProps = {}): JSX.Element {
         case 'promptChanged':
           setPrompt(event.prompt);
           setTyped('');
+          // A new prompt starts with no deadline until the runtime reports one.
+          setDeadline({ remainingMs: event.prompt?.remainingMs ?? null, pressure: 'safe' });
           break;
         case 'statsUpdated':
           setStats(event.stats);
+          break;
+        case 'deadlineChanged':
+          setDeadline({ remainingMs: event.remainingMs, pressure: event.pressure });
           break;
         case 'levelCompleted':
         case 'gameOver':
@@ -176,54 +179,25 @@ export function GameScreen({ mapId }: GameScreenProps = {}): JSX.Element {
         )}
       </div>
 
-      <p className={styles.prompt} aria-live="polite">
-        {prompt ? prompt.text : 'No prompt'}
-      </p>
+      <PromptDisplay
+        prompt={running || state === 'paused' ? prompt : null}
+        typed={typed}
+        deadlineMs={deadline.remainingMs}
+        pressure={deadline.pressure}
+        idleMessage={finished ? 'Run over' : 'Press Start when you are ready'}
+      />
 
-      <dl className={styles.hud}>
-        <div className={styles.stat}>
-          <dt className={styles.statLabel}>WPM</dt>
-          <dd className={styles.statValue}>{formatWpm(stats.currentWpm)}</dd>
-        </div>
-        <div className={styles.stat}>
-          <dt className={styles.statLabel}>Accuracy</dt>
-          <dd className={styles.statValue}>{formatAccuracy(stats.accuracy)}</dd>
-        </div>
-        <div className={styles.stat}>
-          <dt className={styles.statLabel}>Combo</dt>
-          <dd className={styles.statValue}>{stats.combo}</dd>
-        </div>
-        <div className={styles.stat}>
-          <dt className={styles.statLabel}>Score</dt>
-          <dd className={styles.statValue}>{Math.round(stats.score)}</dd>
-        </div>
-        <div className={styles.stat}>
-          <dt className={styles.statLabel}>Finish</dt>
-          <dd className={styles.statValue}>{formatAccuracy(stats.progress)}</dd>
-        </div>
-        <div className={styles.stat}>
-          <dt className={styles.statLabel}>Dogs</dt>
-          {/* Text, not just colour: the danger has to survive colour-blindness. */}
-          <dd
-            className={classes(
-              styles.statValue,
-              stats.dogDistanceNormalized < DANGER_THRESHOLD && styles.danger,
-            )}
-          >
-            {stats.dogDistanceNormalized < DANGER_THRESHOLD
-              ? 'Closing!'
-              : formatAccuracy(stats.dogDistanceNormalized)}
-          </dd>
-        </div>
-      </dl>
+      <Hud
+        stats={stats}
+        onPause={togglePause}
+        paused={state === 'paused'}
+        canPause={running || state === 'paused'}
+      />
 
       <div className={styles.controls}>
         <Button variant="primary" onClick={start} disabled={!ready}>
           {finished ? 'Run again' : 'Start run'}
         </Button>
-        {(running || state === 'paused') && (
-          <Button onClick={togglePause}>{state === 'paused' ? 'Resume' : 'Pause'}</Button>
-        )}
       </div>
 
       <TypingInput

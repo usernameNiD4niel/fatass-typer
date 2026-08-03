@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 28 / 41 steps complete.** Phases A, B, C, and D are finished. **Map 1 is
+**Progress: 29 / 41 steps complete.** Phases A, B, C, and D are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **E3** — map selection cards and level briefing |
-| **Next up** | **E4** — the game HUD (awaiting approval) |
+| **Last completed** | **E4** — the game HUD, prompt-first |
+| **Next up** | **E5** — pause overlay, level complete, game over, run results (awaiting approval) |
 
 **Open tuning finding (for F2).** A 10 WPM typist — *half* the advertised speed — still
 finishes Map 1 comfortably. Map 1 is meant to be forgiving, but that much slack means the
@@ -152,14 +152,14 @@ chase is doing less work than the label implies. Recorded as a test in
 | B — `game-core` pure rules | ✅ 8 / 8 |
 | C — Runtime + playable slice | ✅ 7 / 7 |
 | D — Obstacles & map rules | ✅ 5 / 5 |
-| E — UI shell | 🟨 3 / 7 |
+| E — UI shell | 🟨 4 / 7 |
 | F — Content, maps, storage | ⬜ 0 / 5 |
 | G — Polish | ⬜ 0 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 753 passed, 42 files
+npm run test          # 776 passed, 43 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -183,7 +183,9 @@ validation, and `GameBridge` — which throttles live stats to ~10Hz and drops e
 on `destroy`. No host is attached to it yet; C7 supplies one.
 
 `src/components/ui/` holds the primitives — Button, Card, Panel, Toggle, Slider, Modal — all
-built on native elements and tested through the accessibility tree.
+built on native elements and tested through the accessibility tree. `src/components/hud/`
+holds the run HUD: the prompt display (per-character state from `game-core`'s own
+comparison) and the quieter readouts and meters around it.
 `src/components/typing-input/` is the typing field: a focused `<input>` that normalises text
 and sends whole values through the bridge. `src/screens/game/` mounts the canvas and renders
 the prompt, HUD, and outcome. `src/game-runtime/session/` holds the run itself — a pure
@@ -303,7 +305,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
       overall accuracy.
 - [x] **E3** Map selection cards (name, target WPM, theme, locked state, best score,
       best accuracy, completion status, unlock requirement) + level briefing screen.
-- [ ] **E4** Game HUD. The active prompt is the clear visual priority. Also: typed
+- [x] **E4** Game HUD. The active prompt is the clear visual priority. Also: typed
       progress, current WPM, accuracy, combo, progress to finish, dog threat distance,
       obstacle time pressure, pause control. Do not overload it.
 - [ ] **E5** Pause overlay + level-complete + game-over + detailed run results (score,

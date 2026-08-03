@@ -23,12 +23,15 @@ describe('GameScreen', () => {
     expect(screen.getByRole('textbox')).toBeInTheDocument();
   });
 
-  it('shows the HUD readouts the slice promises', () => {
+  it('shows the HUD readouts and both meters', () => {
     render(<GameScreen />);
 
-    for (const label of ['WPM', 'Accuracy', 'Combo', 'Score', 'Finish', 'Dogs']) {
+    for (const label of ['WPM', 'Accuracy', 'Combo', 'Score']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
+
+    expect(screen.getByRole('progressbar', { name: 'To finish' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Dogs' })).toBeInTheDocument();
   });
 
   it('explains itself when the browser has no 2D canvas context', () => {
@@ -57,10 +60,12 @@ describe('GameScreen', () => {
     }).not.toThrow();
   });
 
-  it('does not offer a pause control outside a run', () => {
+  it('shows pause as unavailable outside a run rather than hiding it', () => {
     render(<GameScreen />);
 
-    expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument();
+    // The HUD keeps a stable shape: a control that appears and disappears as the
+    // run starts and stops would shift everything around it.
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeDisabled();
   });
 
   it('listens for Escape while mounted and stops on unmount', () => {

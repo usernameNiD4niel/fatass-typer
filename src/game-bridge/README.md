@@ -29,11 +29,19 @@ A single stable object. Commands go in, events come out.
 `GameState` is narrower than `game-core/app-state` on purpose. React owns navigation
 (menus, settings); the bridge only reports what the run is doing.
 
-**Throttling.** `publishStats` / `publishDogDistance` can be called every simulation step;
+**Throttling.** `publishStats` / `publishDogDistance` / `publishDeadline` can be called every
+simulation step;
 at most one update per 100ms leaves, and it is always the newest sample. A run-ending event
 flushes the withheld sample first, so the final numbers are never 90ms stale. A timestamp
 that jumps backwards resets the throttle — a restart puts run time back to zero, and
 without that the HUD would freeze for the length of the previous run.
+
+`deadlineChanged` is the one exception to the throttle: a **change of pressure level** goes
+out immediately, whatever the window says. A countdown crossing into "critical" is the
+moment the player most needs the HUD to react, and holding it back 90ms would be exactly
+wrong. It is a separate event rather than a field on `LiveRunStats` because the deadline
+exists only while an obstacle prompt is attached — folding a mostly-null field into every
+tick would make the common case pay for the rare one.
 
 **Lifetime.** `destroy()` clears every listener and turns all further calls into no-ops —
 unmount ordering is not fully controllable, so a late event must be harmless. A throwing

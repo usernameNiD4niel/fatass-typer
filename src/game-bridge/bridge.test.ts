@@ -266,6 +266,75 @@ describe('GameBridge dog distance', () => {
   });
 });
 
+describe('GameBridge obstacle deadline', () => {
+  it('emits the first reading', () => {
+    const { bridge, events } = setup();
+
+    bridge.publishDeadline(4_000, 'safe', 0);
+
+    expect(events).toEqual([{ type: 'deadlineChanged', remainingMs: 4_000, pressure: 'safe' }]);
+  });
+
+  it('throttles a steady countdown', () => {
+    const { bridge, events } = setup();
+
+    for (let frame = 0; frame < 60; frame += 1) {
+      bridge.publishDeadline(4_000 - frame * 16.7, 'safe', frame * 16.7);
+    }
+
+    expect(events.length).toBeLessThanOrEqual(11);
+  });
+
+  it('reports a change of pressure immediately, whatever the throttle says', () => {
+    const { bridge, events } = setup();
+
+    bridge.publishDeadline(4_000, 'safe', 0);
+    // 10ms later — well inside the throttle window, but the level changed, and
+    // that is exactly the moment the HUD has to react.
+    bridge.publishDeadline(900, 'critical', 10);
+
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({ pressure: 'critical' });
+  });
+
+  it('says nothing when there is no deadline and there never was one', () => {
+    const { bridge, events } = setup();
+
+    bridge.publishDeadline(null, 'safe', 0);
+    bridge.publishDeadline(null, 'safe', 1_000);
+
+    expect(events).toHaveLength(0);
+  });
+
+  it('reports the deadline ending', () => {
+    const { bridge, events } = setup();
+
+    bridge.publishDeadline(500, 'critical', 0);
+    bridge.publishDeadline(null, 'safe', 200);
+
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({ remainingMs: null });
+  });
+
+  it('recovers when the clock restarts', () => {
+    const { bridge, events } = setup();
+
+    bridge.publishDeadline(1_000, 'warning', 30_000);
+    bridge.publishDeadline(4_000, 'warning', 0);
+
+    expect(events).toHaveLength(2);
+  });
+
+  it('goes silent after destruction', () => {
+    const { bridge, events } = setup();
+
+    bridge.destroy();
+    bridge.publishDeadline(1_000, 'critical', 0);
+
+    expect(events).toHaveLength(0);
+  });
+});
+
 describe('GameBridge destruction', () => {
   it('drops listeners so an unmounted canvas cannot be reached', () => {
     const { bridge, events } = setup();

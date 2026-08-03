@@ -27,7 +27,8 @@ import {
   type SurfaceSize,
   worldToScreenX,
 } from '../render';
-import { timeToImpact } from '../../game-core/obstacles';
+import { obstaclePressure, remainingMs, timeToImpact } from '../../game-core/obstacles';
+import type { DeadlinePressure } from '../../game-core/timing';
 import {
   activeObstacle,
   advanceRunSession,
@@ -70,6 +71,12 @@ export interface RuntimeHostOptions {
   readonly emit: (event: GameEvent) => void;
   /** Offers a stats sample; the bridge decides whether it leaves. */
   readonly publishStats: (session: RunSession, nowMs: number) => void;
+  /** Offers the active obstacle deadline, if any. Also throttled by the bridge. */
+  readonly publishDeadline?: (
+    remainingMs: number | null,
+    pressure: DeadlinePressure,
+    nowMs: number,
+  ) => void;
   /** Monotonic wall clock, for throttling. Injected so tests can control it. */
   readonly now?: () => number;
 }
@@ -361,7 +368,16 @@ export class RuntimeHost implements GameHost {
   private step(deltaMs: number): void {
     this.previousMeters = this.session.playerMeters;
     this.apply(advanceRunSession(this.session, deltaMs), this.options.emit);
-    this.options.publishStats(this.session, this.now());
+
+    const nowMs = this.now();
+    this.options.publishStats(this.session, nowMs);
+
+    const obstacle = activeObstacle(this.session);
+    this.options.publishDeadline?.(
+      obstacle === null ? null : remainingMs(obstacle, this.session.elapsedMs),
+      obstacle === null ? 'safe' : obstaclePressure(obstacle, this.session.elapsedMs),
+      nowMs,
+    );
   }
 
   /** One rendered frame. `alpha` smooths between the last two simulation steps. */

@@ -81,6 +81,9 @@ export function attachGame(options: AttachGameOptions): AttachedGame {
       bridge.publishStats(stats, nowMs);
       bridge.publishDogDistance(stats.dogDistanceNormalized, nowMs);
     },
+    publishDeadline: (remainingMs, pressure, nowMs) => {
+      bridge.publishDeadline(remainingMs, pressure, nowMs);
+    },
   });
 
   bridge.setHost(host);

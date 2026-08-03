@@ -78,8 +78,23 @@ export type GameCommandType = GameCommand['type'];
 /* Events — the runtime to React                                              */
 /* -------------------------------------------------------------------------- */
 
+/** How close an obstacle deadline is. Mirrors `game-core`'s `DeadlinePressure`. */
+export type DeadlinePressureLevel = 'safe' | 'warning' | 'critical' | 'expired';
+
 export type GameEvent =
   | { readonly type: 'ready' }
+  /**
+   * The active obstacle's deadline, throttled like the stats.
+   *
+   * A separate event rather than a field on `LiveRunStats`: the deadline exists
+   * only while an obstacle prompt is attached, and folding a mostly-null field
+   * into the stats every tick would make the common case pay for the rare one.
+   */
+  | {
+      readonly type: 'deadlineChanged';
+      readonly remainingMs: number | null;
+      readonly pressure: DeadlinePressureLevel;
+    }
   | { readonly type: 'stateChanged'; readonly state: GameState }
   | { readonly type: 'promptChanged'; readonly prompt: PromptViewModel | null }
   | { readonly type: 'statsUpdated'; readonly stats: LiveRunStats }

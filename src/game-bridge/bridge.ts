@@ -1,5 +1,5 @@
 import type { LiveRunStats } from '../game-core/models';
-import type { GameCommand, GameEvent } from './messages';
+import type { DeadlinePressureLevel, GameCommand, GameEvent } from './messages';
 import { TERMINAL_EVENT_TYPES } from './messages';
 import { parseGameCommand } from './validate';
 
@@ -51,6 +51,9 @@ export class GameBridge {
   private lastStatsEmitMs = Number.NEGATIVE_INFINITY;
   private lastDogDistance: number | null = null;
   private lastDogEmitMs = Number.NEGATIVE_INFINITY;
+  private lastPressure: DeadlinePressureLevel | null = null;
+  private lastDeadlineRemainingMs: number | null = null;
+  private lastDeadlineEmitMs = Number.NEGATIVE_INFINITY;
 
   constructor(options: GameBridgeOptions = {}) {
     this.host = options.host;
@@ -179,6 +182,34 @@ export class GameBridge {
     this.lastDogDistance = normalizedDistance;
     this.lastDogEmitMs = nowMs;
     this.emit({ type: 'dogDistanceChanged', normalizedDistance });
+  }
+
+  /**
+   * Offers the active obstacle deadline. Throttled on its own clock.
+   *
+   * Emitted whenever the pressure level changes, whatever the throttle says: a
+   * countdown crossing into "critical" is the moment the player most needs the
+   * HUD to react, and holding it for another 90ms would be exactly wrong.
+   */
+  publishDeadline(
+    remainingMs: number | null,
+    pressure: DeadlinePressureLevel,
+    nowMs: number,
+  ): void {
+    if (this.destroyed) return;
+
+    if (nowMs < this.lastDeadlineEmitMs) this.lastDeadlineEmitMs = Number.NEGATIVE_INFINITY;
+
+    const levelChanged = pressure !== this.lastPressure;
+    const stopped = remainingMs === null && this.lastDeadlineRemainingMs === null;
+
+    if (stopped) return;
+    if (!levelChanged && nowMs - this.lastDeadlineEmitMs < this.statsIntervalMs) return;
+
+    this.lastPressure = pressure;
+    this.lastDeadlineRemainingMs = remainingMs;
+    this.lastDeadlineEmitMs = nowMs;
+    this.emit({ type: 'deadlineChanged', remainingMs, pressure });
   }
 
   /** Sends any withheld sample immediately. */

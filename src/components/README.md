@@ -14,6 +14,11 @@ Small, presentational, reusable. Button, Card, Panel, Toggle, Slider, Modal.
 
 - `ui/` — the primitives (step E1): `Button`, `Card` / `SelectableCard`, `Panel`, `Toggle`,
   `Slider`, `Modal`, plus the shared `classes` helper.
+- `hud/` — the run HUD (step E4). `PromptDisplay` is the visual priority: largest type, a
+  monospaced face so characters do not shift width as they are typed, and per-character
+  state taken from **`game-core`'s own comparison** rather than a second implementation —
+  the HUD and the rules must agree about what counts as correct. `Hud` is everything else,
+  deliberately quieter: four small readouts and two meters (to finish, dogs).
 - `typing-input/` — the typing field (step C6). A real, focused `<input>`, never a global
   `keydown` listener: text construction belongs to the browser, and only a real field gets
   IME composition, dead keys, `Backspace` semantics, and assistive-technology keyboards.
@@ -30,6 +35,10 @@ diffing model (CLAUDE.md §3). It holds no game rules.
 operation, focus behaviour, and assistive-technology semantics that a styled `<div>` would
 have to reimplement — badly. The `Toggle` is the one exception, and it is still a button
 wearing `role="switch"`.
+
+The HUD refuses to overload (spec §4). Two meters, because they answer the only two
+questions that matter mid-run — _how far to go_ and _how close are they_ — and the dog
+meter says "Closing" or "Right behind you" in words, not only in red.
 
 **State is never colour alone** (spec §12). The toggle prints ON/OFF on its track as well as
 moving the knob; the slider shows its formatted value and mirrors it into `aria-valuetext`,

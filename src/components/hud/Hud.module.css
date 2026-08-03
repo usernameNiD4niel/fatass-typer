@@ -1,0 +1,114 @@
+/*
+ * The HUD around the prompt (spec §9).
+ *
+ * Deliberately quiet. Everything here is secondary to the prompt, so it is
+ * smaller, lower contrast, and laid out in one calm row — spec §4 warns against
+ * overloading the HUD, and six competing readouts is exactly how that happens.
+ */
+
+.hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-5);
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+}
+
+.stats {
+  display: flex;
+  gap: var(--space-6);
+  margin: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.statLabel {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.statValue {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.meters {
+  display: flex;
+  flex: 1;
+  gap: var(--space-5);
+  min-width: 16rem;
+}
+
+.meter {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.meterHead {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.meterValue {
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+  letter-spacing: var(--letter-spacing-normal);
+  color: var(--text-secondary);
+}
+
+.track {
+  height: 0.45rem;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+.progressFill {
+  background: var(--accent-default);
+}
+
+.safe {
+  background: var(--threat-safe);
+}
+
+.closing {
+  background: var(--threat-close);
+}
+
+.critical,
+.caught {
+  background: var(--threat-critical);
+}
+
+/* The threat word, so the danger is never colour-only (spec §12). */
+.threatWord {
+  font-weight: var(--font-weight-semibold);
+}
+
+.threatCritical {
+  color: var(--status-danger);
+}

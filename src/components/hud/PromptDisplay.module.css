@@ -1,0 +1,112 @@
+/*
+ * The active prompt (spec §9, §12).
+ *
+ * The single most important thing on screen, and styled like it: the largest
+ * type in the app, a monospaced face so characters do not shift as they are
+ * typed, and per-character state that never relies on colour alone.
+ */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-5) var(--space-6);
+  background: var(--surface-raised);
+  border-radius: var(--radius-lg);
+}
+
+.kind {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-tertiary);
+}
+
+.kindObstacle {
+  color: var(--status-warning);
+}
+
+.prompt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  justify-content: center;
+  margin: 0;
+  font-family: var(--font-prompt);
+  font-size: var(--prompt-font-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-snug);
+}
+
+.char {
+  position: relative;
+  white-space: pre;
+}
+
+.correct {
+  color: var(--prompt-text-correct);
+}
+
+/* Incorrect gets a background *and* an underline: two non-colour cues, because
+   a mistake is the one state that must never be missed (spec §12). */
+.incorrect {
+  color: var(--prompt-text-incorrect);
+  background: var(--prompt-incorrect-bg);
+  text-decoration: underline wavy;
+  text-underline-offset: 0.25em;
+}
+
+.current {
+  color: var(--prompt-text-current);
+  background: var(--prompt-current-bg);
+  border-radius: var(--radius-xs);
+  box-shadow: inset 0 -0.14em 0 var(--prompt-caret);
+}
+
+.untyped {
+  color: var(--prompt-text-untyped);
+}
+
+.idle {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-lg);
+  color: var(--text-secondary);
+}
+
+/* --- Obstacle deadline --------------------------------------------------- */
+
+.deadlineTrack {
+  width: 100%;
+  max-width: 22rem;
+  height: 0.4rem;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.deadlineFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width var(--duration-fast) linear;
+}
+
+.safe {
+  background: var(--threat-safe);
+}
+
+.warning {
+  background: var(--threat-close);
+}
+
+.critical,
+.expired {
+  background: var(--threat-critical);
+}
+
+.deadlineText {
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
