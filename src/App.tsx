@@ -1,12 +1,14 @@
 import { type JSX, useCallback, useState } from 'react';
 
 import { findMap, MAP_1, MAPS, obstaclesFor } from './content';
+import type { RunResult } from './game-core/models';
 import { useAppMachine } from './hooks/useAppMachine';
 import { usePlayerProfile } from './hooks/usePlayerProfile';
 import { GameScreen } from './screens/game';
 import { LevelBriefing } from './screens/level-briefing';
 import { hasProgress, MainMenu } from './screens/main-menu';
 import { MapSelection } from './screens/map-selection';
+import { RunResults, unlockedMap } from './screens/results';
 import { SplashScreen } from './screens/splash';
 
 /**
@@ -25,8 +27,10 @@ export function App(): JSX.Element {
   // Which map was chosen — data the player picked, not navigation. Where they
   // are is the machine's business and stays there (CLAUDE.md §3).
   const [selectedMapId, setSelectedMapId] = useState<string>(MAP_1.id);
+  const [lastResult, setLastResult] = useState<RunResult | null>(null);
 
   const selectedMap = findMap(selectedMapId) ?? MAP_1;
+  const nextMap = lastResult === null ? null : unlockedMap(lastResult, profile, MAPS);
 
   const startRun = useCallback(() => {
     machine.send('OPEN_MAP_SELECTION');
@@ -36,6 +40,20 @@ export function App(): JSX.Element {
     (mapId: string) => {
       setSelectedMapId(mapId);
       machine.send('SELECT_MAP');
+    },
+    [machine],
+  );
+
+  /**
+   * The run ended.
+   *
+   * The result is kept here rather than in the game screen, because the results
+   * screen outlives the canvas that produced it.
+   */
+  const endRun = useCallback(
+    (result: RunResult) => {
+      setLastResult(result);
+      machine.send(result.completed ? 'REACH_FINISH' : 'CAUGHT_BY_DOGS');
     },
     [machine],
   );
@@ -109,8 +127,48 @@ export function App(): JSX.Element {
     case 'Paused':
       return (
         <main>
-          <GameScreen mapId={selectedMapId} />
-          <MachineHarness machine={machine} />
+          <GameScreen
+            mapId={selectedMapId}
+            onRunEnded={endRun}
+            onRestart={() => {
+              machine.send('RESTART_RUN');
+            }}
+            onQuit={() => {
+              machine.send('QUIT_RUN');
+            }}
+          />
+        </main>
+      );
+
+    case 'LevelComplete':
+    case 'GameOver':
+    case 'Results':
+      return (
+        <main>
+          {lastResult === null ? (
+            <MachineHarness machine={machine} />
+          ) : (
+            <RunResults
+              result={lastResult}
+              map={selectedMap}
+              profile={profile}
+              maps={MAPS}
+              onRetry={() => {
+                machine.send(machine.can('RETRY') ? 'RETRY' : 'SHOW_RESULTS');
+              }}
+              {...(nextMap === null
+                ? {}
+                : {
+                    onNextMap: () => {
+                      setSelectedMapId(nextMap.id);
+                      machine.send(machine.can('NEXT_MAP') ? 'NEXT_MAP' : 'SHOW_RESULTS');
+                    },
+                  })}
+              onReturnToMaps={() => {
+                machine.send(machine.can('RETURN_TO_MAPS') ? 'RETURN_TO_MAPS' : 'SHOW_RESULTS');
+              }}
+            />
+          )}
         </main>
       );
 

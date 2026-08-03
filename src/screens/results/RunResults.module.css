@@ -1,0 +1,137 @@
+/*
+ * Run results (spec §9).
+ *
+ * The same screen for a win and a loss — only the heading, the tone, and which
+ * actions lead differ. A player who was caught deserves their numbers just as
+ * much as one who finished.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--space-10) var(--layout-gutter);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.outcome {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.completed {
+  color: var(--status-success);
+}
+
+.caught {
+  color: var(--status-danger);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.statLabel {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.statValue {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.statNote {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.records {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.record {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--status-success-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.recordLabel {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.recordValue {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.unlock {
+  padding: var(--space-4);
+  background: var(--accent-subtle);
+  border-radius: var(--radius-md);
+}
+
+.unlockTitle {
+  margin: 0 0 var(--space-1);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.unlockNote {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}

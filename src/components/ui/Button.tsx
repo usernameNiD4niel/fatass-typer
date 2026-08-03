@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, JSX, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, JSX, ReactNode, Ref } from 'react';
 
 import styles from './Button.module.css';
 import { classes } from './classes';
@@ -19,6 +19,11 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly size?: ButtonSize;
   readonly fullWidth?: boolean;
   readonly children: ReactNode;
+  /**
+   * Plain prop, not `forwardRef` — React 19 passes refs to function components
+   * directly. Callers need it to move focus, which overlays and dialogs must do.
+   */
+  readonly ref?: Ref<HTMLButtonElement>;
 }
 
 const VARIANT_CLASS: Readonly<Record<ButtonVariant, string | undefined>> = {

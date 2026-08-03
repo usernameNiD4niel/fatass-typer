@@ -27,6 +27,14 @@ results, settings, statistics, tutorial.
 - `level-briefing/` — what the map asks before the run starts (step E3): target speed,
   distance, rough length, the obstacles and how to get past each, and previous bests. It
   occupies the machine's `PreRunCountdown` state rather than inventing a new one.
+- `results/` — the end of a run (step E5). **One screen for both endings**: a player who was
+  caught gets the same detail as one who finished — the difference is the heading and which
+  action leads, not how much information they are trusted with. `run-summary.ts` decides
+  records and unlocks as pure functions, because "you set a record" and "you unlocked a map"
+  are claims, and a claim the UI invents is worse than one it omits. Beating a best is
+  strictly greater-than; matching it is not a record. An unlock needs **both** a finished run
+  and the accuracy gate — finishing scrappily is a win, not a promotion — and a missed
+  unlock says exactly what was needed.
 - `game/` — the playable screen (step C7). Mounts a canvas, attaches a bridge to it via
   `attachGame`, and renders what comes back: the active prompt, a minimal HUD, the typing
   field, and the run outcome. Step E4 designs the real HUD and E5 the results screens.

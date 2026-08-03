@@ -28,6 +28,7 @@ import {
   worldToScreenX,
 } from '../render';
 import { obstaclePressure, remainingMs, timeToImpact } from '../../game-core/obstacles';
+import { sustainablePeakWpm } from '../../game-core/stats';
 import type { DeadlinePressure } from '../../game-core/timing';
 import {
   activeObstacle,
@@ -345,7 +346,10 @@ export class RuntimeHost implements GameHost {
       completed,
       score: stats.score,
       averageWpm: stats.averageWpm,
-      sustainablePeakWpm: 0,
+      // The headline lifetime figure (spec §7): a rolling window with minimum
+      // characters, minimum accuracy, and a maximum idle gap, so a one-second
+      // burst can never become the record.
+      sustainablePeakWpm: sustainablePeakWpm(this.session.stats),
       rawPeakWpm: this.session.stats.rawPeakWpm,
       accuracy: stats.accuracy,
       correctCharacters: this.session.stats.correctCharacters,

@@ -1,8 +1,8 @@
 import { type JSX, useCallback, useEffect, useRef, useState } from 'react';
 
-import { Hud, PromptDisplay } from '../../components/hud';
+import { Hud, PauseOverlay, PromptDisplay } from '../../components/hud';
 import { type CommandSink, TypingInput } from '../../components/typing-input';
-import { Button, Panel } from '../../components/ui';
+import { Button } from '../../components/ui';
 import { attachGame, type GameBridge } from '../../game-bridge';
 import type {
   DeadlinePressureLevel,
@@ -44,11 +44,27 @@ function formatWpm(value: number): string {
 export interface GameScreenProps {
   /** Which map to run. Defaults to Map 1 when the caller has not chosen. */
   readonly mapId?: string;
+  /**
+   * The run ended. The shell decides what happens next — this screen reports
+   * the outcome and stops there, so navigation stays with the state machine.
+   */
+  readonly onRunEnded?: (result: RunResult) => void;
+  readonly onQuit?: () => void;
+  readonly onRestart?: () => void;
 }
 
-export function GameScreen({ mapId }: GameScreenProps = {}): JSX.Element {
+export function GameScreen({
+  mapId,
+  onRunEnded,
+  onQuit,
+  onRestart,
+}: GameScreenProps = {}): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bridgeRef = useRef<GameBridge | null>(null);
+  // Held in a ref so the mount effect does not re-run — and tear the runtime
+  // down — every time the parent hands over a fresh callback.
+  const endedRef = useRef(onRunEnded);
+  endedRef.current = onRunEnded;
 
   const [ready, setReady] = useState(false);
   const [state, setState] = useState<GameState>('uninitialized');
@@ -100,6 +116,7 @@ export function GameScreen({ mapId }: GameScreenProps = {}): JSX.Element {
         case 'levelCompleted':
         case 'gameOver':
           setResult(event.result);
+          endedRef.current?.(event.result);
           break;
         case 'fatalError':
           setError(event.message);
@@ -171,11 +188,16 @@ export function GameScreen({ mapId }: GameScreenProps = {}): JSX.Element {
         />
         {error !== null && <p className={styles.error}>{error}</p>}
         {state === 'paused' && (
-          <div className={styles.overlay}>
-            <Panel tight role="status">
-              Paused — press Escape to resume
-            </Panel>
-          </div>
+          <PauseOverlay
+            onResume={togglePause}
+            onRestart={() => {
+              if (onRestart === undefined) send({ type: 'restart' });
+              else onRestart();
+            }}
+            onQuit={() => {
+              onQuit?.();
+            }}
+          />
         )}
       </div>
 

@@ -18,7 +18,10 @@ Small, presentational, reusable. Button, Card, Panel, Toggle, Slider, Modal.
   monospaced face so characters do not shift width as they are typed, and per-character
   state taken from **`game-core`'s own comparison** rather than a second implementation —
   the HUD and the rules must agree about what counts as correct. `Hud` is everything else,
-  deliberately quieter: four small readouts and two meters (to finish, dogs).
+  deliberately quieter: four small readouts and two meters (to finish, dogs). `PauseOverlay`
+  sits over the frozen canvas rather than replacing it, and takes focus on open — left in
+  the typing field, the first keystroke of the resume would be swallowed and a keyboard
+  player could not reach its controls at all.
 - `typing-input/` — the typing field (step C6). A real, focused `<input>`, never a global
   `keydown` listener: text construction belongs to the browser, and only a real field gets
   IME composition, dead keys, `Backspace` semantics, and assistive-technology keyboards.

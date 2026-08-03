@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PromptViewModel } from '../../game-bridge/messages';
 import { EMPTY_LIVE_STATS, type LiveRunStats } from '../../game-core/models';
 import { Hud } from './Hud';
+import { PauseOverlay } from './PauseOverlay';
 import { PromptDisplay } from './PromptDisplay';
 import { threatLevel } from './threat';
 
@@ -130,6 +131,42 @@ describe('PromptDisplay', () => {
     render(<PromptDisplay prompt={null} typed="" idleMessage="Press Start when you are ready" />);
 
     expect(screen.getByText('Press Start when you are ready')).toBeInTheDocument();
+  });
+});
+
+describe('PauseOverlay', () => {
+  function setup() {
+    const handlers = { onResume: vi.fn(), onRestart: vi.fn(), onQuit: vi.fn() };
+    render(<PauseOverlay {...handlers} />);
+
+    return { ...handlers, user: userEvent.setup() };
+  }
+
+  it('is a dialog that says it is paused', () => {
+    setup();
+
+    expect(screen.getByRole('dialog', { name: 'Paused' })).toBeInTheDocument();
+    expect(screen.getByText('Press Escape to resume')).toBeInTheDocument();
+  });
+
+  it('takes focus, so a keyboard player can reach its controls', () => {
+    setup();
+
+    // Left in the typing field, the first keystroke of the resume would be
+    // swallowed — and these buttons would be unreachable.
+    expect(screen.getByRole('button', { name: 'Resume' })).toHaveFocus();
+  });
+
+  it('offers resume, restart, and quit', async () => {
+    const { user, onResume, onRestart, onQuit } = setup();
+
+    await user.click(screen.getByRole('button', { name: 'Resume' }));
+    await user.click(screen.getByRole('button', { name: 'Restart run' }));
+    await user.click(screen.getByRole('button', { name: 'Quit to maps' }));
+
+    expect(onResume).toHaveBeenCalledTimes(1);
+    expect(onRestart).toHaveBeenCalledTimes(1);
+    expect(onQuit).toHaveBeenCalledTimes(1);
   });
 });
 
