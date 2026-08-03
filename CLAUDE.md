@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 36 / 41 steps complete.** Phases A through E are finished. **Map 1 is
+**Progress: 37 / 41 steps complete.** Phases A through F are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **F4** — adaptive assistance (dormant under current tuning) |
-| **Next up** | **F5** — `StorageAdapter` and run history (awaiting approval) |
+| **Last completed** | **F5** — storage seam, run history, progress persistence |
+| **Next up** | **G1** — the audio system (awaiting approval) |
 
 **All six maps are tuned (F2, F3).** `session/playtest-harness.ts` drives a metronomic
 simulated typist; `map-1-playtest.test.ts` and `map-progression.test.ts` state the results as
@@ -161,13 +161,13 @@ would mean; the dormancy is pinned by a test so it cannot shift unnoticed.
 | C — Runtime + playable slice | ✅ 7 / 7 |
 | D — Obstacles & map rules | ✅ 5 / 5 |
 | E — UI shell | ✅ 7 / 7 |
-| F — Content, maps, storage | 🟨 4 / 5 |
+| F — Content, maps, storage | ✅ 5 / 5 |
 | G — Polish | ⬜ 0 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 900 passed, 54 files
+npm run test          # 937 passed, 57 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -215,14 +215,15 @@ settings, statistics, tutorial, and width guard alongside the game screen. `App.
 to them exhaustively from the state machine, so a new state fails the build until it has a
 screen — the development harness is gone. Choosing a map is what the run actually uses, and
 a finished run reports its result up to the shell, which owns what happens next.
-`src/hooks/usePlayerProfile.ts` holds the profile in memory — a placeholder F5 replaces with
-the `StorageAdapter`.
+`src/hooks/usePlayerProfile.ts` is the profile, backed by the `StorageAdapter` in
+`src/storage/` — in memory today, so progress still resets on reload. A finished run is
+folded into the profile by `game-core/progress/` and appended to run history.
 
-**What does not exist yet.** No
-persistence — `storage/` is still a README, and progress does not survive a reload. The UI
-is a placeholder: `App.tsx` is the A5 harness with the game screen bolted on, and the real
-screens, primitives, and HUD arrive in phase E. Maps 2–6 and the full content set are
-phase F.
+**What does not exist yet.** No audio at all (G1). Progress does not survive a reload — the
+storage seam is in place but its only implementation is in memory, and an IndexedDB one is
+explicitly deferred. No e2e tests, CI, or performance pass (G3, G4). The `mistakeBehavior`
+and `caseSensitive` settings are stored and displayed but the typing engine still uses its
+defaults.
 
 ---
 
@@ -340,7 +341,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
 - [x] **F4** Adaptive assistance: small clamped buffer adjustments after repeated
       failures or a sustained accuracy streak. Never aggressive enough to feel unfair.
       The displayed target WPM stays honest. Spec §6.
-- [ ] **F5** `StorageAdapter` interface + in-memory implementation + run history +
+- [x] **F5** `StorageAdapter` interface + in-memory implementation + run history +
       dev-only reset. Progress resets on reload — that is intended for now. An IndexedDB
       implementation is explicitly deferred; the interface is the seam for it.
 

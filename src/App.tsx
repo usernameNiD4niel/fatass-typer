@@ -2,7 +2,7 @@ import { type JSX, useCallback, useState } from 'react';
 
 import { Button } from './components/ui';
 import { findMap, MAP_1, MAPS, obstaclesFor } from './content';
-import type { RunResult } from './game-core/models';
+import type { PlayerProfile, RunResult } from './game-core/models';
 import { useAppliedSettings } from './hooks/useAppliedSettings';
 import { useAppMachine } from './hooks/useAppMachine';
 import { useMinimumWidth } from './hooks/useMinimumWidth';
@@ -33,7 +33,7 @@ const MINIMUM_WIDTH_PX = 1024;
 
 export function App(): JSX.Element {
   const machine = useAppMachine();
-  const { profile, setProfile, resetProgress } = usePlayerProfile();
+  const { profile, setProfile, recordRun, resetProgress } = usePlayerProfile();
   const wideEnough = useMinimumWidth(MINIMUM_WIDTH_PX);
 
   // Theme, prompt size, and reduced motion reach the document from here.
@@ -42,9 +42,18 @@ export function App(): JSX.Element {
   // are is the machine's business and stays there (CLAUDE.md §3).
   const [selectedMapId, setSelectedMapId] = useState<string>(MAP_1.id);
   const [lastResult, setLastResult] = useState<RunResult | null>(null);
+  /**
+   * The profile as it was when the last run started.
+   *
+   * The results screen reports records and unlocks by comparing against it. If
+   * it compared against the live profile — already updated with this very run —
+   * every record would look like it had always been there.
+   */
+  const [profileBeforeRun, setProfileBeforeRun] = useState<PlayerProfile | null>(null);
 
   const selectedMap = findMap(selectedMapId) ?? MAP_1;
-  const nextMap = lastResult === null ? null : unlockedMap(lastResult, profile, MAPS);
+  const resultsProfile = profileBeforeRun ?? profile;
+  const nextMap = lastResult === null ? null : unlockedMap(lastResult, resultsProfile, MAPS);
 
   const startRun = useCallback(() => {
     machine.send('OPEN_MAP_SELECTION');
@@ -71,9 +80,13 @@ export function App(): JSX.Element {
   const endRun = useCallback(
     (result: RunResult) => {
       setLastResult(result);
+      // The results screen compares against the profile *before* this run, so
+      // it is captured here and the profile is updated behind it.
+      setProfileBeforeRun(profile);
+      recordRun(result);
       machine.send(result.completed ? 'REACH_FINISH' : 'CAUGHT_BY_DOGS');
     },
-    [machine],
+    [machine, profile, recordRun],
   );
 
   // Checked before anything else: there is no point rendering a HUD the player
@@ -216,7 +229,7 @@ export function App(): JSX.Element {
             <RunResults
               result={lastResult}
               map={selectedMap}
-              profile={profile}
+              profile={resultsProfile}
               maps={MAPS}
               onRetry={() => {
                 machine.send(machine.can('RETRY') ? 'RETRY' : 'SHOW_RESULTS');

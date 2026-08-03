@@ -1,37 +1,105 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { MAP_1 } from '../content';
-import { createPlayerProfile, type PlayerProfile } from '../game-core/models';
+import { MAP_1, MAPS } from '../content';
+import { createPlayerProfile, type PlayerProfile, type RunResult } from '../game-core/models';
+import { applyRunResult } from '../game-core/progress';
+import { InMemoryStorage, type StorageAdapter } from '../storage';
 
 /**
- * The player's profile, for as long as the tab is open.
+ * The player's profile, backed by a `StorageAdapter`.
  *
- * A deliberate placeholder: step F5 introduces the `StorageAdapter` and this
- * hook becomes its React binding. Until then progress resets on reload, which
- * CLAUDE.md §5 records as intended for now.
+ * The adapter is in memory today, so progress resets on reload — CLAUDE.md §5
+ * records that as intended. Swapping in IndexedDB later means passing a
+ * different adapter here and changing nothing else.
  *
- * Screens take a profile as a prop rather than reaching for this hook, so
- * swapping the source later touches this file and `App.tsx` and nothing else.
+ * Screens take a profile as a prop rather than reaching for this hook, so the
+ * source stays swappable.
  */
-export function usePlayerProfile(): {
-  profile: PlayerProfile;
-  setProfile: (profile: PlayerProfile) => void;
-  /** Development only, until F5 gives progress somewhere durable to live. */
-  resetProgress: () => void;
-} {
-  const [profile, setProfile] = useState<PlayerProfile>(() =>
-    // The clock is read here, at the edge, because `game-core` may not read one.
-    createPlayerProfile(new Date().toISOString(), MAP_1.id),
+
+export interface UsePlayerProfileOptions {
+  readonly storage?: StorageAdapter;
+  /** The clock, read here at the edge because `game-core` may not read one. */
+  readonly now?: () => string;
+}
+
+export interface PlayerProfileHandle {
+  readonly profile: PlayerProfile;
+  /** False until the stored profile has loaded. */
+  readonly loaded: boolean;
+  readonly setProfile: (profile: PlayerProfile) => void;
+  /** Folds a finished run into the profile and appends it to run history. */
+  readonly recordRun: (result: RunResult) => void;
+  /** Development only, until progress has somewhere durable to live. */
+  readonly resetProgress: () => void;
+}
+
+export function usePlayerProfile(options: UsePlayerProfileOptions = {}): PlayerProfileHandle {
+  // Both held for the lifetime of the hook. A new adapter every render would
+  // throw the player's progress away on every keystroke, and a new clock would
+  // re-create every callback that depends on it.
+  const now = useMemo(() => options.now ?? (() => new Date().toISOString()), [options.now]);
+  const storage = useMemo(() => options.storage ?? new InMemoryStorage(), [options.storage]);
+
+  const [profile, setProfileState] = useState<PlayerProfile>(() =>
+    createPlayerProfile(now(), MAP_1.id),
+  );
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void storage.loadProfile().then((stored) => {
+      // A profile arriving after the component has gone would be a state update
+      // on an unmounted tree, and worse, a stale one.
+      if (cancelled) return;
+      if (stored !== null) setProfileState(stored);
+      setLoaded(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [storage]);
+
+  const setProfile = useCallback(
+    (next: PlayerProfile) => {
+      setProfileState(next);
+      void storage.saveProfile(next);
+    },
+    [storage],
+  );
+
+  const recordRun = useCallback(
+    (result: RunResult) => {
+      // Computed from the *current* profile, so bests and unlocks compare
+      // against what the player had before this run.
+      setProfileState((current) => {
+        const next = applyRunResult({ profile: current, result, maps: MAPS, now: now() });
+        void storage.saveProfile(next);
+
+        return next;
+      });
+
+      void storage.appendRun(result);
+    },
+    [storage, now],
   );
 
   const resetProgress = useCallback(() => {
-    // Settings survive a progress reset: they are the player's preferences, not
-    // their achievements, and wiping them would be a second, unasked-for change.
-    setProfile((current) => ({
-      ...createPlayerProfile(new Date().toISOString(), MAP_1.id),
-      settings: current.settings,
-    }));
-  }, []);
+    setProfileState((current) => {
+      // Settings survive a progress reset: they are the player's preferences,
+      // not their achievements, and wiping them would be a second, unasked-for
+      // change.
+      const fresh: PlayerProfile = {
+        ...createPlayerProfile(now(), MAP_1.id),
+        settings: current.settings,
+      };
 
-  return { profile, setProfile, resetProgress };
+      void storage.clear().then(() => storage.saveProfile(fresh));
+
+      return fresh;
+    });
+  }, [storage, now]);
+
+  return { profile, loaded, setProfile, recordRun, resetProgress };
 }
