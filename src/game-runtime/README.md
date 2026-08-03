@@ -30,6 +30,11 @@ a detached canvas forever.
   theme), `canvas-surface.ts` (HiDPI sizing + the narrow `Canvas2D` interface the renderer
   draws through), `scene-renderer.ts` (`drawScene`, `groundYPx`), and `canvas-renderer.ts`
   (`CanvasRenderer`, the one stateful object — owns the element, camera, and palette).
+- `actors/` — the characters. `mc-animation.ts` is the MC's animation state machine (idle,
+  running, boosting, jumping, sliding, stumbling, hit, victory, caught) — pure, with
+  interrupt priorities so a collision can cut a jump short but never the reverse.
+  `mc-renderer.ts` draws him from vector shapes in body units, so `heightPx` is the only
+  dial and a sprite sheet can replace the file wholesale.
 - `assets/` — the asset manifest. Every asset path in the game is declared here and
   nowhere else; nothing builds a path by concatenation. All entries are currently
   `optional`, because the scene is drawn from vector shapes (spec §10 permits this for the
@@ -42,5 +47,8 @@ setting.
 Testing the renderer: `src/test/fake-canvas.ts` provides a recording `Canvas2D` stub. jsdom
 has no 2D context, and the narrow interface exists so tests can assert on draw calls.
 
-Still to come in phase C: MC animation state machine, dog rendering. Obstacle rendering
-follows in phase D. See CLAUDE.md §5.
+Animation never drives the world. The run cycle advances by distance travelled, so speed
+comes from the rules and the legs follow — never the other way round (CLAUDE.md §5).
+
+Still to come in phase C: dog rendering. Obstacle rendering follows in phase D.
+See CLAUDE.md §5.

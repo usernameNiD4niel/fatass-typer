@@ -12,8 +12,10 @@ import type { Canvas2D, SizableCanvas } from '../game-runtime/render/canvas-surf
 export interface DrawCall {
   readonly op: string;
   readonly args: readonly number[];
-  /** Fill colour in effect when the call was made. */
+  /** Styles in effect when the call was made. */
   readonly fillStyle: string;
+  readonly strokeStyle: string;
+  readonly lineWidth: number;
   readonly globalAlpha: number;
 }
 
@@ -26,7 +28,14 @@ export class FakeCanvas2D implements Canvas2D {
   readonly calls: DrawCall[] = [];
 
   private record(op: string, ...args: number[]): void {
-    this.calls.push({ op, args, fillStyle: this.fillStyle, globalAlpha: this.globalAlpha });
+    this.calls.push({
+      op,
+      args,
+      fillStyle: this.fillStyle,
+      strokeStyle: this.strokeStyle,
+      lineWidth: this.lineWidth,
+      globalAlpha: this.globalAlpha,
+    });
   }
 
   save(): void {
@@ -39,6 +48,18 @@ export class FakeCanvas2D implements Canvas2D {
 
   setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void {
     this.record('setTransform', a, b, c, d, e, f);
+  }
+
+  translate(x: number, y: number): void {
+    this.record('translate', x, y);
+  }
+
+  rotate(radians: number): void {
+    this.record('rotate', radians);
+  }
+
+  scale(x: number, y: number): void {
+    this.record('scale', x, y);
   }
 
   clearRect(x: number, y: number, width: number, height: number): void {
@@ -86,6 +107,33 @@ export class FakeCanvas2D implements Canvas2D {
     counterclockwise?: boolean,
   ): void {
     this.record('arc', x, y, radius, startAngle, endAngle, counterclockwise === true ? 1 : 0);
+  }
+
+  ellipse(
+    x: number,
+    y: number,
+    radiusX: number,
+    radiusY: number,
+    rotation: number,
+    startAngle: number,
+    endAngle: number,
+    counterclockwise?: boolean,
+  ): void {
+    this.record(
+      'ellipse',
+      x,
+      y,
+      radiusX,
+      radiusY,
+      rotation,
+      startAngle,
+      endAngle,
+      counterclockwise === true ? 1 : 0,
+    );
+  }
+
+  quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void {
+    this.record('quadraticCurveTo', cpx, cpy, x, y);
   }
 
   callsOf(op: string): readonly DrawCall[] {

@@ -23,6 +23,9 @@ export interface Canvas2D {
   save(): void;
   restore(): void;
   setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+  translate(x: number, y: number): void;
+  rotate(radians: number): void;
+  scale(x: number, y: number): void;
   clearRect(x: number, y: number, width: number, height: number): void;
   fillRect(x: number, y: number, width: number, height: number): void;
   strokeRect(x: number, y: number, width: number, height: number): void;
@@ -40,6 +43,17 @@ export interface Canvas2D {
     endAngle: number,
     counterclockwise?: boolean,
   ): void;
+  ellipse(
+    x: number,
+    y: number,
+    radiusX: number,
+    radiusY: number,
+    rotation: number,
+    startAngle: number,
+    endAngle: number,
+    counterclockwise?: boolean,
+  ): void;
+  quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void;
 }
 
 export interface SurfaceSize {
