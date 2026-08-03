@@ -42,7 +42,9 @@ test('walks from the menu into a run using only the keyboard', async ({ page }) 
   await expect(page.getByRole('heading', { level: 1, name: 'Neighborhood Dash' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Start run' }).press('Enter');
-  await expect(page.getByRole('img', { name: 'The runner and the chasing dogs' })).toBeVisible();
+  await expect(
+    page.getByRole('img', { name: 'The runner, the track ahead, and the chasing dogs' }),
+  ).toBeVisible();
 });
 
 test('reaches a locked map with the keyboard to read why it is locked', async ({ page }) => {

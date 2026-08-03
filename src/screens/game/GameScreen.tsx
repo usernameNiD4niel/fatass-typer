@@ -212,6 +212,11 @@ export function GameScreen({
           }
           break;
         }
+        case 'boostStarted':
+          // He is pulling away, and he wants the dogs to know it.
+          audioRef.current?.play('boost');
+          audioRef.current?.play('taunt');
+          break;
         case 'obstacleWarning':
           audioRef.current?.play('obstacleWarning');
           announce({ kind: 'obstacleWarning' });

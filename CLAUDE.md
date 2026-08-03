@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 41 / 41 steps complete — the build plan is finished.** All six maps are
+**Progress: 41 / 41 planned steps complete, plus H1 (below).** All six maps are
 playable end to end with obstacles, and a simulated typist at each map's advertised speed
 finishes it (spec §19 milestones 1 and 2).
 
 | | |
 |---|---|
-| **Last completed** | **G4** — Playwright e2e, README, CI |
-| **Next up** | nothing scheduled — every planned step is done |
+| **Last completed** | **H1** — the chase view: perspective renderer, full-bleed UI |
+| **Next up** | nothing scheduled — awaiting direction |
 
 **All six maps are tuned (F2, F3).** `session/playtest-harness.ts` drives a metronomic
 simulated typist; `map-1-playtest.test.ts` and `map-progression.test.ts` state the results as
@@ -179,6 +179,16 @@ of a 16.67ms frame, at ~290 draw calls, *flat* from the first minute of a map to
 Screens past the menu are `lazy()`-loaded and the vendor code is its own chunk, so first
 load is **~77 kB gzipped** instead of a single 98 kB bundle, and the whole runtime arrives
 only when a run starts. Rasterisation is the one thing these numbers do not cover.
+
+**The game is now a behind-the-runner chase (H1, on request).** The side-scrolling view is
+gone. `render/perspective.ts` is a pinhole projection down a straight track; `track-renderer`
+draws the world, `runner-renderer` draws him from behind, `pack-renderer` puts the dogs
+between the lens and the runner, and `obstacle-course-renderer` brings obstacles out of the
+vanishing point — including a rock, which is the one shape nobody needs told to jump. The run
+screen fills the browser viewport and the HUD, prompt, and field float over it on glass. While
+boosting he looks back over his shoulder, grins, and laughs at the dogs. Six render modules
+were deleted and replaced; `perspective.test.ts` and `scene-actors.test.ts` are their new
+tests, and the maps were re-tuned around it (catch-up 1.7 → 3.4 across the ladder).
 
 **The e2e suite found two real bugs (G4).** 13 Playwright tests run against the production
 build in Chromium: keyboard-only navigation, and a whole run — start, type, pause, restart,

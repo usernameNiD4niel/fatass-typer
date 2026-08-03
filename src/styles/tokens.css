@@ -319,8 +319,8 @@
     --surface-inverse: var(--color-neutral-50);
     --surface-translucent: rgb(24 28 35 / 0.84);
     --surface-scrim: rgb(0 0 0 / 0.58);
-  --surface-glass: rgb(20 24 31 / 0.78);
-  --surface-glass-strong: rgb(20 24 31 / 0.92);
+    --surface-glass: rgb(20 24 31 / 0.78);
+    --surface-glass-strong: rgb(20 24 31 / 0.92);
 
     --text-primary: var(--color-neutral-50);
     --text-secondary: var(--color-neutral-300);

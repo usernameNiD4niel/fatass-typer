@@ -25,9 +25,12 @@ import {
  */
 
 describe('obstacle definitions', () => {
-  it('defines all seven obstacles from the spec', () => {
+  it('defines the seven obstacles from the spec, plus the rock', () => {
+    // The rock is ours, not the spec's: it is the one shape a player reads as
+    // "jump this" with no explanation, which earns it a place on every map.
     expect(OBSTACLES.map((obstacle) => obstacle.id).sort()).toEqual(
       [
+        'rock',
         'crate',
         'hanging-sign',
         'low-barrier',

@@ -100,6 +100,8 @@ export type GameEvent =
   | { readonly type: 'statsUpdated'; readonly stats: LiveRunStats }
   | { readonly type: 'dogDistanceChanged'; readonly normalizedDistance: number }
   | { readonly type: 'obstacleWarning'; readonly obstacle: ObstacleViewModel }
+  /** A prompt was finished and the boost started. The runner's moment to gloat. */
+  | { readonly type: 'boostStarted' }
   | { readonly type: 'playerHit'; readonly reason: string }
   | { readonly type: 'levelCompleted'; readonly result: RunResult }
   | { readonly type: 'gameOver'; readonly result: RunResult }

@@ -1,12 +1,20 @@
 import { describe, it } from 'vitest';
 import { ALL_PROMPTS, MAPS, OBSTACLES } from '../../content';
-import { advanceRunSession, applyRunInput, createRunSession, startRun, isBoosting } from './run-session';
+import {
+  advanceRunSession,
+  applyRunInput,
+  createRunSession,
+  startRun,
+  isBoosting,
+} from './run-session';
 
 describe('tune', () => {
   it('traces map-4 threshold with errors', () => {
     const map = MAPS[3];
     if (map === undefined) throw new Error();
-    let session = startRun(createRunSession({ map, pool: ALL_PROMPTS, obstacles: OBSTACLES, seed: 'threshold' })).session;
+    let session = startRun(
+      createRunSession({ map, pool: ALL_PROMPTS, obstacles: OBSTACLES, seed: 'threshold' }),
+    ).session;
     const interval = 60_000 / (map.targetWpm * 5);
     let nextKey = 0;
     let keystroke = 0;
@@ -22,7 +30,10 @@ describe('tune', () => {
         } else if (typed.length < target.length) {
           keystroke += 1;
           if (keystroke % 12 === 0) {
-            session = applyRunInput(session, typed + (target[typed.length] === 'x' ? 'q' : 'x')).session;
+            session = applyRunInput(
+              session,
+              typed + (target[typed.length] === 'x' ? 'q' : 'x'),
+            ).session;
             pending = true;
           } else {
             session = applyRunInput(session, target.slice(0, typed.length + 1)).session;
@@ -34,9 +45,13 @@ describe('tune', () => {
       const text = session.prompt?.text ?? '(none)';
       if (text !== last) {
         last = text;
-        console.log(`t=${(session.elapsedMs / 1000).toFixed(1)} gap=${session.chase.distanceMeters.toFixed(1)} boost=${String(isBoosting(session))} obstacles=${String(session.obstacles.length)} prompt="${text}"`);
+        console.log(
+          `t=${(session.elapsedMs / 1000).toFixed(1)} gap=${session.chase.distanceMeters.toFixed(1)} boost=${String(isBoosting(session))} obstacles=${String(session.obstacles.length)} prompt="${text}"`,
+        );
       }
     }
-    console.log(`END phase=${session.phase} m=${session.playerMeters.toFixed(0)}/${String(map.distanceMeters)} faced=${String(session.obstaclesFaced)} avoided=${String(session.obstaclesAvoided)} stumbles=${String(session.stumbles)} collisions=${String(session.collisions)}`);
+    console.log(
+      `END phase=${session.phase} m=${session.playerMeters.toFixed(0)}/${String(map.distanceMeters)} faced=${String(session.obstaclesFaced)} avoided=${String(session.obstaclesAvoided)} stumbles=${String(session.stumbles)} collisions=${String(session.collisions)}`,
+    );
   });
 });

@@ -72,12 +72,7 @@ function drawSky(context: Canvas2D, view: PerspectiveView, palette: ScenePalette
   for (let index = 0; index < 4; index += 1) {
     context.globalAlpha = 0.25 + index * 0.2;
     context.fillStyle = palette.skyBand;
-    context.fillRect(
-      0,
-      view.horizonYPx - bandHeight * (4 - index),
-      view.widthPx,
-      bandHeight + 1,
-    );
+    context.fillRect(0, view.horizonYPx - bandHeight * (4 - index), view.widthPx, bandHeight + 1);
   }
   context.globalAlpha = 1;
 
@@ -265,7 +260,12 @@ function drawFinishLine(
   const squareWidth = (right.xPx - left.xPx) / squares;
   for (let index = 0; index < squares; index += 1) {
     context.fillStyle = index % 2 === 0 ? '#ffffff' : '#1c1f24';
-    context.fillRect(left.xPx + index * squareWidth, base.yPx - stripHeight, squareWidth, stripHeight);
+    context.fillRect(
+      left.xPx + index * squareWidth,
+      base.yPx - stripHeight,
+      squareWidth,
+      stripHeight,
+    );
   }
 
   // Banner overhead, so the finish is visible long before it is underfoot.

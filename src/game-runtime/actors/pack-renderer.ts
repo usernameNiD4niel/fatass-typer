@@ -46,9 +46,9 @@ const BODY_BY_THREAT: Readonly<Record<ChaseThreat, string>> = {
  * copies of the same animal.
  */
 const PACK = [
-  { x: -2.5, back: 0.15 },
-  { x: 2.6, back: 0.4 },
-  { x: -0.3, back: 1.15 },
+  { x: -3.1, back: 0.2 },
+  { x: 3.2, back: 0.55 },
+  { x: -0.4, back: 1.4 },
 ] as const;
 
 export interface PackDrawOptions {

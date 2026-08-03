@@ -62,7 +62,7 @@ export const MAP_1: MapConfig = {
     promptCategories: ['short-word', 'medium-word', 'short-phrase', 'themed'],
     // The three gentlest obstacles, all avoided by jumping. Nothing overhead and
     // nothing needing a phrase — those start on later maps.
-    obstacleIds: ['crate', 'low-barrier', 'puddle'],
+    obstacleIds: ['rock', 'crate', 'low-barrier', 'puddle'],
     obstacleIntervalSeconds: 9,
     obstacleIntervalJitter: 0.25,
     themeTags: ['street', 'chase'],
@@ -108,7 +108,7 @@ export const MAP_2: MapConfig = {
   },
   content: {
     promptCategories: ['short-word', 'medium-word', 'short-phrase', 'themed', 'punctuation'],
-    obstacleIds: ['crate', 'low-barrier', 'puddle', 'trash-bin'],
+    obstacleIds: ['rock', 'crate', 'low-barrier', 'puddle', 'trash-bin'],
     obstacleIntervalSeconds: 8.5,
     obstacleIntervalJitter: 0.25,
     themeTags: ['downtown', 'street', 'chase'],
@@ -162,6 +162,7 @@ export const MAP_3: MapConfig = {
       'number',
     ],
     obstacleIds: [
+      'rock',
       'crate',
       'low-barrier',
       'puddle',
@@ -222,6 +223,7 @@ export const MAP_4: MapConfig = {
       'number',
     ],
     obstacleIds: [
+      'rock',
       'crate',
       'low-barrier',
       'trash-bin',
@@ -288,7 +290,14 @@ export const MAP_5: MapConfig = {
       'punctuation',
       'number',
     ],
-    obstacleIds: ['low-barrier', 'trash-bin', 'hanging-sign', 'roadwork-barrier', 'narrow-passage'],
+    obstacleIds: [
+      'rock',
+      'low-barrier',
+      'trash-bin',
+      'hanging-sign',
+      'roadwork-barrier',
+      'narrow-passage',
+    ],
     obstacleIntervalSeconds: 7,
     obstacleIntervalJitter: 0.3,
     themeTags: ['night-highway', 'chase'],
@@ -344,6 +353,7 @@ export const MAP_6: MapConfig = {
       'number',
     ],
     obstacleIds: [
+      'rock',
       'crate',
       'low-barrier',
       'puddle',

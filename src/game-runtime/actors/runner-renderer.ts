@@ -147,10 +147,20 @@ function drawBody(context: Canvas2D, animation: McAnimation): void {
   drawArm(context, -0.28, airborne ? -0.2 : -swing * 0.16);
   drawArm(context, 0.28, airborne ? -0.2 : swing * 0.16);
 
-  // Neck, head, and hair from behind.
+  // Neck.
   context.fillStyle = MC_COLORS.skinShadow;
   context.fillRect(-0.05, -0.94, 0.1, 0.06);
 
+  // Head. While boosting he looks back over his shoulder at the dogs, which is
+  // the only moment his face is visible at all.
+  if (animation.state === 'boosting' || animation.locomotion === 'boosting') {
+    drawTauntingHead(context, animation);
+  } else {
+    drawHeadFromBehind(context);
+  }
+}
+
+function drawHeadFromBehind(context: Canvas2D): void {
   context.fillStyle = MC_COLORS.skin;
   context.beginPath();
   context.arc(0, -1.02, 0.115, 0, Math.PI * 2);
@@ -161,6 +171,63 @@ function drawBody(context: Canvas2D, animation: McAnimation): void {
   context.arc(0, -1.04, 0.12, Math.PI * 0.9, Math.PI * 2.1);
   context.fill();
   context.fillRect(-0.12, -1.05, 0.24, 0.07);
+}
+
+/**
+ * The look back.
+ *
+ * Three-quarter profile over the left shoulder, one eye and a wide grin. The
+ * joke is the whole point of the chase — he is enjoying this — and it only ever
+ * appears while he is pulling away, so it reads as earned rather than as smug.
+ */
+function drawTauntingHead(context: Canvas2D, animation: McAnimation): void {
+  // A slow bob through the run cycle, so the look is alive rather than pasted.
+  const tilt = Math.sin(animation.cyclePhase * Math.PI * 2) * 0.012;
+
+  context.save();
+  context.translate(-0.055, tilt);
+
+  context.fillStyle = MC_COLORS.skin;
+  context.beginPath();
+  context.arc(0, -1.02, 0.125, 0, Math.PI * 2);
+  context.fill();
+
+  // Hair covers the back of the skull, leaving the face turned to the left.
+  context.fillStyle = MC_COLORS.hair;
+  context.beginPath();
+  context.arc(0.02, -1.04, 0.128, Math.PI * 1.55, Math.PI * 0.75);
+  context.fill();
+
+  // Ear, on the side now facing us.
+  context.fillStyle = MC_COLORS.skinShadow;
+  context.beginPath();
+  context.arc(0.075, -1.0, 0.035, 0, Math.PI * 2);
+  context.fill();
+
+  // One eye, looking back down the road.
+  context.fillStyle = MC_COLORS.eye;
+  context.beginPath();
+  context.arc(-0.075, -1.04, 0.022, 0, Math.PI * 2);
+  context.fill();
+
+  // The grin: a wide open arc with a band of teeth across the top, which is
+  // what makes it a laugh rather than a smile.
+  context.fillStyle = MC_COLORS.outline;
+  context.beginPath();
+  context.arc(-0.045, -0.985, 0.07, 0, Math.PI);
+  context.closePath();
+  context.fill();
+
+  context.fillStyle = '#ffffff';
+  context.fillRect(-0.113, -0.985, 0.135, 0.022);
+
+  // A cheek, raised the way a real laugh raises one.
+  context.fillStyle = MC_COLORS.skinShadow;
+  context.beginPath();
+  context.arc(-0.085, -1.012, 0.028, 0, Math.PI * 2);
+  context.fill();
+
+  context.restore();
 }
 
 /** `swing` is how far this leg is forward, in body units. Positive lifts it. */

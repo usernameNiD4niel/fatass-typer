@@ -24,6 +24,9 @@ export const OBSTACLE_COLORS = {
   puddleSheen: 'rgba(235, 245, 255, 0.6)',
   bin: '#4f6b57',
   binLid: '#39503f',
+  rock: '#8d8f94',
+  rockShade: '#6b6d73',
+  rockHighlight: '#b6b8bd',
   signPost: '#6a6f78',
   signFace: '#e8c34a',
   post: '#8a8f98',
@@ -49,7 +52,11 @@ export interface ObstacleCourseOptions {
 }
 
 /** Depth of an obstacle in camera space. */
-export function obstacleZ(view: PerspectiveView, obstacle: ActiveObstacle, playerMeters: number): number {
+export function obstacleZ(
+  view: PerspectiveView,
+  obstacle: ActiveObstacle,
+  playerMeters: number,
+): number {
   return obstacle.impactMeters - playerMeters + runnerZ(view);
 }
 
@@ -96,12 +103,13 @@ function drawOne(
 }
 
 /** Waist-high and solid: something to go over. */
-function drawJumpObstacle(
-  context: Canvas2D,
-  view: PerspectiveView,
-  z: number,
-  id: string,
-): void {
+function drawJumpObstacle(context: Canvas2D, view: PerspectiveView, z: number, id: string): void {
+  if (id === 'rock') {
+    drawRock(context, view, z);
+
+    return;
+  }
+
   const height = id === 'crate' ? 1.15 : 0.85;
   const halfWidth = 1.5;
 
@@ -123,6 +131,51 @@ function drawJumpObstacle(
     bottomRight.xPx - topLeft.xPx,
     Math.max(1, 0.14 * topLeft.scale),
   );
+}
+
+/**
+ * A boulder in the road.
+ *
+ * Rounded and asymmetric, because a rock is the one obstacle a player should
+ * recognise without being told: no straight edges, and a shaded side so it
+ * reads as a solid mass rather than a grey circle.
+ */
+function drawRock(context: Canvas2D, view: PerspectiveView, z: number): void {
+  const base = project(view, { z });
+  const scale = base.scale;
+
+  context.save();
+  context.translate(base.xPx, base.yPx);
+  context.scale(scale, scale);
+
+  // Body: a lumpy dome, wider than it is tall.
+  context.fillStyle = OBSTACLE_COLORS.rock;
+  context.beginPath();
+  context.moveTo(-1.05, 0);
+  context.quadraticCurveTo(-1.15, -0.75, -0.45, -1.05);
+  context.quadraticCurveTo(0.05, -1.28, 0.55, -1.0);
+  context.quadraticCurveTo(1.15, -0.7, 1.0, 0);
+  context.closePath();
+  context.fill();
+
+  // The shaded right flank, and a lit facet up top.
+  context.fillStyle = OBSTACLE_COLORS.rockShade;
+  context.beginPath();
+  context.moveTo(0.2, -1.14);
+  context.quadraticCurveTo(1.1, -0.72, 1.0, 0);
+  context.lineTo(0.28, 0);
+  context.closePath();
+  context.fill();
+
+  context.fillStyle = OBSTACLE_COLORS.rockHighlight;
+  context.beginPath();
+  context.moveTo(-0.55, -0.98);
+  context.quadraticCurveTo(-0.2, -1.2, 0.12, -1.05);
+  context.quadraticCurveTo(-0.2, -0.94, -0.55, -0.98);
+  context.closePath();
+  context.fill();
+
+  context.restore();
 }
 
 /** Overhead, with a gap beneath: something to go under. */

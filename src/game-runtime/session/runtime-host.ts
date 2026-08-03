@@ -313,9 +313,12 @@ export class RuntimeHost implements GameHost {
           this.onPhaseChanged(emit);
           break;
 
+        case 'boostStarted':
+          emit({ type: 'boostStarted' });
+          break;
+
         case 'obstacleSpawned':
         case 'obstacleAttached':
-        case 'boostStarted':
         case 'boostEnded':
           break;
       }

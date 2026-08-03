@@ -18,6 +18,17 @@ import type { ObstacleDefinition } from '../game-core/models';
  */
 export const OBSTACLES: readonly ObstacleDefinition[] = [
   {
+    id: 'rock',
+    label: 'Rock',
+    action: 'jump',
+    difficultyWeight: 0.2,
+    // On every map: a boulder in the road is the one obstacle that needs no
+    // explaining, which makes it the right thing to meet first.
+    minimumMap: 1,
+    promptCategory: 'short-word',
+    baseReactionTimeMs: 340,
+  },
+  {
     id: 'crate',
     label: 'Wooden crate',
     action: 'jump',

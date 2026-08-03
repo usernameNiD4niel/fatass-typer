@@ -14,6 +14,7 @@ export type SoundCue =
   | 'mistake'
   | 'promptComplete'
   | 'boost'
+  | 'taunt'
   | 'obstacleWarning'
   | 'collision'
   | 'stumble'
@@ -53,6 +54,42 @@ export const CUES: Readonly<Record<SoundCue, readonly CueTone[]>> = {
   ],
 
   boost: [{ frequency: 440, endFrequency: 880, durationMs: 220, type: 'sawtooth', gain: 0.16 }],
+
+  /*
+   * The laugh, for when he looks back over his shoulder.
+   *
+   * Four falling triangle blips on a descending line — the shape of "ha ha ha
+   * ha" rather than an imitation of it. Kept quieter than the boost it rides
+   * on: it is a flourish, and a flourish that shouts stops being funny on the
+   * second run.
+   */
+  taunt: [
+    { frequency: 520, endFrequency: 470, durationMs: 90, type: 'triangle', gain: 0.13 },
+    {
+      frequency: 470,
+      endFrequency: 420,
+      durationMs: 90,
+      type: 'triangle',
+      gain: 0.12,
+      delayMs: 130,
+    },
+    {
+      frequency: 430,
+      endFrequency: 385,
+      durationMs: 90,
+      type: 'triangle',
+      gain: 0.11,
+      delayMs: 260,
+    },
+    {
+      frequency: 390,
+      endFrequency: 350,
+      durationMs: 120,
+      type: 'triangle',
+      gain: 0.1,
+      delayMs: 390,
+    },
+  ],
 
   // Urgent and unmistakable, because it is the only warning the player gets
   // before an obstacle's prompt attaches.

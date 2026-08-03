@@ -43,10 +43,10 @@ export interface PerspectiveConfig {
  * depends on seeing the thing before it arrives.
  */
 export const DEFAULT_PERSPECTIVE: PerspectiveConfig = {
-  heightMeters: 2.6,
+  heightMeters: 3.2,
   fieldOfViewRadians: Math.PI / 2.6,
-  horizonRatio: 0.36,
-  runnerDistanceMeters: 9,
+  horizonRatio: 0.34,
+  runnerDistanceMeters: 10,
   drawDistanceMeters: 190,
   trackHalfWidthMeters: 5.2,
 };
@@ -173,8 +173,8 @@ export function runnerZ(view: PerspectiveView): number {
  * So the danger cue is convergence, not size: they close the distance on screen
  * exactly as they close it in the rules. The HUD carries the exact number.
  */
-export const PACK_TRAIL_MIN_METERS = 0.6;
-export const PACK_TRAIL_MAX_METERS = 3.6;
+export const PACK_TRAIL_MIN_METERS = 0.5;
+export const PACK_TRAIL_MAX_METERS = 2.7;
 
 export function packZ(view: PerspectiveView, normalizedGap: number): number {
   const gap = Math.min(1, Math.max(0, normalizedGap));

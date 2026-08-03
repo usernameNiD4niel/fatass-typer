@@ -89,7 +89,9 @@ describe('LevelBriefing', () => {
 
     expect(screen.getByText('2410')).toBeInTheDocument();
     expect(screen.getByText('91%')).toBeInTheDocument();
-    expect(screen.getByText('4')).toBeInTheDocument();
+    // Scoped: the obstacle count is also a small number, and an unscoped query
+    // for it matches whichever the map happens to have that day.
+    expect(screen.getByText('Attempts').nextElementSibling).toHaveTextContent('4');
     expect(screen.getByText('Yes')).toBeInTheDocument();
   });
 
