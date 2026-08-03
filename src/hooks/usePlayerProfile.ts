@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { MAP_1 } from '../content';
 import { createPlayerProfile, type PlayerProfile } from '../game-core/models';
@@ -16,11 +16,22 @@ import { createPlayerProfile, type PlayerProfile } from '../game-core/models';
 export function usePlayerProfile(): {
   profile: PlayerProfile;
   setProfile: (profile: PlayerProfile) => void;
+  /** Development only, until F5 gives progress somewhere durable to live. */
+  resetProgress: () => void;
 } {
   const [profile, setProfile] = useState<PlayerProfile>(() =>
     // The clock is read here, at the edge, because `game-core` may not read one.
     createPlayerProfile(new Date().toISOString(), MAP_1.id),
   );
 
-  return { profile, setProfile };
+  const resetProgress = useCallback(() => {
+    // Settings survive a progress reset: they are the player's preferences, not
+    // their achievements, and wiping them would be a second, unasked-for change.
+    setProfile((current) => ({
+      ...createPlayerProfile(new Date().toISOString(), MAP_1.id),
+      settings: current.settings,
+    }));
+  }, []);
+
+  return { profile, setProfile, resetProgress };
 }

@@ -77,11 +77,31 @@ describe('App', () => {
     await boot(user);
 
     await user.click(screen.getByRole('button', { name: 'Settings' }));
-    expect(screen.getByText('Settings')).toBeInTheDocument();
-    expect(screen.getByText(/returns to MainMenu/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'CLOSE_SETTINGS' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.getByRole('button', { name: 'Maps' })).toBeInTheDocument();
+  });
+
+  it('opens statistics from the menu and comes back', async () => {
+    const user = userEvent.setup();
+    await boot(user);
+
+    await user.click(screen.getByRole('button', { name: 'Statistics' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Statistics' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('button', { name: 'Maps' })).toBeInTheDocument();
+  });
+
+  it('applies a theme choice to the document', async () => {
+    const user = userEvent.setup();
+    await boot(user);
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(screen.getByRole('radio', { name: 'Dark' }));
+
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
   });
 
   it('never offers a control for an illegal transition', async () => {

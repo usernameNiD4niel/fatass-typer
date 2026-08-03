@@ -2,6 +2,7 @@ import { type JSX, useCallback, useState } from 'react';
 
 import { findMap, MAP_1, MAPS, obstaclesFor } from './content';
 import type { RunResult } from './game-core/models';
+import { useAppliedSettings } from './hooks/useAppliedSettings';
 import { useAppMachine } from './hooks/useAppMachine';
 import { usePlayerProfile } from './hooks/usePlayerProfile';
 import { GameScreen } from './screens/game';
@@ -9,7 +10,9 @@ import { LevelBriefing } from './screens/level-briefing';
 import { hasProgress, MainMenu } from './screens/main-menu';
 import { MapSelection } from './screens/map-selection';
 import { RunResults, unlockedMap } from './screens/results';
+import { SettingsScreen } from './screens/settings';
 import { SplashScreen } from './screens/splash';
+import { StatisticsScreen } from './screens/statistics';
 
 /**
  * The app shell.
@@ -23,7 +26,10 @@ import { SplashScreen } from './screens/splash';
  */
 export function App(): JSX.Element {
   const machine = useAppMachine();
-  const { profile } = usePlayerProfile();
+  const { profile, setProfile, resetProgress } = usePlayerProfile();
+
+  // Theme, prompt size, and reduced motion reach the document from here.
+  useAppliedSettings(profile.settings);
   // Which map was chosen — data the player picked, not navigation. Where they
   // are is the machine's business and stays there (CLAUDE.md §3).
   const [selectedMapId, setSelectedMapId] = useState<string>(MAP_1.id);
@@ -82,11 +88,40 @@ export function App(): JSX.Element {
             onMaps={() => {
               machine.send('OPEN_MAP_SELECTION');
             }}
-            // No `onStatistics`: the machine has no Statistics state yet, so the
-            // menu shows the control disabled rather than routing nowhere. E6
-            // adds the screen.
+            onStatistics={() => {
+              machine.send('OPEN_STATISTICS');
+            }}
             onSettings={() => {
               machine.send('OPEN_SETTINGS');
+            }}
+          />
+        </main>
+      );
+
+    case 'Settings':
+      return (
+        <main>
+          <SettingsScreen
+            settings={profile.settings}
+            onChange={(settings) => {
+              setProfile({ ...profile, settings });
+            }}
+            onClose={() => {
+              machine.send('CLOSE_SETTINGS');
+            }}
+            onResetProgress={resetProgress}
+          />
+        </main>
+      );
+
+    case 'Statistics':
+      return (
+        <main>
+          <StatisticsScreen
+            profile={profile}
+            maps={MAPS}
+            onBack={() => {
+              machine.send('BACK');
             }}
           />
         </main>

@@ -1,8 +1,12 @@
 /**
- * The eleven application states from spec §4.
+ * The application states from spec §4.
  *
  * This union is the only place a "where am I" value comes from. Nothing in the
  * codebase may track screen or run status with its own boolean (CLAUDE.md §3).
+ *
+ * `Statistics` is not in the spec's list but the main menu it describes has an
+ * entry for it (spec §9). A screen the player can open is a state; the
+ * alternative was a menu entry that leads nowhere.
  */
 export const APP_STATES = [
   'Boot',
@@ -16,6 +20,7 @@ export const APP_STATES = [
   'GameOver',
   'Results',
   'Settings',
+  'Statistics',
 ] as const;
 
 export type AppState = (typeof APP_STATES)[number];
