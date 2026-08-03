@@ -130,19 +130,21 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 33 / 41 steps complete.** Phases A through E are finished. **Map 1 is
+**Progress: 34 / 41 steps complete.** Phases A through E are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **F1** — the word and phrase content files |
-| **Next up** | **F2** — tuning Map 1 for a genuine 20 WPM typist (awaiting approval) |
+| **Last completed** | **F2** — Map 1 tuned against a simulated typist |
+| **Next up** | **F3** — maps 2 to 6 (awaiting approval) |
 
-**Open tuning finding (for F2).** A 10 WPM typist — *half* the advertised speed — still
-finishes Map 1 comfortably. Map 1 is meant to be forgiving, but that much slack means the
-chase is doing less work than the label implies. Recorded as a test in
-`session/map-1-playtest.test.ts` so F2 has a starting measurement.
+**Map 1 is tuned (F2).** A 20 WPM typist finishes on every seed and still finishes while
+mistyping 8% of characters; 16 WPM with mistakes scrapes home; 10 WPM is caught. The
+survival threshold sits near 13 WPM. `session/playtest-harness.ts` drives a metronomic
+simulated typist and `map-1-playtest.test.ts` states those numbers as assertions — the maps
+are tuned against it rather than by feel, because playtesting a typing game by hand measures
+the tester.
 | **In progress** | none — no step is half-done |
 | **Blocked** | none |
 
@@ -153,13 +155,13 @@ chase is doing less work than the label implies. Recorded as a test in
 | C — Runtime + playable slice | ✅ 7 / 7 |
 | D — Obstacles & map rules | ✅ 5 / 5 |
 | E — UI shell | ✅ 7 / 7 |
-| F — Content, maps, storage | 🟨 1 / 5 |
+| F — Content, maps, storage | 🟨 2 / 5 |
 | G — Polish | ⬜ 0 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 853 passed, 51 files
+npm run test          # 855 passed, 51 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -325,7 +327,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
 - [x] **F1** Word and phrase content files by category: common short / medium / long
       words, punctuation, numbers, short phrases, medium phrases, map-themed vocabulary.
       No slurs, no obscure words in beginner maps, no ambiguous whitespace. Spec §15.
-- [ ] **F2** Map 1 tuned for a genuine 20 WPM typist. Playtest and adjust the numbers.
+- [x] **F2** Map 1 tuned for a genuine 20 WPM typist. Playtest and adjust the numbers.
 - [ ] **F3** Maps 2–6: configs, visual themes, vocabulary, reaction buffers
       (1.55 → 1.40 → 1.28 → 1.18 → 1.08), unlock accuracy gates (85% → 92%). Data-driven,
       not hardcoded into systems. Spec §6.

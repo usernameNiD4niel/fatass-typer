@@ -1,153 +1,131 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAP_1, OBSTACLES, ALL_PROMPTS } from '../../content';
-import {
-  advanceRunSession,
-  applyRunInput,
-  createRunSession,
-  obstacleSuccessRate,
-  type RunSession,
-  startRun,
-} from './run-session';
+import { ALL_PROMPTS, MAP_1, OBSTACLES } from '../../content';
+import { playtest, type PlaytestInput, survivalThreshold } from './playtest-harness';
 
 /**
- * Map 1, played end to end by a simulated typist (step D5, spec §19 milestone 2).
+ * Map 1, playtested (step F2, spec §6, §19 milestone 2).
  *
- * The map advertises 20 WPM. This plays it at exactly that speed — one character
- * every 600ms, no mistakes, no bursts — and asserts that such a player finishes.
- * If this test fails, Map 1 is lying about its difficulty, and no amount of
- * tuning elsewhere makes that acceptable (spec §6).
+ * The map advertises 20 WPM, and these tests are what that claim means. A
+ * browser playtest cannot answer the question — it measures the tester, and a
+ * throttled tab runs the loop at a fraction of real time — so the map's
+ * difficulty is specified here, against a metronomic simulated typist.
  *
- * A browser playtest cannot answer this question reliably: a throttled or
- * occluded tab runs the loop at a fraction of real time. The rules are pure, so
- * the honest place to ask is here.
+ * The tuning these numbers describe: **a genuine 20 WPM typist finishes, even
+ * making mistakes; someone well below target does not; and the dogs are a real
+ * presence rather than scenery.**
  */
 
-const STEP_MS = 16;
+const BASE: Omit<PlaytestInput, 'wpm' | 'seed'> = {
+  map: MAP_1,
+  prompts: ALL_PROMPTS,
+  obstacles: OBSTACLES,
+};
 
-/** Milliseconds per character at a given speed. Five characters make a word. */
-function msPerCharacter(wpm: number): number {
-  return 60_000 / (wpm * 5);
+const SEEDS = ['playtest-a', 'playtest-b', 'playtest-c'];
+
+function runsAt(wpm: number, errorRate = 0) {
+  return SEEDS.map((seed) => playtest({ ...BASE, wpm, seed, errorRate }));
 }
 
-interface PlaytestResult {
-  readonly session: RunSession;
-  readonly mistakes: number;
-}
-
-/**
- * Plays a whole run at a fixed typing speed.
- *
- * The typist is metronomic: they add one correct character every interval and
- * never look ahead. Obstacle prompts and boost prompts are treated identically,
- * which is what a real player does — they type what is on screen.
- */
-function playAt(wpm: number, seed: string, maxSteps = 60_000): PlaytestResult {
-  const interval = msPerCharacter(wpm);
-  let session = startRun(
-    createRunSession({ map: MAP_1, pool: ALL_PROMPTS, obstacles: OBSTACLES, seed }),
-  ).session;
-
-  let nextKeyAtMs = 0;
-  let mistakes = 0;
-
-  for (let step = 0; step < maxSteps && session.phase === 'running'; step += 1) {
-    while (session.elapsedMs >= nextKeyAtMs && session.phase === 'running') {
-      const target = session.prompt?.text ?? '';
-      const typed = session.typing.typed;
-
-      if (typed.length < target.length) {
-        const before = session.typing.incorrectCharacters;
-        session = applyRunInput(session, target.slice(0, typed.length + 1)).session;
-        if (session.typing.incorrectCharacters > before) mistakes += 1;
-      }
-
-      nextKeyAtMs += interval;
-    }
-
-    session = advanceRunSession(session, STEP_MS).session;
-  }
-
-  return { session, mistakes };
-}
-
-describe('Map 1 at its advertised speed', () => {
-  it('can be finished by a 20 WPM typist', () => {
-    const { session } = playAt(MAP_1.targetWpm, 'playtest-1');
-
-    expect(session.phase).toBe('levelComplete');
-    expect(session.playerMeters).toBe(MAP_1.distanceMeters);
-  });
-
-  it('is finishable from several different seeds', () => {
-    for (const seed of ['a', 'b', 'c', 'd', 'e']) {
-      const { session } = playAt(MAP_1.targetWpm, seed);
-
-      expect(session.phase).toBe('levelComplete');
+describe('a typist at the advertised speed', () => {
+  it('finishes, on every seed', () => {
+    for (const result of runsAt(MAP_1.targetWpm)) {
+      expect(result.finished).toBe(true);
+      expect(result.session.playerMeters).toBe(MAP_1.distanceMeters);
     }
   });
 
-  it('lets a 20 WPM typist clear the obstacles they meet', () => {
-    const { session } = playAt(MAP_1.targetWpm, 'playtest-obstacles');
-
-    expect(session.obstaclesFaced).toBeGreaterThan(0);
-    expect(session.collisions).toBe(0);
-    expect(obstacleSuccessRate(session)).toBe(1);
+  it('finishes while making mistakes, because real typists do', () => {
+    // Eight percent of characters mistyped, each corrected immediately — two
+    // extra keystrokes every time, exactly what a correction costs a person.
+    for (const result of runsAt(MAP_1.targetWpm, 0.08)) {
+      expect(result.finished).toBe(true);
+    }
   });
 
-  it('keeps the dogs behind a player typing at target speed', () => {
-    const { session } = playAt(MAP_1.targetWpm, 'playtest-chase');
-
-    expect(session.chase.caught).toBe(false);
-    expect(session.chase.distanceMeters).toBeGreaterThan(0);
+  it('clears the obstacles it meets', () => {
+    for (const result of runsAt(MAP_1.targetWpm)) {
+      expect(result.session.obstaclesFaced).toBeGreaterThan(0);
+      expect(result.obstacleSuccessRate).toBe(1);
+      expect(result.session.collisions).toBe(0);
+    }
   });
 
-  it('does not require perfection — the typist here never corrects anything', () => {
-    const { mistakes } = playAt(MAP_1.targetWpm, 'playtest-1');
-
-    expect(mistakes).toBe(0);
-  });
-});
-
-describe('Map 1 below its advertised speed', () => {
-  it('catches a player who is barely typing', () => {
-    // A quarter of the target: the boosts come too rarely to hold the dogs off.
-    const { session } = playAt(5, 'playtest-slow');
-
-    expect(session.phase).toBe('gameOver');
-  });
-
-  it('currently still lets a 10 WPM typist through', () => {
-    // Recorded, not endorsed. Map 1 is the tutorial map and is meant to be
-    // forgiving, but *half* the advertised speed finishing comfortably means the
-    // chase is doing less work than the 20 WPM label implies. Step F2 tunes
-    // this; this test exists so the tuning has a starting measurement and so a
-    // future change to the chase numbers cannot pass unnoticed.
-    const { session } = playAt(10, 'playtest-slow');
-
-    expect(session.phase).toBe('levelComplete');
-  });
-
-  it('is comfortable above the target', () => {
-    const { session } = playAt(35, 'playtest-fast');
-
-    expect(session.phase).toBe('levelComplete');
-    expect(session.chase.distanceMeters).toBeGreaterThan(MAP_1.chase.dangerThresholdMeters);
+  it('keeps a margin rather than scraping home', () => {
+    for (const result of runsAt(MAP_1.targetWpm)) {
+      // Map 1 is the tutorial map: reaching the finish at target speed should
+      // never come down to the last metre.
+      expect(result.closestApproach).toBeGreaterThan(0.4);
+    }
   });
 });
 
-describe('the run a typist actually gets', () => {
-  it('is a run of a reasonable length, not a marathon', () => {
-    const { session } = playAt(MAP_1.targetWpm, 'playtest-1');
-
-    expect(session.elapsedMs).toBeGreaterThan(20_000);
-    expect(session.elapsedMs).toBeLessThan(90_000);
+describe('the chase is real', () => {
+  it('catches a typist well below the target', () => {
+    for (const result of runsAt(10)) {
+      expect(result.caught).toBe(true);
+    }
   });
 
-  it('presents obstacles without burying the player in them', () => {
-    const { session } = playAt(MAP_1.targetWpm, 'playtest-1');
-    const secondsPerObstacle = session.elapsedMs / 1_000 / session.obstaclesFaced;
+  it('catches someone who barely types at all, quickly', () => {
+    const [result] = runsAt(5);
 
-    expect(secondsPerObstacle).toBeGreaterThan(5);
+    expect(result?.caught).toBe(true);
+    expect(result?.elapsedMs).toBeLessThan(30_000);
+  });
+
+  it('puts the survival threshold below the target, with headroom to spare', () => {
+    const threshold = survivalThreshold({ ...BASE, seed: 'threshold' });
+
+    expect(threshold).not.toBeNull();
+    // Comfortably under 20: a player at the advertised speed is not on the edge.
+    expect(threshold ?? 0).toBeLessThan(MAP_1.targetWpm - 4);
+    // But not so far under that the dogs are decoration.
+    expect(threshold ?? 0).toBeGreaterThan(8);
+  });
+
+  it('makes a below-target typist feel it, even when they get through', () => {
+    // Sixteen WPM with mistakes is a near-miss run, not a comfortable one.
+    const results = runsAt(16, 0.08);
+    const closest = Math.min(...results.map((result) => result.closestApproach));
+
+    expect(closest).toBeLessThan(0.35);
+  });
+});
+
+describe('the shape of a run', () => {
+  it('is a run, not a marathon', () => {
+    for (const result of runsAt(MAP_1.targetWpm)) {
+      expect(result.elapsedMs).toBeGreaterThan(20_000);
+      expect(result.elapsedMs).toBeLessThan(75_000);
+    }
+  });
+
+  it('gets faster the faster you type', () => {
+    // Both speeds finish, so the durations are comparable — a caught run ends
+    // early and would make a slower typist look quicker.
+    const [slow] = runsAt(MAP_1.targetWpm);
+    const [fast] = runsAt(30);
+
+    expect(slow?.finished).toBe(true);
+    expect(fast?.finished).toBe(true);
+    expect(fast?.elapsedMs ?? 0).toBeLessThan(slow?.elapsedMs ?? 0);
+  });
+
+  it('spaces obstacles out rather than burying the player', () => {
+    for (const result of runsAt(MAP_1.targetWpm)) {
+      const secondsPerObstacle =
+        result.elapsedMs / 1_000 / Math.max(1, result.session.obstaclesFaced);
+
+      expect(secondsPerObstacle).toBeGreaterThan(5);
+    }
+  });
+
+  it('rewards typing faster with a wider gap', () => {
+    const slow = runsAt(16)[0]?.closestApproach ?? 0;
+    const fast = runsAt(30)[0]?.closestApproach ?? 0;
+
+    expect(fast).toBeGreaterThan(slow);
   });
 });
