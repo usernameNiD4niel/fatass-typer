@@ -1,4 +1,4 @@
-import { MAP_1, OBSTACLES, STARTER_PROMPTS } from '../content';
+import { MAP_1, OBSTACLES, ALL_PROMPTS } from '../content';
 import type { MapConfig, ObstacleDefinition, PromptEntry } from '../game-core/models';
 import type { Canvas2D } from '../game-runtime/render';
 import { liveStats, RuntimeHost } from '../game-runtime/session';
@@ -64,7 +64,7 @@ export function attachGame(options: AttachGameOptions): AttachedGame {
     canvas: options.canvas,
     context: get2dContext(options.canvas),
     map: options.map ?? MAP_1,
-    prompts: options.prompts ?? STARTER_PROMPTS,
+    prompts: options.prompts ?? ALL_PROMPTS,
     obstacles: options.obstacles ?? OBSTACLES,
     seed: options.seed ?? 'typing-chase',
     viewport: {

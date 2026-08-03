@@ -43,7 +43,9 @@ export const MAP_1: MapConfig = {
     durationMs: 2600,
   },
   content: {
-    promptCategories: ['short-word', 'medium-word', 'short-phrase'],
+    // No punctuation, numbers, or long words on the tutorial map: those are the
+    // categories that break a beginner's rhythm, and Map 1 exists to build one.
+    promptCategories: ['short-word', 'medium-word', 'short-phrase', 'themed'],
     // The three gentlest obstacles, all avoided by jumping. Nothing overhead and
     // nothing needing a phrase — those start on later maps.
     obstacleIds: ['crate', 'low-barrier', 'puddle'],

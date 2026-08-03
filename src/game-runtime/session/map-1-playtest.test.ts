@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAP_1, OBSTACLES, STARTER_PROMPTS } from '../../content';
+import { MAP_1, OBSTACLES, ALL_PROMPTS } from '../../content';
 import {
   advanceRunSession,
   applyRunInput,
@@ -45,7 +45,7 @@ interface PlaytestResult {
 function playAt(wpm: number, seed: string, maxSteps = 60_000): PlaytestResult {
   const interval = msPerCharacter(wpm);
   let session = startRun(
-    createRunSession({ map: MAP_1, pool: STARTER_PROMPTS, obstacles: OBSTACLES, seed }),
+    createRunSession({ map: MAP_1, pool: ALL_PROMPTS, obstacles: OBSTACLES, seed }),
   ).session;
 
   let nextKeyAtMs = 0;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAP_1, OBSTACLES, STARTER_PROMPTS } from '../../content';
+import { MAP_1, OBSTACLES, ALL_PROMPTS } from '../../content';
 import type { PromptEntry } from '../../game-core/models';
 import { type ActiveObstacle, placeObstacle } from '../../game-core/obstacles';
 import { FakeCanvas2D } from '../../test/fake-canvas';
@@ -18,7 +18,7 @@ const camera = followPlayer(
 );
 
 const PROMPT: PromptEntry =
-  STARTER_PROMPTS[0] ??
+  ALL_PROMPTS[0] ??
   (() => {
     throw new Error('the starter vocabulary is empty');
   })();

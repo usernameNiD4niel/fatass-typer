@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAP_1, STARTER_PROMPTS } from '../../content';
+import { MAP_1, ALL_PROMPTS } from '../../content';
 import {
   advanceRunSession,
   applyRunInput,
@@ -16,7 +16,7 @@ import {
 } from './run-session';
 
 function newSession(seed = 'test-seed'): RunSession {
-  return startRun(createRunSession({ map: MAP_1, pool: STARTER_PROMPTS, seed })).session;
+  return startRun(createRunSession({ map: MAP_1, pool: ALL_PROMPTS, seed })).session;
 }
 
 /** Runs the simulation forward in 16ms steps, as the loop would. */
@@ -44,7 +44,7 @@ function typePrompt(session: RunSession): RunSession {
 
 describe('run session setup', () => {
   it('starts with a prompt already drawn', () => {
-    const session = createRunSession({ map: MAP_1, pool: STARTER_PROMPTS, seed: 'a' });
+    const session = createRunSession({ map: MAP_1, pool: ALL_PROMPTS, seed: 'a' });
 
     expect(session.prompt).not.toBeNull();
     expect(session.phase).toBe('ready');
@@ -84,7 +84,7 @@ describe('running', () => {
   });
 
   it('does not move before the run starts', () => {
-    const ready = createRunSession({ map: MAP_1, pool: STARTER_PROMPTS, seed: 'a' });
+    const ready = createRunSession({ map: MAP_1, pool: ALL_PROMPTS, seed: 'a' });
 
     expect(advanceRunSession(ready, 500).session.playerMeters).toBe(0);
   });
@@ -218,7 +218,7 @@ describe('typing', () => {
   });
 
   it('ignores input when the run is not running', () => {
-    const ready = createRunSession({ map: MAP_1, pool: STARTER_PROMPTS, seed: 'a' });
+    const ready = createRunSession({ map: MAP_1, pool: ALL_PROMPTS, seed: 'a' });
 
     expect(applyRunInput(ready, 'run').session).toBe(ready);
   });

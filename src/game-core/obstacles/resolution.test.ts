@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MAP_1 } from '../../content/maps';
 import { findObstacle } from '../../content/obstacles';
-import { STARTER_PROMPTS } from '../../content/prompts';
+import { ALL_PROMPTS } from '../../content/prompts';
 import type { ObstacleDefinition, PromptEntry } from '../models';
 import { applyInput, createTypingState, type TypingState } from '../typing';
 import { type ActiveObstacle, placeObstacle } from './active-obstacle';
@@ -17,7 +17,7 @@ import {
 } from './resolution';
 
 const CRATE = findObstacle('crate') as ObstacleDefinition;
-const PROMPT = STARTER_PROMPTS.find((entry) => entry.text === 'street') as PromptEntry;
+const PROMPT = ALL_PROMPTS.find((entry) => entry.text === 'street') as PromptEntry;
 
 /** An obstacle with its prompt attached and a deadline running. */
 function attached(overrides: Partial<ActiveObstacle> = {}): ActiveObstacle {

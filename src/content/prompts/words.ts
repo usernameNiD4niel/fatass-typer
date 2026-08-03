@@ -1,0 +1,120 @@
+import type { PromptEntry } from '../../game-core/models';
+import { buildPrompts } from './build';
+
+/**
+ * Plain words (spec §15).
+ *
+ * Everything here is common English a beginner will recognise on sight. Spec
+ * §15 forbids obscure words in beginner maps, and the cheapest way to honour
+ * that is to keep obscure words out of the file entirely: a player who has to
+ * *read* a word before typing it has already lost the race.
+ *
+ * No proper nouns, no jargon, no words that are hard to spell from sight, and
+ * nothing that could read as an insult.
+ */
+
+/** 3–5 letters. The bulk of Map 1, where 20 WPM has to be achievable. */
+export const SHORT_WORDS: readonly PromptEntry[] = buildPrompts('short-word', [
+  { text: 'run' },
+  { text: 'fast' },
+  { text: 'dog' },
+  { text: 'road' },
+  { text: 'park' },
+  { text: 'gate' },
+  { text: 'tree' },
+  { text: 'step' },
+  { text: 'jump' },
+  { text: 'turn' },
+  { text: 'wall' },
+  { text: 'path' },
+  { text: 'door' },
+  { text: 'bike' },
+  { text: 'sign' },
+  { text: 'lamp' },
+  { text: 'bark' },
+  { text: 'leap' },
+  { text: 'duck' },
+  { text: 'dash' },
+  { text: 'kerb' },
+  { text: 'yard' },
+  { text: 'shop' },
+  { text: 'hill' },
+  { text: 'rain' },
+  { text: 'wind' },
+  { text: 'push' },
+  { text: 'pull' },
+  { text: 'slip' },
+  { text: 'grip' },
+  { text: 'quick' },
+  { text: 'chase' },
+  { text: 'close' },
+  { text: 'ahead' },
+  { text: 'brake' },
+  { text: 'crate' },
+  { text: 'fence' },
+  { text: 'alley' },
+  { text: 'stair' },
+  { text: 'wheel' },
+]);
+
+/** 6–8 letters. Map 1 draws on these too, sparingly. */
+export const MEDIUM_WORDS: readonly PromptEntry[] = buildPrompts('medium-word', [
+  { text: 'street' },
+  { text: 'corner' },
+  { text: 'garden' },
+  { text: 'window' },
+  { text: 'hurrying' },
+  { text: 'escape' },
+  { text: 'runner' },
+  { text: 'ladder' },
+  { text: 'bridge' },
+  { text: 'engine' },
+  { text: 'signal' },
+  { text: 'basket' },
+  { text: 'market' },
+  { text: 'hedges' },
+  { text: 'pavement', minimumMap: 2 },
+  { text: 'crossing', minimumMap: 2 },
+  { text: 'doorway', minimumMap: 2 },
+  { text: 'shortcut', minimumMap: 2 },
+  { text: 'sprinted', minimumMap: 2 },
+  { text: 'chasing' },
+  { text: 'barking' },
+  { text: 'running' },
+  { text: 'jumping' },
+  { text: 'sliding' },
+  { text: 'traffic', minimumMap: 2 },
+  { text: 'balcony', minimumMap: 3 },
+  { text: 'awnings', minimumMap: 3 },
+  { text: 'gravel' },
+  { text: 'puddle' },
+  { text: 'lantern', minimumMap: 3 },
+]);
+
+/**
+ * 9–13 letters. Map 3 and beyond.
+ *
+ * Long, but still ordinary: length is the challenge, not vocabulary.
+ */
+export const LONG_WORDS: readonly PromptEntry[] = buildPrompts('long-word', [
+  { text: 'pedestrian', minimumMap: 3 },
+  { text: 'crossroads', minimumMap: 3 },
+  { text: 'scaffolding', minimumMap: 4 },
+  { text: 'streetlight', minimumMap: 3 },
+  { text: 'underpass', minimumMap: 3 },
+  { text: 'roadworks', minimumMap: 3 },
+  { text: 'breathless', minimumMap: 4 },
+  { text: 'determined', minimumMap: 4 },
+  { text: 'accelerate', minimumMap: 4 },
+  { text: 'relentless', minimumMap: 5 },
+  { text: 'motorways', minimumMap: 3 },
+  { text: 'guardrail', minimumMap: 4 },
+  { text: 'headlights', minimumMap: 5 },
+  { text: 'warehouse', minimumMap: 4 },
+  { text: 'conveyors', minimumMap: 4 },
+  { text: 'checkpoint', minimumMap: 5 },
+  { text: 'exhausted', minimumMap: 5 },
+  { text: 'staircase', minimumMap: 3 },
+  { text: 'shopfront', minimumMap: 3 },
+  { text: 'crossings', minimumMap: 3 },
+]);

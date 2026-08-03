@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MAP_1 } from '../../content/maps';
 import { findObstacle } from '../../content/obstacles';
-import { STARTER_PROMPTS } from '../../content/prompts';
+import { ALL_PROMPTS } from '../../content/prompts';
 import type { MapConfig, ObstacleDefinition, PromptEntry } from '../models';
 import { requiredWpm } from '../timing';
 import {
@@ -20,7 +20,7 @@ import {
 } from './active-obstacle';
 
 const CRATE = findObstacle('crate') as ObstacleDefinition;
-const PROMPT = STARTER_PROMPTS.find((entry) => entry.text === 'gate') as PromptEntry;
+const PROMPT = ALL_PROMPTS.find((entry) => entry.text === 'gate') as PromptEntry;
 const BASE_SPEED = MAP_1.baseSpeedMetersPerSecond;
 
 function place(overrides: Partial<Parameters<typeof placeObstacle>[0]> = {}): ActiveObstacle {
@@ -94,7 +94,7 @@ describe('placing an obstacle', () => {
   });
 
   it('gives a longer prompt a longer run-up', () => {
-    const phrase = STARTER_PROMPTS.find((entry) => entry.text === 'down the road') as PromptEntry;
+    const phrase = ALL_PROMPTS.find((entry) => entry.text === 'down the road') as PromptEntry;
 
     expect(place({ prompt: phrase }).impactMeters).toBeGreaterThan(place().impactMeters);
   });
@@ -120,7 +120,7 @@ describe('the fairness promise', () => {
     for (const id of MAP_1.content.obstacleIds) {
       const definition = findObstacle(id) as ObstacleDefinition;
 
-      for (const prompt of STARTER_PROMPTS) {
+      for (const prompt of ALL_PROMPTS) {
         if (!MAP_1.content.promptCategories.includes(prompt.category)) continue;
 
         const obstacle = place({ definition, prompt });

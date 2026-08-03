@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 32 / 41 steps complete.** Phases A through E are finished. **Map 1 is
+**Progress: 33 / 41 steps complete.** Phases A through E are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **E7** — tutorial, width guard, harness retired |
-| **Next up** | **F1** — the word and phrase content files (awaiting approval) |
+| **Last completed** | **F1** — the word and phrase content files |
+| **Next up** | **F2** — tuning Map 1 for a genuine 20 WPM typist (awaiting approval) |
 
 **Open tuning finding (for F2).** A 10 WPM typist — *half* the advertised speed — still
 finishes Map 1 comfortably. Map 1 is meant to be forgiving, but that much slack means the
@@ -153,13 +153,13 @@ chase is doing less work than the label implies. Recorded as a test in
 | C — Runtime + playable slice | ✅ 7 / 7 |
 | D — Obstacles & map rules | ✅ 5 / 5 |
 | E — UI shell | ✅ 7 / 7 |
-| F — Content, maps, storage | ⬜ 0 / 5 |
+| F — Content, maps, storage | 🟨 1 / 5 |
 | G — Polish | ⬜ 0 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 843 passed, 51 files
+npm run test          # 853 passed, 51 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -190,7 +190,8 @@ comparison) and the quieter readouts and meters around it.
 and sends whole values through the bridge. `src/screens/game/` mounts the canvas and renders
 the prompt, HUD, and outcome. `src/game-runtime/session/` holds the run itself — a pure
 `run-session` plus the `RuntimeHost` that gives it a loop, a renderer, and a clock.
-`src/content/` has Map 1, the seven obstacle definitions, and a starter vocabulary.
+`src/content/` has Map 1, the seven obstacle definitions, and the full vocabulary — around
+200 prompts across eight categories, gated by map number.
 `src/game-core/obstacles/` schedules them and places them: seeded spawning, then a placement
 derived from the B5 timing budget so the prompt is always on screen early enough for the
 map's stated WPM, plus resolution — avoided, stumbled, or hit, decided once. See that
@@ -321,7 +322,7 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
 
 ### Phase F — Content, maps, storage
 
-- [ ] **F1** Word and phrase content files by category: common short / medium / long
+- [x] **F1** Word and phrase content files by category: common short / medium / long
       words, punctuation, numbers, short phrases, medium phrases, map-themed vocabulary.
       No slurs, no obscure words in beginner maps, no ambiguous whitespace. Spec §15.
 - [ ] **F2** Map 1 tuned for a genuine 20 WPM typist. Playtest and adjust the numbers.

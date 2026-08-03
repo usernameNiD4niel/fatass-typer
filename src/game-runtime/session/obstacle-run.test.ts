@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAP_1, OBSTACLES, STARTER_PROMPTS } from '../../content';
+import { MAP_1, OBSTACLES, ALL_PROMPTS } from '../../content';
 import {
   activeObstacle,
   advanceRunSession,
@@ -23,7 +23,7 @@ function newSession(seed = 'obstacle-seed'): RunSession {
   return startRun(
     createRunSession({
       map: MAP_1,
-      pool: STARTER_PROMPTS,
+      pool: ALL_PROMPTS,
       obstacles: OBSTACLES,
       seed,
     }),
@@ -127,7 +127,7 @@ describe('spawning into a run', () => {
 
   it('spawns nothing when the run has no obstacle definitions', () => {
     const bare = startRun(
-      createRunSession({ map: MAP_1, pool: STARTER_PROMPTS, seed: 'bare' }),
+      createRunSession({ map: MAP_1, pool: ALL_PROMPTS, seed: 'bare' }),
     ).session;
 
     // Played well, this run reaches the finish line — and never sees an
