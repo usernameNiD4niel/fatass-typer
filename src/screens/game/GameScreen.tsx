@@ -1,6 +1,7 @@
 import { type JSX, useCallback, useEffect, useRef, useState } from 'react';
 
 import { type CommandSink, TypingInput } from '../../components/typing-input';
+import { Button, classes, Panel } from '../../components/ui';
 import {
   attachGame,
   type GameBridge,
@@ -33,13 +34,6 @@ const CANVAS_HEIGHT = 448;
  * it keeps `TypingInput` free of a null check on every keystroke.
  */
 const DISCONNECTED_SINK: CommandSink = { send: () => false };
-
-/** Joins class names, skipping the ones a CSS-module lookup did not produce. */
-function classes(...names: (string | false | undefined)[]): string {
-  return names
-    .filter((name): name is string => typeof name === 'string' && name.length > 0)
-    .join(' ');
-}
 
 /** Below this fraction of the starting gap, the dogs are a stated emergency. */
 const DANGER_THRESHOLD = 0.35;
@@ -161,9 +155,11 @@ export function GameScreen(): JSX.Element {
         />
         {error !== null && <p className={styles.error}>{error}</p>}
         {state === 'paused' && (
-          <p className={styles.overlay} role="status">
-            Paused — press Escape to resume
-          </p>
+          <div className={styles.overlay}>
+            <Panel tight role="status">
+              Paused — press Escape to resume
+            </Panel>
+          </div>
         )}
       </div>
 
@@ -209,13 +205,11 @@ export function GameScreen(): JSX.Element {
       </dl>
 
       <div className={styles.controls}>
-        <button type="button" className={styles.button} onClick={start} disabled={!ready}>
+        <Button variant="primary" onClick={start} disabled={!ready}>
           {finished ? 'Run again' : 'Start run'}
-        </button>
+        </Button>
         {(running || state === 'paused') && (
-          <button type="button" className={styles.button} onClick={togglePause}>
-            {state === 'paused' ? 'Resume' : 'Pause'}
-          </button>
+          <Button onClick={togglePause}>{state === 'paused' ? 'Resume' : 'Pause'}</Button>
         )}
       </div>
 

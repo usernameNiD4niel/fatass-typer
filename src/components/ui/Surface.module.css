@@ -1,0 +1,75 @@
+/*
+ * Card and Panel (spec §9).
+ *
+ * Two surfaces with different jobs: a Card is content that sits *in* the page, a
+ * Panel floats *above* it. The panel's translucency is deliberately mild — spec
+ * §9 warns against glassmorphism that costs readability, so the token is a high
+ * opacity fill rather than a heavy blur.
+ */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--surface-raised);
+  border: var(--border-width-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+.cardInteractive {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.cardInteractive:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.cardInteractive:active:not(:disabled) {
+  transform: scale(0.995);
+}
+
+.cardInteractive:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.cardInteractive:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.cardSelected {
+  border-color: var(--accent-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.panel {
+  padding: var(--space-6);
+  background: var(--surface-translucent);
+  border: var(--border-width-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(12px);
+}
+
+.panelTight {
+  padding: var(--space-4);
+}

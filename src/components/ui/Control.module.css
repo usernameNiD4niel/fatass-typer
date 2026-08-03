@@ -1,0 +1,176 @@
+/*
+ * Toggle and Slider (spec §9, §12).
+ *
+ * Both are settings controls, so they share a row layout: label on the left,
+ * control on the right, optional description underneath. The description is
+ * where the *why* of a setting lives, which matters more here than in most
+ * apps — several settings change how the game feels.
+ */
+
+.row {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+}
+
+.labelGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.description {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* --- Toggle ------------------------------------------------------------- */
+
+.toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 3.25rem;
+  height: 1.9rem;
+  padding: 0;
+  cursor: pointer;
+  background: var(--surface-sunken);
+  border: var(--border-width-hairline) solid var(--border-default);
+  border-radius: var(--radius-pill);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.toggleOn {
+  background: var(--accent-default);
+  border-color: transparent;
+}
+
+.toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.knob {
+  position: absolute;
+  top: 50%;
+  left: 0.18rem;
+  width: 1.45rem;
+  height: 1.45rem;
+  background: var(--surface-raised);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-50%);
+  transition: transform var(--duration-normal) var(--ease-spring);
+}
+
+.knobOn {
+  transform: translate(1.32rem, -50%);
+}
+
+/*
+ * The state is drawn twice: the knob's position *and* a mark on the track. A
+ * toggle whose only "on" cue is a colour fails for a colour-blind player, and
+ * the knob position alone is easy to misread at a glance (spec §12).
+ */
+.mark {
+  position: absolute;
+  top: 50%;
+  right: 0.55rem;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-on-accent);
+  transform: translateY(-50%);
+}
+
+.markOff {
+  right: auto;
+  left: 0.6rem;
+  color: var(--text-tertiary);
+}
+
+/* --- Slider ------------------------------------------------------------- */
+
+.sliderGroup {
+  display: flex;
+  flex: 1;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 18rem;
+}
+
+.slider {
+  flex: 1;
+  height: 1.5rem;
+  cursor: pointer;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.slider:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-pill);
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 0.4rem;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.slider::-moz-range-track {
+  height: 0.4rem;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.slider::-webkit-slider-thumb {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: -0.43rem;
+  background: var(--accent-default);
+  border: 2px solid var(--surface-raised);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.slider::-moz-range-thumb {
+  width: 1.25rem;
+  height: 1.25rem;
+  background: var(--accent-default);
+  border: 2px solid var(--surface-raised);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+}
+
+.slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Tabular figures: the number must not jog sideways as the value changes. */
+.value {
+  min-width: 3.5rem;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  text-align: right;
+}

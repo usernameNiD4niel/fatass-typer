@@ -130,14 +130,14 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 25 / 41 steps complete.** Phases A, B, C, and D are finished. **Map 1 is
+**Progress: 26 / 41 steps complete.** Phases A, B, C, and D are finished. **Map 1 is
 playable end to end** with obstacles, and a simulated typist at its advertised 20 WPM
 finishes it (spec §19 milestone 2).
 
 | | |
 |---|---|
-| **Last completed** | **D5** — obstacle rendering, Escape to pause, Map 1 playtested |
-| **Next up** | **E1** — accessible UI primitives (awaiting approval) |
+| **Last completed** | **E1** — accessible UI primitives |
+| **Next up** | **E2** — splash / loading screen and main menu (awaiting approval) |
 
 **Open tuning finding (for F2).** A 10 WPM typist — *half* the advertised speed — still
 finishes Map 1 comfortably. Map 1 is meant to be forgiving, but that much slack means the
@@ -152,14 +152,14 @@ chase is doing less work than the label implies. Recorded as a test in
 | B — `game-core` pure rules | ✅ 8 / 8 |
 | C — Runtime + playable slice | ✅ 7 / 7 |
 | D — Obstacles & map rules | ✅ 5 / 5 |
-| E — UI shell | ⬜ 0 / 7 |
+| E — UI shell | 🟨 1 / 7 |
 | F — Content, maps, storage | ⬜ 0 / 5 |
 | G — Polish | ⬜ 0 / 4 |
 
 **Health at this checkpoint** — all green, verified by actually running them:
 
 ```bash
-npm run test          # 666 passed, 37 files
+npm run test          # 704 passed, 38 files
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
@@ -182,6 +182,8 @@ state machine and vector art, plus the three-dog pack derived from `ChaseState`)
 validation, and `GameBridge` — which throttles live stats to ~10Hz and drops every listener
 on `destroy`. No host is attached to it yet; C7 supplies one.
 
+`src/components/ui/` holds the primitives — Button, Card, Panel, Toggle, Slider, Modal — all
+built on native elements and tested through the accessibility tree.
 `src/components/typing-input/` is the typing field: a focused `<input>` that normalises text
 and sends whole values through the bridge. `src/screens/game/` mounts the canvas and renders
 the prompt, HUD, and outcome. `src/game-runtime/session/` holds the run itself — a pure
@@ -288,7 +290,7 @@ Each step ships its own unit tests. Nothing here touches the DOM.
 iOS-inspired desktop visual language — clean hierarchy, generous whitespace, rounded
 cards, soft translucent panels, restrained palette, spring-like transitions. Spec §9.
 
-- [ ] **E1** UI primitives: Button, Card, Panel, Toggle, Slider, Modal. Accessible, with
+- [x] **E1** UI primitives: Button, Card, Panel, Toggle, Slider, Modal. Accessible, with
       strong visible focus states. No component library.
 - [ ] **E2** Splash / loading screen + main menu: title, Start, Continue (when progress
       exists), Maps, Statistics, Settings, highest unlocked map, sustainable peak WPM,

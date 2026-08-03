@@ -1,5 +1,6 @@
 import { type ChangeEvent, type JSX, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 
+import { classes } from '../ui';
 import styles from './TypingInput.module.css';
 import { isIgnoredKey, MAX_INPUT_LENGTH, normalizeInput, shouldSubmit } from './normalize';
 
@@ -49,13 +50,6 @@ export interface TypingInputProps {
 /** Milliseconds are taken at the edge, so `game-core` never reads a clock. */
 function now(): number {
   return performance.now();
-}
-
-/** Joins class names, skipping the ones a CSS-module lookup did not produce. */
-function classes(...names: (string | false | undefined)[]): string {
-  return names
-    .filter((name): name is string => typeof name === 'string' && name.length > 0)
-    .join(' ');
 }
 
 export function TypingInput({

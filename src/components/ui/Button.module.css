@@ -1,0 +1,104 @@
+/*
+ * Button (spec §9).
+ *
+ * iOS-inspired: pill radius, generous padding, a spring on press, and a focus
+ * ring that is impossible to miss. Colour never carries meaning alone — the
+ * danger variant is also the only one with a filled red, and every variant keeps
+ * its label.
+ */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-normal);
+  color: var(--text-primary);
+  white-space: nowrap;
+  cursor: pointer;
+  background: var(--surface-raised);
+  border: var(--border-width-hairline) solid var(--border-default);
+  border-radius: var(--radius-pill);
+  transition:
+    transform var(--duration-instant) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+/* A visible ring on both mouse and keyboard focus. Spec §12 asks for focus that
+   cannot be missed; :focus-visible alone hides it from some pointer paths. */
+.button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.button:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+  background: var(--surface-sunken);
+  border-color: var(--border-subtle);
+}
+
+/* --- Variants ----------------------------------------------------------- */
+
+.primary {
+  color: var(--text-on-accent);
+  background: var(--accent-default);
+  border-color: transparent;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.primary:active:not(:disabled) {
+  background: var(--accent-active);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+.danger {
+  color: var(--text-on-accent);
+  background: var(--status-danger);
+  border-color: transparent;
+}
+
+.danger:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+/* --- Sizes -------------------------------------------------------------- */
+
+.small {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.large {
+  padding: var(--space-4) var(--space-8);
+  font-size: var(--font-size-md);
+}
+
+.fullWidth {
+  width: 100%;
+}
