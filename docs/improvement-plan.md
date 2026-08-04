@@ -256,14 +256,56 @@ own piece of work.
 
 ## Phase 2 — make them come back
 
-- [ ] **2.1 Real persistence.** Ship the IndexedDB `StorageAdapter`. Everything
-      else in this phase is dead without it.
+- [x] **2.1 Real persistence.** Shipped — see "How 2.1 went" below.
 - [ ] **2.2 Endless mode.** Continuous speed ramp, and the previous personal
       best rendered as a line on the road where the last run died.
 - [ ] **2.3 Daily seed.** One shared seed per day plus a local history.
 - [ ] **2.4 Per-key weakness tracking.** Log fumbled characters and digraphs,
       weight prompt selection toward them, show a "worst keys" panel on results.
       This is what turns the game into training with a visible improvement curve.
+
+## How 2.1 went
+
+`IndexedDbStorage` is now the default adapter, with `InMemoryStorage` as the
+fallback and the test double. Nothing above the seam changed: the interface was
+async from the start precisely so that this day would not require touching every
+caller, and it did not.
+
+**Why IndexedDB and not `localStorage`.** `localStorage` is synchronous on the
+main thread — a write blocks the frame it happens in, and the game writes a
+profile at the end of every run. It also stores strings, so run history would be
+one JSON blob rewritten in full on every append. IndexedDB stores records and
+indexes them.
+
+Two rules the implementation adds:
+
+- **It never takes the game down.** IndexedDB is unavailable in some
+  private-browsing modes, can be blocked by policy, and can fail mid-session if
+  the user clears site data. Every operation falls back rather than rejecting.
+  Losing progress is bad; refusing to let somebody play is worse.
+- **What it reads is untrusted.** A stored profile came off a disk the game does
+  not control. Profiles are coerced field by field (spec §17) — one bad number is
+  not a reason to lose somebody's progress. Runs are checked with `isRunResult`
+  and bad ones are _skipped_, because one run is not somebody's progress and a
+  history is better missing an entry than carrying a fictional one.
+
+Runs are keyed on `runId`, so recording the same run twice is an overwrite rather
+than a duplicate. A keyed store does not trim itself the way an array slice does,
+so `appendRun` prunes past the cap explicitly — without it a player who runs
+daily accumulates records forever, which is the sort of failure that only shows
+up months later.
+
+**Tested twice, deliberately.** Fifteen unit tests against `fake-indexeddb` cover
+the logic, and one Playwright test covers the thing a fake cannot: it crashes a
+run, genuinely reloads the page, and reads the attempt count back. Everything
+about persistence can be made to pass against a fake; only a real reload proves
+the database outlived the page.
+
+Two things had to change once progress was real. The settings screen told the
+player "progress currently lives in memory and is lost on reload anyway", which
+became a lie — reset is now a genuinely destructive action and says so. And the
+main menu offers "Continue" once there is progress to continue, which is why the
+e2e reaches map selection via "Maps".
 
 ## Phase 3 — make it feel good
 

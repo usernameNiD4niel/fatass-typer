@@ -148,3 +148,40 @@ test('a player who types nothing crashes into the first hazard', async ({ page }
   await expect(page.getByText('Crashed').first()).toBeVisible({ timeout: 40_000 });
   await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
 });
+
+test('progress survives a reload', async ({ page }) => {
+  await startRun(page);
+
+  // Crash, which is what records a run against the profile.
+  await expect(page.getByText('Crashed').first()).toBeVisible({ timeout: 40_000 });
+
+  /*
+   * The reload is the assertion.
+   *
+   * Everything about persistence can be made to pass in a unit test against a
+   * fake IndexedDB; what a fake cannot tell you is whether the real database
+   * survives the page going away, which is the entire feature. So this walks
+   * back to the briefing after a genuine reload and reads the attempt count.
+   */
+  await page.reload();
+
+  /*
+   * Both dismissals are optional, and which ones appear is itself the point.
+   * A profile that persisted has already seen the tutorial, so the modal may
+   * legitimately not come back — asserting on its absence would be asserting on
+   * how "seen" happens to be stored rather than on progress surviving.
+   */
+  for (const name of ['Skip', 'Got it']) {
+    const control = page.getByRole('button', { name });
+    if (await control.isVisible().catch(() => false)) await control.click();
+  }
+
+  // "Maps" rather than "Start": the menu offers "Continue" once there is
+  // progress to continue, and depending on which label is present would make
+  // this test depend on the menu's copy instead of on the database.
+  await page.getByRole('button', { name: 'Maps' }).click();
+  await page.getByRole('button', { name: /Map 1: Neighborhood Dash/ }).click();
+
+  await expect(page.getByText('Attempts')).toBeVisible();
+  await expect(page.getByText('You have not run this map yet.')).toBeHidden();
+});

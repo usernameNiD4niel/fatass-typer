@@ -25,7 +25,7 @@ instruction from the user.
 | Spec says | We do instead | Why |
 |---|---|---|
 | Rust + Bevy compiled to WASM | TypeScript-only runtime. Keep `game-core` pure and DOM-free so a Rust + WASM swap stays possible later | Fastest path to working functionality + UI |
-| IndexedDB / Dexie persistence | In-memory store behind a `StorageAdapter` interface | No database yet |
+| IndexedDB / Dexie persistence | `StorageAdapter` interface, with a hand-written IndexedDB implementation and an in-memory fallback. No Dexie | The interface is the seam; the wrapper was never the hard part |
 | Tauri Windows packaging | Dropped. Web app only | Out of scope |
 
 Everything else in the spec stands: game rules, difficulty model, sustainable peak WPM,
@@ -339,8 +339,9 @@ advertises, and the road covers the move. A playtest samples; that table proves.
 
 ### Known limits
 
-- **Progress does not survive a reload.** `StorageAdapter` is the seam; the only
-  implementation is in memory.
+- **Progress survives a reload** (plan 2.1). `IndexedDbStorage` is the default;
+  `InMemoryStorage` is the fallback when the browser will not persist and the double the
+  tests inject. See `storage/README.md`.
 - **Adaptive assistance is effectively off, and now inert by design.** It eases after three
   consecutive misses, and one miss ends the run. Its floor is now `1` rather than `0.9`, so
   it can hand time back but never take the map below its label: with 11–21 hazards a run a
@@ -489,8 +490,8 @@ cards, soft translucent panels, restrained palette, spring-like transitions. Spe
       failures or a sustained accuracy streak. Never aggressive enough to feel unfair.
       The displayed target WPM stays honest. Spec §6.
 - [x] **F5** `StorageAdapter` interface + in-memory implementation + run history +
-      dev-only reset. Progress resets on reload — that is intended for now. An IndexedDB
-      implementation is explicitly deferred; the interface is the seam for it.
+      reset. Progress reset on reload at the time; the IndexedDB implementation the
+      interface was a seam for arrived later, in plan 2.1.
 
 ### Phase G — Polish
 
