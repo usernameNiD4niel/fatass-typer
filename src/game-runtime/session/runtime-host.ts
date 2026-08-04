@@ -392,6 +392,7 @@ export class RuntimeHost implements GameHost {
       mapId: this.session.map.id,
       startedAt: new Date().toISOString(),
       durationMs: this.session.elapsedMs,
+      distanceMeters: this.session.playerMeters,
       completed,
       score: stats.score,
       averageWpm: stats.averageWpm,

@@ -118,7 +118,15 @@ export interface MapConfig {
   readonly theme: MapTheme;
   /** The honest target typing speed, shown to the player (spec §6). */
   readonly targetWpm: number;
-  /** Total run distance in meters. */
+  /**
+   * Total run distance in metres.
+   *
+   * Zero means **endless** (plan 2.2): there is no finish line, the run ends
+   * only when the player does, and how far they got is the whole score. Zero
+   * rather than a separate flag because every consumer already had to handle a
+   * non-positive distance — `runProgress` returned 1 for it — so a flag would
+   * have added a second thing to keep in step with the first.
+   */
   readonly distanceMeters: number;
   /** MC speed in meters per second before boosts and penalties. */
   readonly baseSpeedMetersPerSecond: number;
@@ -132,6 +140,28 @@ export interface MapConfig {
   readonly boost: BoostProfile;
   readonly content: ContentProfile;
   readonly unlock: UnlockRule;
+  /**
+   * How the map gets harder as a run goes on. Absent on the fixed maps.
+   *
+   * Exists because raising `speed.rampPerMinute` does **not** make a map harder,
+   * which is not obvious and cost a build to find out. Hazards are placed by
+   * time budget — `spawnDistanceMeters` is derived from how long the word should
+   * take — so a faster world simply puts them further away and the player has
+   * exactly as long to type. The endless map ramped to nearly twice its opening
+   * speed and a metronomic typist survived 53 minutes of it without ever being
+   * threatened.
+   *
+   * The demand that has to rise is the *typing* demand, which is this.
+   */
+  readonly escalation?: EscalationProfile;
+}
+
+/** Rising typing demand over the course of a run (plan 2.2). */
+export interface EscalationProfile {
+  /** Added to the map's target speed for every minute elapsed. */
+  readonly wpmPerMinute: number;
+  /** The speed it stops rising at. A ceiling nobody is expected to reach. */
+  readonly maxWpm: number;
 }
 
 /**

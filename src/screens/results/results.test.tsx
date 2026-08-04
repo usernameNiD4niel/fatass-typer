@@ -33,6 +33,7 @@ function progress(overrides: Partial<MapProgress> = {}): MapProgress {
     bestAccuracy: 0,
     bestCompletionTimeMs: null,
     attempts: 0,
+    bestDistanceMeters: 0,
     ...overrides,
   };
 }

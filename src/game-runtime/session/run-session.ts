@@ -537,9 +537,36 @@ export function isBoosting(session: RunSession): boolean {
 
 /** Progress to the finish line, 0..1. */
 export function runProgress(session: RunSession): number {
-  if (session.map.distanceMeters <= 0) return 1;
+  // Endless: there is no proportion of the way there, because there is no
+  // there. The HUD shows distance instead — see `isEndless`.
+  if (session.map.distanceMeters <= 0) return 0;
 
   return Math.min(1, session.playerMeters / session.map.distanceMeters);
+}
+
+/**
+ * The map as it stands *right now*, with escalation applied.
+ *
+ * Only the endless map declares any, so on the six fixed maps this returns the
+ * map unchanged and costs one property read.
+ *
+ * The target speed is what every timing budget is derived from, so raising it
+ * over the course of a run is what actually makes a run get harder — see the
+ * note on `EscalationProfile` for why raising the world speed does not.
+ */
+function pacedMap(session: RunSession): MapConfig {
+  const escalation = session.map.escalation;
+  if (escalation === undefined) return session.map;
+
+  const minutes = session.elapsedMs / 60_000;
+  const wanted = session.map.targetWpm + escalation.wpmPerMinute * minutes;
+
+  return { ...session.map, targetWpm: Math.min(escalation.maxWpm, wanted) };
+}
+
+/** A map with no finish line. How far you got is the whole score (plan 2.2). */
+export function isEndless(map: { readonly distanceMeters: number }): boolean {
+  return map.distanceMeters <= 0;
 }
 
 /** Which lane the player is committed to. Unchanged mid-transition. */
@@ -901,7 +928,7 @@ function spawnDueObstacle(session: RunSession): RunSessionResult {
     // Assistance enters here and only here: the hazard is placed against a map
     // whose reaction buffer has been nudged, so the extra time is real distance
     // on the road rather than a special case in the deadline.
-    map: assistedMap(session.map, session.assistance),
+    map: assistedMap(pacedMap(session), session.assistance),
     playerMeters: session.playerMeters,
     elapsedMs: session.elapsedMs,
     assignment: assigned.assignment,
@@ -1412,7 +1439,9 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
     return { session: caught.session, events: [...allEvents, ...caught.events] };
   }
 
-  if (current.playerMeters >= current.map.distanceMeters) {
+  // An endless map has no finish line to cross, so this is the one exit it
+  // never takes: the run ends when the player does.
+  if (!isEndless(current.map) && current.playerMeters >= current.map.distanceMeters) {
     const finished = toPhase(
       { ...current, playerMeters: current.map.distanceMeters },
       'levelComplete',
@@ -1656,7 +1685,7 @@ function spawnDueCoins(session: RunSession): RunSessionResult {
   const placed = placeCoin({
     instanceId: `coin-${String(session.coins.length + 1)}`,
     prompt: drawn.prompt,
-    map: session.map,
+    map: pacedMap(session),
     playerLane: predictedLane(session),
     playerMeters: session.playerMeters,
     elapsedMs: session.elapsedMs,
@@ -1847,7 +1876,7 @@ function spawnFlowWord(session: RunSession): RunSessionResult {
   const word = placeFlowWord({
     instanceId: `flow-${String(index)}`,
     prompt: drawn.prompt,
-    map: session.map,
+    map: pacedMap(session),
     elapsedMs: session.elapsedMs,
   });
 
@@ -2008,7 +2037,7 @@ function spawnDuePowerup(session: RunSession): RunSessionResult {
   const placed = placePowerup({
     instanceId: `powerup-${String(session.powerups.length + 1)}`,
     prompt: drawn.prompt,
-    map: session.map,
+    map: pacedMap(session),
     playerLane: predictedLane(session),
     playerMeters: session.playerMeters,
     elapsedMs: session.elapsedMs,
@@ -2205,6 +2234,7 @@ export function liveStats(session: RunSession): LiveRunStats {
     flightRemainingMs: session.effects.flightRemainingMs,
     magnetRemainingMs: session.effects.magnetRemainingMs,
     elapsedMs: session.elapsedMs,
+    distanceMeters: session.playerMeters,
     secretWordsTyped: session.secretIndex,
     secretWordCount: session.secretWords.length,
     pursuitPressure: pursuitPressure(session.pursuit),

@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 
 import type { LiveRunStats } from '../../game-core/models';
+import { formatDistance } from '../format';
 import { Button, classes } from '../ui';
 import styles from './Hud.module.css';
 
@@ -23,6 +24,15 @@ export interface HudProps {
   readonly stats: LiveRunStats;
   /** Top speed the map can reach, for the speed meter's scale. */
   readonly topSpeedMetersPerSecond: number;
+  /**
+   * No finish line (plan 2.2).
+   *
+   * "To finish" cannot be shown on a map that has none — a progress bar that
+   * never fills is worse than no progress bar — so distance takes its place.
+   */
+  readonly endless?: boolean;
+  /** Furthest the player has ever got on this map, in metres. */
+  readonly bestDistanceMeters?: number;
   readonly onPause: () => void;
   readonly paused: boolean;
   /** Disabled outside a run, when pausing means nothing. */
@@ -84,6 +94,8 @@ function Meter({
 export function Hud({
   stats,
   topSpeedMetersPerSecond,
+  endless = false,
+  bestDistanceMeters = 0,
   onPause,
   paused,
   canPause,
@@ -134,12 +146,35 @@ export function Hud({
       )}
 
       <div className={styles.meters}>
-        <Meter
-          label="To finish"
-          valueText={`${String(Math.round(stats.progress * 100))}%`}
-          ratio={stats.progress}
-          fillClass={styles.progressFill}
-        />
+        {endless ? (
+          /*
+            Distance, and the number to beat beside it.
+
+            A meter needs a maximum and there is none, so this is a readout
+            rather than a bar. The best is shown throughout rather than only at
+            the end, because a target you cannot see while you are chasing it is
+            not a target.
+          */
+          <div className={styles.meter}>
+            <span className={styles.meterHead}>
+              <span>Distance</span>
+              <span className={styles.meterValue}>{formatDistance(stats.distanceMeters)}</span>
+            </span>
+            <span className={styles.meterHead}>
+              <span>Furthest</span>
+              <span className={styles.meterValue}>
+                {bestDistanceMeters > 0 ? formatDistance(bestDistanceMeters) : '—'}
+              </span>
+            </span>
+          </div>
+        ) : (
+          <Meter
+            label="To finish"
+            valueText={`${String(Math.round(stats.progress * 100))}%`}
+            ratio={stats.progress}
+            fillClass={styles.progressFill}
+          />
+        )}
         {/*
           The chaser, as how much trouble you are in rather than as metres.
           The word carries the meaning on its own, so the danger is never

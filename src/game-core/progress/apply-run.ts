@@ -25,6 +25,10 @@ function betterProgress(previous: MapProgress, result: RunResult): MapProgress {
       ? Math.min(previous.bestCompletionTimeMs ?? Number.POSITIVE_INFINITY, result.durationMs)
       : previous.bestCompletionTimeMs,
     attempts: previous.attempts + 1,
+    // Unlike a completion time, distance counts whether or not the run was
+    // finished — on an endless map failing *is* how every run ends, and how far
+    // you got before it is the entire score.
+    bestDistanceMeters: Math.max(previous.bestDistanceMeters, result.distanceMeters),
   };
 }
 

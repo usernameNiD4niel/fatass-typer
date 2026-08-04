@@ -54,6 +54,15 @@ export interface GameScreenProps {
   /** Which map to run. Defaults to Map 1 when the caller has not chosen. */
   readonly mapId?: string;
   /**
+   * Furthest the player has ever got on this map, in metres.
+   *
+   * Passed in rather than read here: the HUD shows it beside the live distance
+   * and the scene draws it on the road, and both want the number the profile
+   * held when the run *started* — a best that updated mid-run would be a target
+   * that moves as you approach it.
+   */
+  readonly bestDistanceMeters?: number;
+  /**
    * Fixes the run's prompt sequence. Omitted in play, where every run gets a
    * fresh seed — otherwise the second attempt at a map is word-for-word the
    * first. Tests and bug reports pass one to get a run back.
@@ -84,6 +93,7 @@ export interface GameScreenProps {
 
 export function GameScreen({
   mapId,
+  bestDistanceMeters = 0,
   seed,
   audio,
   reducedMotion = false,
@@ -360,6 +370,7 @@ export function GameScreen({
   }, [state, send]);
 
   const topSpeed = map.speed.maxMetersPerSecond * map.boost.speedMultiplier;
+  const endless = map.distanceMeters <= 0;
 
   return (
     <section className={styles.screen} aria-label="Typing Runner">
@@ -374,6 +385,7 @@ export function GameScreen({
               snapshot={game.snapshot}
               advance={game.advance}
               theme={map.theme}
+              bestDistanceMeters={bestDistanceMeters}
               reducedMotion={reducedMotion}
             />
           )}
@@ -389,6 +401,8 @@ export function GameScreen({
           <Hud
             stats={stats}
             topSpeedMetersPerSecond={topSpeed}
+            endless={endless}
+            bestDistanceMeters={bestDistanceMeters}
             onPause={togglePause}
             paused={state === 'paused'}
             canPause={running || state === 'paused'}

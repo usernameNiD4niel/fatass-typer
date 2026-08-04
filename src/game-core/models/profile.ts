@@ -23,6 +23,14 @@ export interface MapProgress {
   /** `null` until the map has been finished at least once. */
   readonly bestCompletionTimeMs: number | null;
   readonly attempts: number;
+  /**
+   * Furthest the player has ever got, in metres.
+   *
+   * Meaningful on every map, but it is the *only* measure of success on an
+   * endless one, where there is no finish line to complete and no completion
+   * time to beat (plan 2.2).
+   */
+  readonly bestDistanceMeters: number;
 }
 
 export const EMPTY_MAP_PROGRESS: MapProgress = {
@@ -33,6 +41,7 @@ export const EMPTY_MAP_PROGRESS: MapProgress = {
   bestAccuracy: 0,
   bestCompletionTimeMs: null,
   attempts: 0,
+  bestDistanceMeters: 0,
 };
 
 export interface PlayerProfile extends Versioned {
@@ -95,8 +104,39 @@ export function isMapProgress(value: unknown): value is MapProgress {
     isCount(value['bestPeakWpm']) &&
     isRatio(value['bestAccuracy']) &&
     (completionTime === null || isCount(completionTime)) &&
-    isIntegerAtLeast(value['attempts'], 0)
+    isIntegerAtLeast(value['attempts'], 0) &&
+    isCount(value['bestDistanceMeters'])
   );
+}
+
+/**
+ * Repairs one map's progress field by field.
+ *
+ * The load path uses this rather than `isMapProgress`, and the difference is not
+ * academic. An all-or-nothing check discards the whole record when a single
+ * field is missing — and a field is *always* missing the first time the game
+ * adds one. `bestDistanceMeters` arriving in plan 2.2 would have silently erased
+ * every existing player's bests, unlocks intact but every number back to zero.
+ *
+ * Same principle as `coercePlayerProfile` one level up (spec §17): keep what
+ * reads correctly, default what does not.
+ */
+export function coerceMapProgress(value: unknown): MapProgress | null {
+  if (!isRecord(value)) return null;
+
+  const completionTime = value['bestCompletionTimeMs'];
+  const accuracy = value['bestAccuracy'];
+
+  return {
+    completed: value['completed'] === true,
+    bestScore: isCount(value['bestScore']) ? value['bestScore'] : 0,
+    bestAverageWpm: isCount(value['bestAverageWpm']) ? value['bestAverageWpm'] : 0,
+    bestPeakWpm: isCount(value['bestPeakWpm']) ? value['bestPeakWpm'] : 0,
+    bestAccuracy: isRatio(accuracy) ? accuracy : 0,
+    bestCompletionTimeMs: isCount(completionTime) ? completionTime : null,
+    attempts: isIntegerAtLeast(value['attempts'], 0) ? value['attempts'] : 0,
+    bestDistanceMeters: isCount(value['bestDistanceMeters']) ? value['bestDistanceMeters'] : 0,
+  };
 }
 
 export function isPlayerProfile(value: unknown): value is PlayerProfile {
@@ -145,7 +185,8 @@ export function coercePlayerProfile(
   const rawProgress = value['mapProgress'];
   if (isRecord(rawProgress)) {
     for (const [mapId, progress] of Object.entries(rawProgress)) {
-      if (isMapProgress(progress)) mapProgress[mapId] = progress;
+      const repaired = coerceMapProgress(progress);
+      if (repaired !== null) mapProgress[mapId] = repaired;
     }
   }
 

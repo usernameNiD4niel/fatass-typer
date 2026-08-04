@@ -15,6 +15,14 @@ export interface RunResult extends Versioned {
   readonly mapId: MapId;
   readonly startedAt: IsoTimestamp;
   readonly durationMs: number;
+  /**
+   * How far the player got, in metres.
+   *
+   * Recorded on every run, but it is the *only* measure of a run on an endless
+   * map, where there is no finish line to complete and no completion time to
+   * beat (plan 2.2).
+   */
+  readonly distanceMeters: number;
   /** True only when the finish line was reached. */
   readonly completed: boolean;
   readonly score: number;
@@ -77,6 +85,8 @@ export interface LiveRunStats {
   readonly flightRemainingMs: number;
   readonly magnetRemainingMs: number;
   readonly elapsedMs: number;
+  /** How far the player has come, in metres. The score on an endless map. */
+  readonly distanceMeters: number;
   /** Words of the map secret typed, and how many there are. */
   readonly secretWordsTyped: number;
   readonly secretWordCount: number;
@@ -106,6 +116,7 @@ export const EMPTY_LIVE_STATS: LiveRunStats = {
   flightRemainingMs: 0,
   magnetRemainingMs: 0,
   elapsedMs: 0,
+  distanceMeters: 0,
 };
 
 export function isRunResult(value: unknown): value is RunResult {
@@ -117,6 +128,7 @@ export function isRunResult(value: unknown): value is RunResult {
     isId(value['mapId']) &&
     isIsoTimestamp(value['startedAt']) &&
     isCount(value['durationMs']) &&
+    isCount(value['distanceMeters']) &&
     typeof value['completed'] === 'boolean' &&
     isCount(value['score']) &&
     isCount(value['averageWpm']) &&
@@ -151,6 +163,7 @@ export function emptyRunResult(runId: RunId, mapId: MapId, startedAt: IsoTimesta
     mapId,
     startedAt,
     durationMs: 0,
+    distanceMeters: 0,
     completed: false,
     score: 0,
     averageWpm: 0,

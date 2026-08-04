@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MAP_1 } from '../../content';
 import type { MapConfig, PlayerProfile } from '../../game-core/models';
-import { createPlayerProfile } from '../../game-core/models';
+import { createPlayerProfile, EMPTY_MAP_PROGRESS } from '../../game-core/models';
 import { mapCardLabel, mapCardModel, unlockRequirementText } from './map-card-model';
 import { MapSelection } from './MapSelection';
 
@@ -33,6 +33,7 @@ const PLAYED = {
   bestAccuracy: 0.937,
   bestCompletionTimeMs: 48_000,
   attempts: 3,
+  bestDistanceMeters: 0,
 };
 
 function setup(profile: PlayerProfile = profileWith()) {
@@ -178,5 +179,36 @@ describe('MapSelection', () => {
     await user.tab();
 
     expect(screen.getByRole('button', { name: /Map 1: Neighborhood Dash/ })).toHaveFocus();
+  });
+});
+
+describe('the endless map', () => {
+  it('shows distance rather than a map number and a completion badge', () => {
+    const endless: MapConfig = { ...MAP_1, id: 'endless', name: 'Endless', distanceMeters: 0 };
+    const profile = profileWith({
+      unlockedMapIds: ['map-1', 'endless'],
+      mapProgress: {
+        endless: {
+          ...EMPTY_MAP_PROGRESS,
+          attempts: 3,
+          bestAccuracy: 0.9,
+          bestDistanceMeters: 2_450,
+        },
+      },
+    });
+
+    render(
+      <MapSelection
+        maps={[MAP_1, endless]}
+        profile={profile}
+        onSelect={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    // "Map 7" would be a lie about the progression, and "Completed" is not
+    // something that can happen to a map with no finish line.
+    expect(screen.getByText('No finish line')).toBeInTheDocument();
+    expect(screen.getByText('Furthest 2.45 km')).toBeInTheDocument();
   });
 });

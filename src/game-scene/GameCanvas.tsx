@@ -16,6 +16,7 @@ import {
   DRAW_DISTANCE_METERS,
   scenePalette,
 } from './scene-config';
+import { BestLine } from './BestLine';
 import { Pursuer } from './Pursuer';
 import { ScorePopups } from './ScorePopups';
 import { WorldPrompt } from './WorldPrompt';
@@ -44,6 +45,13 @@ export interface GameCanvasProps {
   readonly advance: (frameDeltaMs: number) => void;
   readonly theme: MapTheme;
   readonly reducedMotion: boolean;
+  /**
+   * Furthest the player has ever got on this map, in metres.
+   *
+   * Drawn as a gate across the road. Zero draws nothing — a first run has
+   * nothing to chase (plan 2.2).
+   */
+  readonly bestDistanceMeters?: number;
   /** Rendered instead of the scene when WebGL is unavailable. */
   readonly fallback?: JSX.Element;
 }
@@ -64,6 +72,7 @@ export function GameCanvas({
   advance,
   theme,
   reducedMotion,
+  bestDistanceMeters = 0,
 }: GameCanvasProps): JSX.Element {
   const palette = useMemo(() => scenePalette(theme), [theme]);
 
@@ -97,6 +106,7 @@ export function GameCanvas({
       <Hazards snapshot={snapshot} palette={palette} />
       <Player snapshot={snapshot} reducedMotion={reducedMotion} />
       <Pursuer snapshot={snapshot} reducedMotion={reducedMotion} />
+      <BestLine snapshot={snapshot} bestDistanceMeters={bestDistanceMeters} />
       <WorldPrompt snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
       <ScorePopups snapshot={snapshot} reducedMotion={reducedMotion} />
     </Canvas>

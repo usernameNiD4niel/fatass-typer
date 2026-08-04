@@ -1,8 +1,8 @@
 import { type JSX, lazy, type ReactNode, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { Button } from './components/ui';
-import { findMap, MAP_1, MAPS, obstaclesFor } from './content';
-import type { PlayerProfile, RunResult } from './game-core/models';
+import { ALL_MAPS, findMap, MAP_1, MAPS, obstaclesFor } from './content';
+import { progressFor, type PlayerProfile, type RunResult } from './game-core/models';
 import { useAppliedSettings } from './hooks/useAppliedSettings';
 import { useGameAudio } from './hooks/useGameAudio';
 import { useAppMachine } from './hooks/useAppMachine';
@@ -216,8 +216,9 @@ export function App(): JSX.Element {
     case 'MapSelection':
       return (
         <Shell>
+          {/* Endless belongs on this screen but not in the progression. */}
           <MapSelection
-            maps={MAPS}
+            maps={ALL_MAPS}
             profile={profile}
             onSelect={chooseMap}
             onBack={() => {
@@ -250,6 +251,9 @@ export function App(): JSX.Element {
         <Shell>
           <GameScreen
             mapId={selectedMapId}
+            // Read once, as the run starts: a best that updated mid-run would
+            // be a target that moves as you approach it.
+            bestDistanceMeters={progressFor(profile, selectedMapId).bestDistanceMeters}
             audio={audio}
             reducedMotion={reducedMotion}
             onRunEnded={endRun}

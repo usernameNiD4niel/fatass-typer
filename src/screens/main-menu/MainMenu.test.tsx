@@ -58,6 +58,7 @@ describe('hasProgress', () => {
           bestAccuracy: 0,
           bestCompletionTimeMs: null,
           attempts: 1,
+          bestDistanceMeters: 0,
         },
       },
     });

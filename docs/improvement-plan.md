@@ -257,8 +257,7 @@ own piece of work.
 ## Phase 2 — make them come back
 
 - [x] **2.1 Real persistence.** Shipped — see "How 2.1 went" below.
-- [ ] **2.2 Endless mode.** Continuous speed ramp, and the previous personal
-      best rendered as a line on the road where the last run died.
+- [x] **2.2 Endless mode.** Shipped — see "How 2.2 went" below.
 - [ ] **2.3 Daily seed.** One shared seed per day plus a local history.
 - [ ] **2.4 Per-key weakness tracking.** Log fumbled characters and digraphs,
       weight prompt selection toward them, show a "worst keys" panel on results.
@@ -306,6 +305,56 @@ player "progress currently lives in memory and is lost on reload anyway", which
 became a lie — reset is now a genuinely destructive action and says so. And the
 main menu offers "Continue" once there is progress to continue, which is why the
 e2e reaches map selection via "Maps".
+
+## How 2.2 went
+
+A seventh map with `distanceMeters: 0`, which is how the codebase now spells
+"endless": there is no finish line, the run ends only when the player does, and
+how far they got is the whole score. Zero rather than a flag because every
+consumer already had to handle a non-positive distance, and a flag would have
+been a second thing to keep in step with the first.
+
+**The speed ramp was the wrong dial, and this cost a build to find out.**
+Raising `speed.rampPerMinute` does not make a map harder: hazards are placed by
+_time budget_, so a faster world simply puts them further away and the player has
+exactly as long to type. Measured, the first build of this map was survivable by
+a metronomic typist for **53 minutes** without ever being threatened — a
+screensaver. The demand that has to rise is the typing demand, which is now an
+`EscalationProfile`: 6 WPM per minute, applied to the target speed every budget
+is derived from.
+
+The ceiling had to move too. At 140 WPM a 120 WPM typist was still never caught,
+because the reaction buffer covered the difference — a ceiling somebody can sit
+under is not a ceiling. At 220:
+
+| Typist  | Lasts   | Reaches |
+| ------- | ------- | ------- |
+| 24 WPM  | 5–70s   | 44–744m |
+| 30 WPM  | ~3 min  | ~2.2 km |
+| 48 WPM  | ~7 min  | ~7.5 km |
+| 80 WPM  | ~15 min | ~20 km  |
+| 120 WPM | ~29 min | ~42 km  |
+
+Everybody stops eventually, and where you stop is a measure of how you type.
+
+**The best-distance gate** is the mode's actual content: a lit line across the
+road where the last run ended, with posts so it reads as a gate from a distance.
+It is not removed once passed — it recedes behind you, which is the reward, and
+deleting it at the moment of crossing would throw away the only evidence the run
+is going well. Its arithmetic lives in `best-line-state.ts` rather than in the
+component, because whether it is on screen and whether it has been beaten are
+decisions, and a decision inside a `useFrame` is one nothing can check.
+
+The HUD drops "To finish" on this map — a progress bar that never fills is worse
+than none — and shows distance with the number to beat beside it, throughout
+rather than at the end.
+
+**Two persisted shapes changed**, `MapProgress` gaining `bestDistanceMeters` and
+`RunResult` gaining `distanceMeters`. That exposed a real latent bug: map
+progress was validated all-or-nothing, so a record missing _any_ field was
+discarded — and a field is always missing the first time the game adds one.
+Shipping this as it stood would have silently zeroed every existing player's
+bests. Map progress is now repaired field by field like the profile above it.
 
 ## Phase 3 — make it feel good
 

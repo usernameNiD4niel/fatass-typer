@@ -359,8 +359,130 @@ export const MAP_6: MapConfig = {
   },
 };
 
+/**
+ * Endless (plan 2.2).
+ *
+ * `distanceMeters: 0` means there is no finish line: the run ends when the
+ * player does, and how far they got is the whole score.
+ *
+ * ## Why the six maps were not enough on their own
+ *
+ * A fixed run is a thing you *complete*, and a completed thing is finished with.
+ * Six of them is six evenings. What keeps a runner open is a number that is
+ * yours and beatable by a few metres, which is exactly what a finish line
+ * forecloses.
+ *
+ * ## Tuning
+ *
+ * It opens at Map 3's speed and ramps past Map 6's ceiling — `rampPerMinute` is
+ * the highest in the game and `maxMetersPerSecond` is well above any fixed map,
+ * because an endless run must eventually beat anybody. The point of the ramp is
+ * not to be survivable; it is to decide *where* you stop.
+ *
+ * Vocabulary is every category, and the obstacle list is every obstacle: this is
+ * the one map that is not teaching anything, so it has no reason to hold
+ * anything back.
+ *
+ * It carries no secret sentence. A sentence has an end and this map does not,
+ * and a run that quietly stopped assembling one two minutes in would read as a
+ * bug rather than as a design.
+ */
+export const MAP_ENDLESS: MapConfig = {
+  id: 'endless',
+  // Zero rather than 7: it sits outside the progression rather than after it,
+  // and `minimumMap` on content is checked against this number.
+  mapNumber: 6,
+  name: 'Endless',
+  theme: 'night-highway',
+  // The speed it opens at, and the honest thing to put on the card. It does not
+  // stay there.
+  targetWpm: 30,
+  distanceMeters: 0,
+  baseSpeedMetersPerSecond: 8.6,
+  timing: {
+    reactionBuffer: 1.12,
+    fixedVisualLeadTimeMs: 64,
+  },
+  motion: DEFAULT_MOTION,
+  speed: {
+    // Far above any fixed map. An endless run has to be able to beat anybody,
+    // or it is a fixed map that forgot to end.
+    maxMetersPerSecond: 18,
+    rampPerMinute: 2.6,
+  },
+  boost: {
+    speedMultiplier: 1.65,
+    durationMs: 2900,
+  },
+  content: {
+    promptCategories: [
+      'short-word',
+      'medium-word',
+      'long-word',
+      'short-phrase',
+      'medium-phrase',
+      'themed',
+      'punctuation',
+      'number',
+    ],
+    obstacleIds: [
+      'rock',
+      'crate',
+      'low-barrier',
+      'cone-beam',
+      'roadwork-barrier',
+      'sedan',
+      'van',
+      'box-truck',
+    ],
+    obstacleIntervalSeconds: 0.12,
+    obstacleIntervalJitter: 0.3,
+    recoverySeconds: 0.06,
+    doubleBlockChance: 0.35,
+    coinIntervalSeconds: 16,
+    coinValue: 8,
+    powerupIntervalSeconds: 45,
+    themeTags: ['night-highway', 'chase'],
+  },
+  /*
+   * What actually makes it get harder.
+   *
+   * Raising `rampPerMinute` alone does not: hazards are placed by time budget,
+   * so a faster world puts them further away and the player has exactly as long
+   * to type. Measured, the first build of this map was survivable by a
+   * metronomic typist for 53 minutes without ever being threatened.
+   *
+   * Six WPM a minute is steep on purpose — a minute in it asks for Map 4, three
+   * minutes in it asks for more than Map 6. The ceiling is past any sustained
+   * human speed rather than merely high: at 140 a 120 WPM typist was never
+   * caught in 53 minutes of simulation, because the reaction buffer covered the
+   * difference. A ceiling somebody can sit under is not a ceiling.
+   */
+  escalation: {
+    wpmPerMinute: 6,
+    maxWpm: 220,
+  },
+  // Unlocked by finishing the first map. It is not a reward for finishing the
+  // game — it is the mode you go to instead of replaying one you have beaten.
+  unlock: {
+    requiresMapId: 'map-1',
+    minimumAccuracy: 0,
+  },
+};
+
+/**
+ * The progression. Endless is deliberately not in it.
+ *
+ * Everything that walks this list is asking a progression question — which map
+ * unlocks next, how far through the six the player is — and a map with no finish
+ * line answers all of them wrongly. `ALL_MAPS` is for the places that just need
+ * to look a map up by id.
+ */
 export const MAPS: readonly MapConfig[] = [MAP_1, MAP_2, MAP_3, MAP_4, MAP_5, MAP_6];
 
+/** Every playable map, including endless. */
+export const ALL_MAPS: readonly MapConfig[] = [...MAPS, MAP_ENDLESS];
+
 export function findMap(mapId: string): MapConfig | undefined {
-  return MAPS.find((map) => map.id === mapId);
+  return ALL_MAPS.find((map) => map.id === mapId);
 }
