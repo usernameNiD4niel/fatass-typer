@@ -745,23 +745,40 @@ const PLANE_MARGIN_MS = 500;
 function spawnDueObstacle(session: RunSession): RunSessionResult {
   if (session.obstaclePool.length === 0) return { session, events: [] };
 
+  /*
+   * A due coin line or crate outranks a hazard, the same way a due crate already
+   * outranks a coin line.
+   *
+   * Hazards are scheduled every fraction of a second and only ever wait for the
+   * road, so once they stopped waiting for gap words they took every gap there
+   * was and the pickups starved: measured at zero coins and zero crates a run on
+   * Maps 1 and 2. Precedence, not a longer interval, is the fix — a hazard that
+   * yields here is delayed by one encounter, while a coin line that loses its
+   * turn is gone until the next one comes round.
+   */
+  if (session.elapsedMs >= session.nextCoinAtMs) return { session, events: [] };
+  if (session.elapsedMs >= session.nextPowerupAtMs) return { session, events: [] };
+
   const due = advanceSpawner(session.spawner, session.elapsedMs, {
     content: session.map.content,
     mapNumber: session.map.mapNumber,
     pool: session.obstaclePool,
     hazardsLive: hasLiveHazard(session),
     /*
-     * A gap word holds the road as firmly as a coin line does.
+     * A hazard still waits for anything on the road — a coin line or a crate
+     * owns its stretch from approach to collection, and sharing it does not
+     * work. A car ordered into the middle of a coin run drags the player off the
+     * row; a jump lifts them over it. Both leave coins the player has already
+     * paid for on the tarmac, so both were measured and both were rejected.
      *
-     * This is the second half of "no word is ever swapped out". A hazard used to
-     * take the field from whatever was holding it; now it waits, and because a
-     * gap word is only ever put up when it fits in the gap (`spawnFlowWord`),
-     * the wait is bounded by how far behind the map's own speed the player is.
+     * A *gap word* is the one thing it no longer waits for, and that is the
+     * whole change. It has no body, so there is nothing for a hazard to collide
+     * with, and dropping it costs nothing — see `dropFlowWord`. It used to sit in
+     * this condition, which meant the filler invented to cover the gaps was
+     * itself creating them: on Map 1 that was 3.5 seconds of delay per encounter
+     * and 63% of the run spent on filler or empty road.
      */
-    coinsLive:
-      session.coins.some(isCoinLive) ||
-      session.powerups.some(isPowerupLive) ||
-      session.flow !== null,
+    coinsLive: session.coins.some(isCoinLive) || session.powerups.some(isPowerupLive),
   });
 
   const definition = due.spawned;
@@ -1080,9 +1097,9 @@ function startDueMoves(session: RunSession): RunSession {
   // A lane change *does* wait its turn: moving out of the lane an earlier
   // hazard demanded would undo an answer the player already gave.
   const leader = leadingHazard(session);
-  if (leader === null) return session;
-  if (leader.status !== 'committed' || leader.moveStarted) return session;
-  if (leader.definition.action === 'jump') return session;
+  if (leader === null) return retryCoinSwerve(session);
+  if (leader.status !== 'committed' || leader.moveStarted) return retryCoinSwerve(session);
+  if (leader.definition.action === 'jump') return retryCoinSwerve(session);
 
   // Refused while a jump is in the air — see `commitToAvoidance`. Leaving the
   // hazard unstarted is what makes this a retry rather than a lost move.
@@ -1096,6 +1113,36 @@ function startDueMoves(session: RunSession): RunSession {
       entry.instanceId === leader.instanceId ? startMove(entry) : entry,
     ),
   };
+}
+
+/**
+ * Starts a committed coin swerve that was refused when it was asked for.
+ *
+ * `beginLaneChange` refuses while a jump is in the air, and `commitToCoins`
+ * asked exactly once. So a coin line whose word was finished mid-jump was
+ * marked `committed`, never moved, and every coin in it went by underneath a
+ * player who had already typed for them — the one thing coins promise not to do.
+ *
+ * Hazards were given this retry when the same bug was found there; coins were
+ * not, and the fault stayed hidden while jumps and coin lines rarely overlapped.
+ * Raising hazard density made it routine.
+ *
+ * No preempt, matching `commitToCoins`: a coin still never interrupts a hazard's
+ * move. It only takes a turn the road was not using.
+ */
+function retryCoinSwerve(session: RunSession): RunSession {
+  if (session.motion.jump !== null) return session;
+  if (session.motion.transition !== null) return session;
+
+  const pending = session.coins.find(
+    (coin) => coin.status === 'committed' && coin.lane !== session.motion.lane,
+  );
+  if (pending === undefined) return session;
+
+  const motion = beginLaneChange(session.motion, pending.lane, session.map.motion);
+  if (motion === session.motion) return session;
+
+  return { ...session, motion };
 }
 
 /** Runs every live hazard's clock and reacts to what it reports. */
@@ -1444,8 +1491,16 @@ function spawnDueCoins(session: RunSession): RunSessionResult {
   if (hasLiveHazard(session)) return { session, events: [] };
   if (session.coins.some(isCoinLive)) return { session, events: [] };
   if (session.powerups.some(isPowerupLive)) return { session, events: [] };
-  // Coins wait for a gap word too, for the same reason hazards do.
-  if (session.flow !== null) return { session, events: [] };
+  /*
+   * And wait for the body, not just for the road.
+   *
+   * A hazard is culled the moment it resolves, but the jump it triggered keeps
+   * running for the best part of a second afterwards, and `hasLiveHazard` cannot
+   * see that. A coin line placed in that window arms its word while the player
+   * is still airborne, `beginLaneChange` refuses — a jump cannot be steered out
+   * of — and every coin goes by underneath somebody who typed for them.
+   */
+  if (session.motion.jump !== null) return { session, events: [] };
 
   const drawn = drawPrompt(session, {
     // Short words only *once the sentence is done*. While it is running the

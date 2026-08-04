@@ -61,8 +61,19 @@ export const POWERUPS: Readonly<Record<PowerupKind, PowerupDefinition>> = {
   },
 };
 
-/** How long flight lasts. Long enough to feel like a holiday from the rules. */
-export const FLIGHT_MS = 30_000;
+/**
+ * How long flight lasts.
+ *
+ * It used to be thirty seconds, on the theory that a holiday from the rules is a
+ * reward. Measured, it is the opposite: hazards are suspended and any whose
+ * window passes is waived, so flight hands the player a fifth of a Map 1 run
+ * with nothing on screen to type. In one measured run it deleted two of the
+ * seven hazards outright.
+ *
+ * A reward in a typing game cannot be an absence of typing. Six seconds is long
+ * enough to read as a let-off and short enough that the road never goes quiet.
+ */
+export const FLIGHT_MS = 6_000;
 
 /** How long the magnet pulls for. */
 export const MAGNET_MS = 20_000;
