@@ -184,8 +184,8 @@ describe('RunResults', () => {
   it('reports a lost run without hiding the numbers', () => {
     setup(resultWith({ completed: false }));
 
-    expect(screen.getByText('Caught by the dogs')).toBeInTheDocument();
-    // A player who was caught gets the same detail as one who finished.
+    expect(screen.getByText('Crashed')).toBeInTheDocument();
+    // A player who crashed gets the same detail as one who finished.
     expect(within(runCard()).getByText('1840')).toBeInTheDocument();
     expect(within(runCard()).getByText('94%')).toBeInTheDocument();
   });

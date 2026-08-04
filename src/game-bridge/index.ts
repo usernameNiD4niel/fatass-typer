@@ -12,5 +12,7 @@ export type {
   ObstacleViewModel,
   PromptViewModel,
 } from './messages';
+export { createWorldSnapshot, liveHazards, MAX_SNAPSHOT_HAZARDS } from './snapshot';
+export type { ChallengeSnapshot, HazardSnapshot, ImpulseSnapshot, WorldSnapshot } from './snapshot';
 export { isGameCommand, parseGameCommand } from './validate';
 export type { CommandParseResult } from './validate';

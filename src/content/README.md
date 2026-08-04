@@ -12,7 +12,7 @@ Data only. No logic.
 
 ## Contents
 
-- `maps.ts` — all six maps (steps F2, F3). Distance, base speed, reaction buffer, chase
+- `maps.ts` — all six maps. Distance, base speed, reaction buffer, hazard
   profile, boost profile, prompt categories, and unlock rule, all as data. The buffers run
   1.70 → 1.08 and the accuracy gates 85% → 92%, exactly as spec §6 suggests.
 
@@ -46,8 +46,10 @@ are what breaks a beginner's rhythm, and Map 1 exists to build one. Themed words
 _preference_, never a requirement: a themed pool small enough to run dry would repeat itself
 into nonsense.
 
-Map 1's chase numbers are set so all three dogs are on screen at the starting gap. A gap
-wider than the camera can show turns the chase into an invisible timer.
+`road.ts` holds `DEFAULT_MOTION`, shared by all six maps. A lane is the same width on Map 6
+as on Map 1 and a jump takes the same time, because the road is the road — difficulty comes
+from how fast it goes past and how much the prompts ask for, not from secretly making the
+player's own body slower.
 
 `content.test.ts` validates every entry with the same guards a corrupt save would face, and
 checks the cross-references: a map may only list obstacles that exist and are allowed on it,

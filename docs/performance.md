@@ -1,126 +1,95 @@
-# Performance — measured, not asserted
+# Performance
 
-Spec §16, build step G3. Everything below was produced by running the code, on
-2026-08-03. Re-running the numbers is one command:
+Measured, not estimated. Re-measure with:
 
 ```bash
-npm run build           # bundle sizes
-npm run test -- src/game-runtime/session/performance.test.ts
+npm run test -- performance     # frame cost
+npm run build                   # bundle sizes
 ```
 
-Machine: Intel Core Ultra 7 255HX, 20 cores, Node v24.12.0, Windows 11.
+## Why the numbers come from a harness and not a browser
 
----
+Profiling this in a browser measures the browser. An automated window is
+throttled to a fraction of a frame per second, and the numbers that come back say
+more about Chrome's scheduler than about this code.
 
-## 1. Frame cost
+So `src/game-runtime/session/profile-harness.ts` drives the real host by hand at
+exactly 60Hz of simulated time, with a metronomic typist fast enough that the run
+reaches its finish line rather than crashing into the first hazard.
 
-`src/game-runtime/session/profile-harness.ts` drives the real `RuntimeHost` at
-exactly 60Hz of simulated time through a context that counts draw calls instead
-of rasterising them, with a metronomic typist at each map's target WPM so the
-run reaches its finish line rather than being caught in the first eight seconds.
+**What that measures honestly:** the simulation and the assembly of the
+`WorldSnapshot` the scene reads — everything that happens before a single
+triangle is submitted.
 
-Measuring this in a browser measures the browser: an automated Chrome window is
-throttled to a fraction of a frame per second, and the numbers that come back
-describe Chrome's scheduler, not this code. So the loop is driven by hand.
+**What it does not measure:** anything on the GPU. That now belongs to Three.js,
+and this harness is not entitled to speak for it. The one number below that
+covers the scene at all is the bundle size.
 
-Each row is a complete run of the map.
+## Frame cost
 
-| Map   | Frames | ms/frame | Draw calls/frame | Peak frame | Bridge events | Metres |
-| ----- | ------ | -------- | ---------------- | ---------- | ------------- | ------ |
-| map-1 | 2272   | 0.010    | 288              | 306        | 23            | 320    |
-| map-2 | 2363   | 0.005    | 289              | 312        | 28            | 360    |
-| map-3 | 2329   | 0.004    | 291              | 310        | 29            | 400    |
-| map-4 | 2405   | 0.003    | 290              | 310        | 31            | 440    |
-| map-5 | 2175   | 0.003    | 290              | 310        | 28            | 440    |
-| map-6 | 2354   | 0.003    | 291              | 310        | 34            | 520    |
+One frame's simulation and snapshot, over 3,600 frames (60 seconds of simulated
+time). The budget for a whole frame at 60 FPS is **16.67ms**.
 
-**What this says.** Simulation plus scene assembly costs about **0.003–0.010ms**
-of a 16.67ms frame — three to six thousandths of the budget. The first map reads
-highest only because it runs first and pays for JIT warm-up.
+| Map           | Median   | p95      | Max     | First third | Last third |
+| ------------- | -------- | -------- | ------- | ----------- | ---------- |
+| Map 1, 20 WPM | 0.0020ms | 0.0059ms | 2.10ms  | 0.0060ms    | 0.0017ms   |
+| Map 6, 50 WPM | 0.0015ms | 0.0040ms | 0.072ms | 0.0023ms    | 0.0018ms   |
 
-**What this does not say.** It does not measure rasterisation, which belongs to
-the GPU. The scene is flat filled shapes on a 1024×448 surface with the device
-pixel ratio capped at 2 (`MAX_DEVICE_PIXEL_RATIO`), which is about as little as
-a 2D canvas can be asked to do, but "60 FPS on your laptop" is a claim only a
-real browser can settle.
+Two things worth reading off that table.
 
-**Draw calls are the durable number.** ~290 per frame, flat across the whole run
-and across all six maps. That flatness is the actual result: obstacles are culled
-off-screen (`isVisible`) and forgotten once resolved, and the parallax bands tile
-to the viewport rather than to the map, so the last minute of a map costs what
-the first minute costs. `performance.test.ts` pins this — a scene that started
-accumulating would fail the "costs the same at the end as at the start" case.
+**The cost is negligible** — around 0.01% of a frame. Whatever eventually limits
+the frame rate, it will not be the rules.
 
-## 2. React is not in the frame loop
+**It does not grow.** The last third of a run costs what the first third did, on
+both the shortest map and the longest. That is the number actually worth
+watching, because a rising one is what a leak looks like from the outside.
+`performance.test.ts` asserts the shape rather than the milliseconds, since a CI
+runner's millisecond is not a laptop's.
 
-The bridge coalesces live stats to ~10Hz and drops everything in between, so a
-60Hz loop produces about six React updates a second, not sixty. The profiler
-counts the offers the host makes (one per fixed step) separately from the events
-that leave the bridge; the tests assert that a frame never pushes anything at
-React on its own, and that bridge events stay a small fraction of frames — they
-are things that _happen_ (a prompt, a warning, a resolution), not things that are
-true every frame.
+The Map 1 maximum of 2.10ms is the first frame — module initialisation and the
+first hazard's placement, once, before anything is on screen.
 
-Per-frame state that React must never see — MC animation phase, dog cycle phase,
-interpolated position — lives in the host as mutable fields, not in component
-state.
+## Why it stays flat
 
-## 3. Bundle and first load
+- **One hazard at a time.** The spawner refuses to fire while another is
+  unresolved, so the list the runtime walks is one long, not one per hazard the
+  map has ever produced. Resolved hazards are forgotten.
+- **The snapshot is mutated in place.** One object, one fixed-length hazard pool,
+  reused every frame. A fresh snapshot per frame would be a steady stream of
+  garbage in the hottest path in the program.
+- **The scene allocates nothing per frame either.** Lane dashes and roadside
+  buildings are fixed instanced pools, recycled by moving them; hazards are a
+  fixed pool of groups that are shown and hidden rather than mounted.
+- **React is not in the loop.** Per-frame state never reaches it; the bridge
+  coalesces events to ~10Hz.
 
-After code splitting (`vite.config.ts` + `lazy()` in `App.tsx`):
+## Bundle
 
-| Chunk                              | Raw      | gzip    | When it loads      |
-| ---------------------------------- | -------- | ------- | ------------------ |
-| `vendor`                           | 193.7 kB | 60.5 kB | first load         |
-| `index` (app shell, menu, content) | 42.1 kB  | 12.8 kB | first load         |
-| `index.css`                        | 18.0 kB  | 3.6 kB  | first load         |
-| `GameScreen` (+ the whole runtime) | 60.9 kB  | 20.2 kB | entering a run     |
-| `SettingsScreen`                   | 6.2 kB   | 2.3 kB  | opening settings   |
-| `RunResults`                       | 3.7 kB   | 1.5 kB  | finishing a run    |
-| `MapSelection`                     | 2.9 kB   | 1.3 kB  | choosing a map     |
-| `StatisticsScreen`                 | 2.8 kB   | 1.1 kB  | opening statistics |
-| `LevelBriefing`                    | 2.4 kB   | 1.0 kB  | before a run       |
-| `Modal`                            | 1.9 kB   | 1.0 kB  | first dialog       |
-| `Tutorial`                         | 1.6 kB   | 0.9 kB  | first visit        |
+| Chunk              | Raw      | Gzipped  | When it loads  |
+| ------------------ | -------- | -------- | -------------- |
+| `index` (app)      | 41.2 kB  | 12.4 kB  | first paint    |
+| `index` (shared)   | 11.5 kB  | 4.0 kB   | first paint    |
+| `vendor` (React)   | 201.7 kB | 63.5 kB  | first paint    |
+| `index.css`        | 18.2 kB  | 3.6 kB   | first paint    |
+| `GameScreen`       | 45.0 kB  | 14.6 kB  | starting a run |
+| `three`            | 864.9 kB | 233.2 kB | starting a run |
+| Screens (7 chunks) | ~22 kB   | ~9 kB    | on navigation  |
 
-**First load is ~77 kB gzipped**, down from a single 98 kB bundle — the runtime,
-the canvas renderer, and every screen past the menu now arrive when they are
-first needed. The splash, main menu, and width guard stay eager on purpose: a
-loading line in front of the menu costs more than the bytes it saves.
+**First load is ~83 kB gzipped.** Three.js is 233 kB on its own — nearly three
+times everything else combined — and it sits behind a `lazy()` boundary on
+`GameScreen`, so it arrives when a player actually goes to play rather than when
+they open the menu. Keeping it there is the single most important performance
+property of the build: if `GameScreen` ever stops being lazily imported, first
+load quadruples.
 
-Splitting is by dependency rather than by route for the vendor chunk, so a
-gameplay change does not invalidate ~190 kB of everyone's cache.
+The `three` chunk is over Rollup's 500 kB warning threshold and the warning is
+expected. It is a library, it is cached across visits, and splitting it further
+would only mean fetching the same bytes in more requests.
 
-## 4. Loading progress
+## Not covered
 
-`SplashScreen` reports progress as a labelled `progressbar` _and_ as text, and
-`ScreenFallback` covers the gap while a lazy chunk arrives — announced politely,
-with no animation, because these chunks usually arrive within a frame or two and
-a spinner that flashes for 16ms is worse than nothing.
-
-## 5. Assets
-
-There are none. Every character, dog, obstacle, and background band is drawn from
-vector primitives, and every entry in the asset manifest is optional. Nothing is
-downloaded, decoded, or atlased, which is why there is no loading time to report.
-
-**When real art arrives**, the recommendations are:
-
-- One sprite atlas per theme rather than per-entity files: six maps × several
-  actors is a lot of requests, and the draw call count above is already the
-  cheap part.
-- WebP or AVIF with PNG fallback; lossless for flat art, quality ~80 for
-  anything shaded.
-- Power-of-two atlas dimensions, trimmed transparent margins, and a JSON frame
-  map generated at build time rather than hand-written.
-- Preload only the atlas for the map about to be played — the manifest is
-  already per-theme, and `SplashScreen` already reports pending-asset counts.
-- Keep audio synthesised. It costs nothing to ship and nothing to decode.
-
-## 6. Not applicable
-
-The spec's WebAssembly items — Rust release profile, `wasm-opt`, WASM
-initialisation failure handling — do not apply to this build. CLAUDE.md §2
-replaced the Rust + Bevy runtime with TypeScript. `game-core` is kept pure and
-DOM-free so that swap stays possible; if it happens, this section is where its
-numbers belong.
+- **Rasterisation and GPU time.** See above.
+- **Real device pixel ratios.** The canvas caps DPR at 2, so a 3× display costs
+  4× the pixels rather than 9×.
+- **Long-session memory.** Nothing accumulates by construction, and the flat cost
+  curve is consistent with that, but no run measured here lasts an hour.

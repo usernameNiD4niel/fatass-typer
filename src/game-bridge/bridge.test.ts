@@ -225,47 +225,6 @@ describe('GameBridge stats throttling', () => {
   });
 });
 
-describe('GameBridge dog distance', () => {
-  it('emits the first reading', () => {
-    const { bridge, events } = setup();
-
-    bridge.publishDogDistance(1, 0);
-
-    expect(events).toEqual([{ type: 'dogDistanceChanged', normalizedDistance: 1 }]);
-  });
-
-  it('ignores a change too small to see', () => {
-    const { bridge, events } = setup();
-
-    bridge.publishDogDistance(1, 0);
-    bridge.publishDogDistance(0.9999, 1000);
-
-    expect(events).toHaveLength(1);
-  });
-
-  it('recovers when the clock restarts', () => {
-    const { bridge, events } = setup();
-
-    bridge.publishDogDistance(0.4, 30_000);
-    // A restart: run time back to zero, gap back to full.
-    bridge.publishDogDistance(1, 0);
-
-    expect(events).toHaveLength(2);
-    expect(events[1]).toEqual({ type: 'dogDistanceChanged', normalizedDistance: 1 });
-  });
-
-  it('throttles a steadily closing gap', () => {
-    const { bridge, events } = setup();
-
-    for (let frame = 0; frame < 60; frame += 1) {
-      bridge.publishDogDistance(1 - frame * 0.01, frame * 16.7);
-    }
-
-    expect(events.length).toBeLessThanOrEqual(11);
-    expect(events.length).toBeGreaterThan(1);
-  });
-});
-
 describe('GameBridge obstacle deadline', () => {
   it('emits the first reading', () => {
     const { bridge, events } = setup();
@@ -342,7 +301,6 @@ describe('GameBridge destruction', () => {
     bridge.destroy();
     bridge.emit({ type: 'ready' });
     bridge.publishStats(statsWith(), 0);
-    bridge.publishDogDistance(0.5, 0);
 
     expect(events).toHaveLength(0);
     expect(bridge.listenerCount).toBe(0);

@@ -18,8 +18,8 @@ Small, presentational, reusable. Button, Card, Panel, Toggle, Slider, Modal.
   monospaced face so characters do not shift width as they are typed, and per-character
   state taken from **`game-core`'s own comparison** rather than a second implementation —
   the HUD and the rules must agree about what counts as correct. `Hud` is everything else,
-  deliberately quieter: four small readouts and two meters (to finish, dogs). `PauseOverlay`
-  sits over the frozen canvas rather than replacing it, and takes focus on open — left in
+  deliberately quieter: four small readouts and two meters (to finish, speed).
+  `PauseOverlay` sits over the frozen scene rather than replacing it, and takes focus on open — left in
   the typing field, the first keystroke of the resume would be swallowed and a keyboard
   player could not reach its controls at all.
 - `typing-input/` — the typing field (step C6). A real, focused `<input>`, never a global
@@ -40,7 +40,7 @@ have to reimplement — badly. The `Toggle` is the one exception, and it is stil
 wearing `role="switch"`.
 
 The HUD refuses to overload (spec §4). Two meters, because they answer the only two
-questions that matter mid-run — _how far to go_ and _how close are they_ — and the dog
+questions that matter mid-run — _how far to go_ and _how fast am I going_ — and the speed
 meter says "Closing" or "Right behind you" in words, not only in red.
 
 **State is never colour alone** (spec §12). The toggle prints ON/OFF on its track as well as

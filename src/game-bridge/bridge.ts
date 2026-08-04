@@ -28,14 +28,6 @@ export type GameEventListener = (event: GameEvent) => void;
 /** ~10Hz. Fast enough for a live WPM readout, slow enough to be free. */
 export const DEFAULT_STATS_INTERVAL_MS = 100;
 
-/**
- * Smallest change in normalised dog distance worth an event.
- *
- * The gap moves continuously, so without a threshold every throttle window would
- * emit regardless of whether anything the player can see has changed.
- */
-const DOG_DISTANCE_EPSILON = 0.002;
-
 export interface GameBridgeOptions {
   readonly host?: GameHost;
   readonly statsIntervalMs?: number;
@@ -49,8 +41,6 @@ export class GameBridge {
   private destroyed = false;
   private pendingStats: LiveRunStats | null = null;
   private lastStatsEmitMs = Number.NEGATIVE_INFINITY;
-  private lastDogDistance: number | null = null;
-  private lastDogEmitMs = Number.NEGATIVE_INFINITY;
   private lastPressure: DeadlinePressureLevel | null = null;
   private lastDeadlineRemainingMs: number | null = null;
   private lastDeadlineEmitMs = Number.NEGATIVE_INFINITY;
@@ -165,23 +155,6 @@ export class GameBridge {
       this.lastStatsEmitMs = nowMs;
       this.flush();
     }
-  }
-
-  /** Offers a dog-distance sample. Throttled on the same clock as stats. */
-  publishDogDistance(normalizedDistance: number, nowMs: number): void {
-    if (this.destroyed) return;
-
-    const previous = this.lastDogDistance;
-    const moved =
-      previous === null || Math.abs(previous - normalizedDistance) >= DOG_DISTANCE_EPSILON;
-
-    if (nowMs < this.lastDogEmitMs) this.lastDogEmitMs = Number.NEGATIVE_INFINITY;
-    if (!moved) return;
-    if (nowMs - this.lastDogEmitMs < this.statsIntervalMs) return;
-
-    this.lastDogDistance = normalizedDistance;
-    this.lastDogEmitMs = nowMs;
-    this.emit({ type: 'dogDistanceChanged', normalizedDistance });
   }
 
   /**

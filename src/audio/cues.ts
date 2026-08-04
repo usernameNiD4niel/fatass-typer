@@ -38,7 +38,8 @@ export interface CueTone {
  *
  * The palette is deliberately consistent: rising intervals for good outcomes,
  * falling for bad, and the two failure sounds differ from each other as much as
- * they differ from success — a stumble and a collision cost different amounts,
+ * they differ from success — running out of time and driving into something
+ * feel different,
  * so they must not sound alike.
  */
 export const CUES: Readonly<Record<SoundCue, readonly CueTone[]>> = {
@@ -148,7 +149,7 @@ export const MUSIC: Readonly<Record<MusicTrack, MusicPattern>> = {
 };
 
 /**
- * The danger layer: one held note under the music that rises as the dogs close.
+ * The danger layer: one held note under the music that rises with the pressure.
  *
  * Pitch and volume both move, so it reads as pressure rather than as the music
  * simply getting louder.

@@ -47,8 +47,8 @@ player different amounts, so they must not sound alike.
 
 Two patterns, `menu` and `running`, played as a stepped note loop. Under
 `running` only, a single held oscillator forms the danger layer: its gain and
-pitch both rise with `setDanger(0..1)`, fed from the bridge's ~10Hz dog-distance
-updates and ramped over 200ms so the pressure swells rather than stepping.
+pitch both rise with `setDanger(0..1)`, ramped over 200ms so the pressure swells
+rather than stepping.
 
 ## Settings
 

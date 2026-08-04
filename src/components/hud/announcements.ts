@@ -1,5 +1,3 @@
-import type { ThreatLevel } from './threat';
-
 /**
  * What a run says out loud (spec §12).
  *
@@ -13,8 +11,12 @@ import type { ThreatLevel } from './threat';
  *   1. **Never per keystroke.** A live region that updates on every character
  *      is a screen reader that never stops talking. The prompt text itself is
  *      already the field's accessible name.
- *   2. **Only on change.** The dogs closing in is worth one sentence when it
- *      happens, not one every 100ms while it stays true.
+ *   2. **Only on change.** A hazard appearing is worth one sentence when it
+ *      happens, not one every 100ms while it remains true.
+ *
+ * The word itself is a special case. It used to be the typing field's accessible
+ * name; with the field gone it lives in the world, where a screen reader cannot
+ * follow it — so it is named once, when the challenge appears.
  *
  * Pure and independent of React so the wording is testable on its own.
  */
@@ -24,8 +26,8 @@ export type RunMoment =
   | { readonly kind: 'paused' }
   | { readonly kind: 'resumed' }
   | { readonly kind: 'obstacleWarning' }
-  | { readonly kind: 'hit'; readonly reason: 'stumbled' | 'collided' }
-  | { readonly kind: 'threat'; readonly level: ThreatLevel }
+  | { readonly kind: 'challenge'; readonly word: string }
+  | { readonly kind: 'hit'; readonly reason: 'collided' | 'timedOut' }
   | {
       readonly kind: 'finished';
       readonly completed: boolean;
@@ -33,55 +35,25 @@ export type RunMoment =
       readonly wpm: number;
     };
 
-const THREAT_SENTENCE: Readonly<Record<ThreatLevel, string>> = {
-  // 'safe' is the absence of news, and news is the only thing worth an
-  // interruption. It reads as a recovery, which is why it is not silent.
-  safe: 'You have pulled ahead of the dogs.',
-  closing: 'The dogs are closing in.',
-  critical: 'The dogs are right behind you.',
-  caught: 'The dogs have caught you.',
-};
-
 export function announcementFor(moment: RunMoment): string {
   switch (moment.kind) {
     case 'started':
-      return 'Run started. Type the prompt.';
+      return 'Run started. Type the word beside each hazard.';
     case 'paused':
       return 'Paused. Press Escape to resume.';
     case 'resumed':
       return 'Resumed.';
     case 'obstacleWarning':
-      return 'Obstacle ahead. Type the prompt before you reach it.';
+      return 'Hazard ahead. Type the word before you reach it.';
+    case 'challenge':
+      return `Type ${moment.word}.`;
     case 'hit':
-      return moment.reason === 'stumbled'
-        ? 'You stumbled. The dogs gained ground.'
-        : 'You hit the obstacle. The dogs gained ground.';
-    case 'threat':
-      return THREAT_SENTENCE[moment.level];
+      return moment.reason === 'timedOut'
+        ? 'Out of time. You hit the hazard.'
+        : 'You hit the hazard.';
     case 'finished':
       return moment.completed
         ? `Finished. Score ${String(Math.round(moment.score))}, ${String(Math.round(moment.wpm))} words per minute.`
-        : `Caught by the dogs. Score ${String(Math.round(moment.score))}.`;
+        : `Crashed. Score ${String(Math.round(moment.score))}.`;
   }
-}
-
-/**
- * Whether a change in threat is worth saying.
- *
- * Only escalation, and only once per level: a player oscillating around a
- * boundary must not be told about it forty times.
- */
-export function shouldAnnounceThreat(previous: ThreatLevel, next: ThreatLevel): boolean {
-  if (previous === next) return false;
-
-  const rank: Readonly<Record<ThreatLevel, number>> = {
-    safe: 0,
-    closing: 1,
-    critical: 2,
-    caught: 3,
-  };
-
-  // Recovery all the way back to safe is also news — it is the one piece of
-  // good news the chase ever produces.
-  return rank[next] > rank[previous] || next === 'safe';
 }

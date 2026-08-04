@@ -35,7 +35,23 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium-desktop',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        /*
+         * Headless Chromium has no GPU, so WebGL falls back to SwiftShader —
+         * which it refuses to use for WebGL without being told to. Without these
+         * the run screen renders nothing and every gameplay test fails on a
+         * blank canvas rather than on anything real.
+         */
+        launchOptions: {
+          args: [
+            '--use-gl=angle',
+            '--use-angle=swiftshader',
+            '--enable-unsafe-swiftshader',
+            '--disable-gpu-sandbox',
+          ],
+        },
+      },
     },
   ],
 

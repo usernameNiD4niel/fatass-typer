@@ -4,6 +4,7 @@ import type {
   ObstacleDefinition,
   PromptEntry,
 } from '../../game-core/models';
+import type { FailureReason } from '../../game-core/obstacles';
 import {
   advanceRunSession,
   applyRunInput,
@@ -59,10 +60,11 @@ export interface PlaytestInput {
 export interface PlaytestResult {
   readonly session: RunSession;
   readonly finished: boolean;
-  readonly caught: boolean;
+  /** Why the run ended, or `'none'` when it reached the finish line. */
+  readonly failureReason: FailureReason | 'none';
   readonly elapsedMs: number;
-  /** Closest the dogs ever got, as a fraction of the starting gap. */
-  readonly closestApproach: number;
+  readonly hazardsFaced: number;
+  readonly hazardsCleared: number;
   readonly obstacleSuccessRate: number;
   readonly mistakes: number;
 }
@@ -92,12 +94,15 @@ export function playtest(input: PlaytestInput): PlaytestResult {
   let nextKeyAtMs = 0;
   let keystroke = 0;
   let mistakes = 0;
-  let closest = 1;
   let pendingCorrection = false;
   let seenPromptId = session.prompt?.id ?? null;
   const reactionDelayMs = input.reactionDelayMs ?? 0;
 
-  for (let step = 0; step < (input.maxSteps ?? 60_000) && session.phase === 'running'; step += 1) {
+  // `impact` still advances — it is the beat before the run ends — so the loop
+  // runs until the session is genuinely finished rather than stopping on the hit.
+  const isLive = (phase: RunSession['phase']): boolean => phase === 'running' || phase === 'impact';
+
+  for (let step = 0; step < (input.maxSteps ?? 60_000) && isLive(session.phase); step += 1) {
     // A new prompt has to be noticed before it can be typed.
     const promptId = session.prompt?.id ?? null;
     if (promptId !== seenPromptId) {
@@ -131,20 +136,36 @@ export function playtest(input: PlaytestInput): PlaytestResult {
     }
 
     session = advanceRunSession(session, STEP_MS).session;
-
-    const gap = session.chase.distanceMeters / input.map.chase.startingDistanceMeters;
-    closest = Math.min(closest, gap);
   }
 
   return {
     session,
     finished: session.phase === 'levelComplete',
-    caught: session.phase === 'gameOver',
+    failureReason: session.phase === 'levelComplete' ? 'none' : (session.failureReason ?? 'none'),
     elapsedMs: session.elapsedMs,
-    closestApproach: closest,
+    hazardsFaced: session.obstaclesFaced,
+    hazardsCleared: session.obstaclesAvoided,
     obstacleSuccessRate: obstacleSuccessRate(session),
     mistakes,
   };
+}
+
+/**
+ * Fraction of seeds that finish the map, 0..1.
+ *
+ * With failure now binary, one seed is an anecdote: whether a run survives
+ * depends on which hazards it happened to draw and in which order. A finish rate
+ * over many seeds is the only honest way to ask whether a map is fair.
+ */
+export function finishRate(input: Omit<PlaytestInput, 'seed'>, seeds: number): number {
+  if (seeds <= 0) return 0;
+
+  let finished = 0;
+  for (let index = 0; index < seeds; index += 1) {
+    if (playtest({ ...input, seed: `finish-rate-${String(index)}` }).finished) finished += 1;
+  }
+
+  return finished / seeds;
 }
 
 /** The slowest speed, in whole WPM, that still finishes the map. */

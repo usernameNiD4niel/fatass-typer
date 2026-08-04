@@ -2,7 +2,13 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "target": "ES2022",
-    "lib": ["ES2023"],
+    /*
+     * DOM is here for the e2e specs only: a `page.evaluate` callback is authored
+     * in this project but executes inside the browser, so it legitimately needs
+     * `document` and the WebGL types. Vite/Playwright config files simply never
+     * reach for them.
+     */
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "types": ["node"],

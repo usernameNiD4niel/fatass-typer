@@ -30,7 +30,7 @@ export const PUNCTUATION: readonly PromptEntry[] = buildPrompts('punctuation', [
   { text: 'nearly...', minimumMap: 3 },
   { text: 'left; right', minimumMap: 5 },
   { text: '"keep going"', minimumMap: 5 },
-  { text: "the dog's lead", minimumMap: 4 },
+  { text: "the driver's side", minimumMap: 4 },
   { text: 'up-and-over', minimumMap: 4 },
 ]);
 
@@ -50,7 +50,7 @@ export const NUMBERS: readonly PromptEntry[] = buildPrompts('number', [
   { text: '30 mph', minimumMap: 4 },
   { text: '5 km', minimumMap: 3 },
   { text: '12:45', minimumMap: 4 },
-  { text: '3 dogs', minimumMap: 3 },
+  { text: '3 lanes', minimumMap: 3 },
   { text: '60 wpm', minimumMap: 4 },
   { text: '1,200', minimumMap: 5 },
   { text: '99', minimumMap: 2 },

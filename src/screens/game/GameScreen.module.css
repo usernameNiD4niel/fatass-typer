@@ -1,14 +1,14 @@
 /*
  * The run, full-bleed (spec §9).
  *
- * The canvas is the screen: it fills the browser viewport, and everything else
+ * The scene is the screen: it fills the browser viewport, and everything else
  * floats over it. Two rules keep that readable rather than cluttered:
  *
- *   1. **The prompt owns the bottom third.** It is the only thing the player
- *      actually reads while running, so nothing competes with it there.
+ *   1. **The middle of the screen stays empty.** The word the player is typing
+ *      is out in the world, near its hazard, and nothing in the overlay may
+ *      compete with it there.
  *   2. **Overlays never eat clicks.** The layer is `pointer-events: none`;
- *      only the controls inside it opt back in. A HUD that swallowed a click
- *      meant for the typing field would be worse than no HUD.
+ *      only the controls inside it opt back in.
  */
 
 .screen {
@@ -18,10 +18,17 @@
   background: var(--surface-canvas);
 }
 
-.canvas {
-  display: block;
-  width: 100%;
+.stage {
+  position: absolute;
+  inset: 0;
+}
+
+.loading {
+  display: grid;
+  place-items: center;
   height: 100%;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .overlay {
@@ -98,18 +105,6 @@
  * where it goes — and two separate floating cards made the eye travel between
  * them at exactly the moment it should be on the track.
  */
-.console {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4) var(--space-6) var(--space-3);
-  background: var(--surface-glass-strong);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-  backdrop-filter: blur(18px);
-}
-
 .controls {
   display: flex;
   gap: var(--space-4);

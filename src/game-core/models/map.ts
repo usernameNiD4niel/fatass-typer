@@ -9,15 +9,17 @@ import {
   isStringArray,
 } from './guards';
 import type { MapId, ObstacleId } from './ids';
+import { isMotionProfile } from './motion';
+import type { MotionProfile } from './motion';
 import type { PromptCategory } from './prompt';
 
 /**
  * Map configuration (spec §6).
  *
  * Difficulty is never "a WPM number". It is the combination of target speed,
- * prompt length and familiarity, obstacle frequency, reaction buffer, chase
- * pressure, collision penalty, and recovery opportunity. All of it lives here as
- * data so systems never hardcode tuning (CLAUDE.md §3).
+ * prompt length and familiarity, hazard frequency, reaction buffer, recovery
+ * time, and how often a car blocks both ways out. All of it lives here as data
+ * so systems never hardcode tuning (CLAUDE.md §3).
  */
 
 /** Visual theme, spec §6 map table. Drives palette and parallax art, not rules. */
@@ -56,27 +58,12 @@ export interface TimingProfile {
   readonly fixedVisualLeadTimeMs: number;
 }
 
-/** How the three dogs behave on this map (spec §5 dog chase system). */
-export interface ChaseProfile {
-  /** Starting gap in meters. Also the maximum — the gap never exceeds this. */
-  readonly startingDistanceMeters: number;
-  /** Meters lost per second of ordinary running. The baseline pressure. */
-  readonly baseCatchUpMetersPerSecond: number;
-  /** Meters lost immediately on hitting an obstacle. */
-  readonly collisionPenaltyMeters: number;
-  /** Meters lost when an obstacle prompt is missed without a collision. */
-  readonly missedPromptPenaltyMeters: number;
-  /** Meters regained per completed prompt while on a streak. */
-  readonly streakRecoveryMeters: number;
-  /**
-   * Consecutive completed prompts before recovery starts.
-   *
-   * Recovery is a reward for a run of good typing, not for every single prompt —
-   * otherwise the gap only ever grows and the dogs stop being a threat.
-   */
-  readonly streakThreshold: number;
-  /** Below this gap the HUD and audio escalate to a danger state. */
-  readonly dangerThresholdMeters: number;
+/** How the road speeds up over a run (spec §9 difficulty scaling). */
+export interface SpeedProfile {
+  /** Ceiling in metres per second. The ramp never exceeds it. */
+  readonly maxMetersPerSecond: number;
+  /** Metres per second added for each minute of running. */
+  readonly rampPerMinute: number;
 }
 
 /** Speed boost granted by completing a boost prompt (spec §5). */
@@ -93,6 +80,20 @@ export interface ContentProfile {
   readonly obstacleIntervalSeconds: number;
   /** Random variation applied to the interval, 0..1. Keeps spacing unpredictable. */
   readonly obstacleIntervalJitter: number;
+  /**
+   * Quiet road after a hazard resolves, in seconds. The breath between
+   * encounters is pacing, not an accident of the interval (spec §14).
+   */
+  readonly recoverySeconds: number;
+  /**
+   * Chance that a car blocks *both* neighbouring lanes when the player is in
+   * the centre and has two escapes, 0..1. Zero on the early maps: with one way
+   * out the player still has to type, but not also read which side.
+   *
+   * Never applies when there is only one escape — that would leave nowhere to
+   * go, which `lane-assignment.ts` refuses to construct.
+   */
+  readonly doubleBlockChance: number;
   /** Tags preferred when selecting themed vocabulary for this map. */
   readonly themeTags: readonly string[];
 }
@@ -110,7 +111,12 @@ export interface MapConfig {
   /** MC speed in meters per second before boosts and penalties. */
   readonly baseSpeedMetersPerSecond: number;
   readonly timing: TimingProfile;
-  readonly chase: ChaseProfile;
+  /**
+   * How long the player's avoidance moves take. Shared by the timing budget,
+   * the collision check, and the scene — see `models/motion.ts`.
+   */
+  readonly motion: MotionProfile;
+  readonly speed: SpeedProfile;
   readonly boost: BoostProfile;
   readonly content: ContentProfile;
   readonly unlock: UnlockRule;
@@ -160,15 +166,14 @@ export function isMapConfig(value: unknown): value is MapConfig {
   if (!isFiniteNumber(timing['reactionBuffer']) || timing['reactionBuffer'] < 1) return false;
   if (!isCount(timing['fixedVisualLeadTimeMs'])) return false;
 
-  const chase = value['chase'];
-  if (!isRecord(chase)) return false;
-  if (!isPositiveNumber(chase['startingDistanceMeters'])) return false;
-  if (!isCount(chase['baseCatchUpMetersPerSecond'])) return false;
-  if (!isCount(chase['collisionPenaltyMeters'])) return false;
-  if (!isCount(chase['missedPromptPenaltyMeters'])) return false;
-  if (!isCount(chase['streakRecoveryMeters'])) return false;
-  if (!isIntegerAtLeast(chase['streakThreshold'], 1)) return false;
-  if (!isCount(chase['dangerThresholdMeters'])) return false;
+  if (!isMotionProfile(value['motion'])) return false;
+
+  const speed = value['speed'];
+  if (!isRecord(speed)) return false;
+  if (!isPositiveNumber(speed['maxMetersPerSecond'])) return false;
+  if (!isCount(speed['rampPerMinute'])) return false;
+  // A ceiling below the base speed would make the ramp a brake.
+  if (speed['maxMetersPerSecond'] < value['baseSpeedMetersPerSecond']) return false;
 
   const boost = value['boost'];
   if (!isRecord(boost)) return false;
@@ -184,6 +189,8 @@ export function isMapConfig(value: unknown): value is MapConfig {
   if (!isStringArray(content['themeTags'])) return false;
   if (!isPositiveNumber(content['obstacleIntervalSeconds'])) return false;
   if (!isRatio(content['obstacleIntervalJitter'])) return false;
+  if (!isCount(content['recoverySeconds'])) return false;
+  if (!isRatio(content['doubleBlockChance'])) return false;
 
   const unlock = value['unlock'];
   if (!isRecord(unlock)) return false;

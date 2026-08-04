@@ -8,7 +8,7 @@ import { missedUnlockReason, newRecords, unlockedMap } from './run-summary';
 /**
  * Run results (spec §9).
  *
- * One screen for both endings. A player who was caught deserves their numbers
+ * One screen for both endings. A player who crashed deserves their numbers
  * just as much as one who finished — the difference is the heading and which
  * action leads, not how much information they are trusted with.
  */
@@ -71,7 +71,7 @@ export function RunResults({
     <section className={styles.screen} aria-label="Run results">
       <header className={styles.header}>
         <p className={classes(styles.outcome, result.completed ? styles.completed : styles.caught)}>
-          {result.completed ? 'Finished' : 'Caught by the dogs'}
+          {result.completed ? 'Finished' : 'Crashed'}
         </p>
         <h1 className={styles.title}>{map.name}</h1>
         <p className={styles.subtitle}>

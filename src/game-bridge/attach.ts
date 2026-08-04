@@ -1,88 +1,58 @@
 import { MAP_1, OBSTACLES, ALL_PROMPTS } from '../content';
 import type { MapConfig, ObstacleDefinition, PromptEntry } from '../game-core/models';
-import type { Canvas2D } from '../game-runtime/render';
 import { liveStats, RuntimeHost } from '../game-runtime/session';
 import { GameBridge } from './bridge';
+import type { WorldSnapshot } from './snapshot';
 
 /**
  * Builds a bridge with the TypeScript runtime behind it.
  *
- * This is the **only** module that knows both sides exist, and the reason React
- * never imports `game-runtime`: a screen asks for a bridge attached to a canvas
- * and gets back the same narrow object it would get from any other runtime.
+ * This is the **only** module that knows both sides exist, and the reason
+ * neither React nor the scene imports `game-runtime`: a caller asks for a game
+ * and gets back the same narrow handle it would get from any other runtime.
  * Swapping in Rust + WASM later means rewriting this file and nothing above it.
+ *
+ * The handle has two halves, because the game speaks at two rates. `bridge`
+ * carries throttled events into React. `advance` and `snapshot` are the scene's
+ * per-frame channel and never touch React at all.
  */
 
 export interface AttachGameOptions {
-  readonly canvas: HTMLCanvasElement | null;
-  readonly widthPx: number;
-  readonly heightPx: number;
-  readonly devicePixelRatio?: number;
   readonly map?: MapConfig;
   readonly prompts?: readonly PromptEntry[];
   readonly obstacles?: readonly ObstacleDefinition[];
   /** Fixing the seed makes a run reproducible — used by tests and bug reports. */
   readonly seed?: string;
-  /** Stops the decorative background from scrolling (spec §12). */
-  readonly reducedMotion?: boolean;
 }
 
 export interface AttachedGame {
   readonly bridge: GameBridge;
-  /** Call from a resize observer. */
-  resize: (widthPx: number, heightPx: number, devicePixelRatio?: number) => void;
-  /** Stops the loop, drops the canvas, and tears the bridge down. */
+  /**
+   * Advances the simulation by one frame and refreshes the snapshot.
+   *
+   * Called from the scene's `useFrame`. One render loop drives everything, so
+   * the snapshot is never a frame behind what is being drawn.
+   */
+  advance: (frameDeltaMs: number) => void;
+  /** The world as of the last `advance`. Read it, do not retain it. */
+  readonly snapshot: WorldSnapshot;
+  /** Stops the simulation and tears the bridge down. */
   destroy: () => void;
 }
 
-/**
- * Asks for the 2D context.
- *
- * Returns `null` rather than throwing when the environment has no canvas
- * implementation — jsdom and a few hardened browsers. The host reports that as
- * a fatal error, which the screen can show.
- */
-function get2dContext(canvas: HTMLCanvasElement | null): Canvas2D | null {
-  if (!canvas) return null;
-
-  try {
-    const context = canvas.getContext('2d');
-
-    // `Canvas2D` narrows `fillStyle` to a string because the renderer only ever
-    // assigns strings; the DOM type also allows gradients and patterns, and a
-    // mutable property is invariant, so the two do not line up without a cast.
-    // This is the one place the two type worlds meet.
-    return context as Canvas2D | null;
-  } catch {
-    return null;
-  }
-}
-
-export function attachGame(options: AttachGameOptions): AttachedGame {
+export function attachGame(options: AttachGameOptions = {}): AttachedGame {
   const bridge = new GameBridge();
-  const devicePixelRatio = options.devicePixelRatio ?? 1;
 
   const host = new RuntimeHost({
-    canvas: options.canvas,
-    context: get2dContext(options.canvas),
     map: options.map ?? MAP_1,
     prompts: options.prompts ?? ALL_PROMPTS,
     obstacles: options.obstacles ?? OBSTACLES,
     seed: options.seed ?? 'typing-chase',
-    ...(options.reducedMotion === undefined ? {} : { reducedMotion: options.reducedMotion }),
-    viewport: {
-      widthPx: options.widthPx,
-      heightPx: options.heightPx,
-      devicePixelRatio,
-    },
     emit: (event) => {
       bridge.emit(event);
     },
     publishStats: (session, nowMs) => {
-      const stats = liveStats(session);
-
-      bridge.publishStats(stats, nowMs);
-      bridge.publishDogDistance(stats.dogDistanceNormalized, nowMs);
+      bridge.publishStats(liveStats(session), nowMs);
     },
     publishDeadline: (remainingMs, pressure, nowMs) => {
       bridge.publishDeadline(remainingMs, pressure, nowMs);
@@ -93,9 +63,10 @@ export function attachGame(options: AttachGameOptions): AttachedGame {
 
   return {
     bridge,
-    resize: (widthPx, heightPx, ratio) => {
-      host.resize({ widthPx, heightPx, devicePixelRatio: ratio ?? devicePixelRatio });
+    advance: (frameDeltaMs) => {
+      host.advance(frameDeltaMs);
     },
+    snapshot: host.snapshot,
     destroy: () => {
       host.destroy();
       bridge.destroy();

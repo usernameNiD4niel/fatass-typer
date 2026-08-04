@@ -7,7 +7,7 @@ import styles from './Tutorial.module.css';
  * First-run tutorial (spec §9).
  *
  * Four things, once, before the first run — how to go faster, what the prompts
- * with timers are, why the dogs matter, and how to stop. Everything else the
+ * with timers are, why the hazards matter, and how to stop. Everything else the
  * game teaches by being played.
  *
  * A dialog rather than a screen: the player asked to start a run, and this is a
@@ -28,7 +28,7 @@ interface Step {
 const STEPS: readonly Step[] = [
   {
     title: 'Type the prompt to run faster',
-    body: 'Each word you finish gives you a burst of speed. Nothing forces you to type — but the dogs never stop.',
+    body: 'A car blocks your lane and a word appears on the open side; type it and you pull into that lane. A barrier blocks it and the word sits above; type it and you jump.',
   },
   {
     title: 'Obstacles come with a timer',
@@ -36,7 +36,7 @@ const STEPS: readonly Step[] = [
   },
   {
     title: 'Mistakes cost ground, not the run',
-    body: 'A wrong character breaks your combo and lets the dogs gain. You can always fix it and keep going.',
+    body: 'A wrong character breaks your combo, not your run. Fix it and keep going — but the hazard is still coming.',
   },
   {
     title: 'Escape pauses',

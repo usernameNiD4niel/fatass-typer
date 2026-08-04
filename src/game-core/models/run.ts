@@ -50,8 +50,10 @@ export interface LiveRunStats {
   readonly score: number;
   /** 0..1 along the track. */
   readonly progress: number;
-  /** 0..1, where 0 means caught. */
-  readonly dogDistanceNormalized: number;
+  /** Current forward speed, for the HUD readout the PDF asks for (§16). */
+  readonly speedMetersPerSecond: number;
+  /** Continuous lane position, 0..2. Whole numbers mean settled in a lane. */
+  readonly lanePosition: number;
   readonly elapsedMs: number;
 }
 
@@ -62,7 +64,8 @@ export const EMPTY_LIVE_STATS: LiveRunStats = {
   combo: 0,
   score: 0,
   progress: 0,
-  dogDistanceNormalized: 1,
+  speedMetersPerSecond: 0,
+  lanePosition: 1,
   elapsedMs: 0,
 };
 

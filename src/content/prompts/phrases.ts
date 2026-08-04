@@ -16,7 +16,7 @@ import { buildPrompts } from './build';
 export const SHORT_PHRASES: readonly PromptEntry[] = buildPrompts('short-phrase', [
   { text: 'keep going' },
   { text: 'run faster' },
-  { text: 'good dog' },
+  { text: 'green light' },
   { text: 'almost there' },
   { text: 'down the road' },
   { text: 'not today' },
@@ -39,7 +39,7 @@ export const SHORT_PHRASES: readonly PromptEntry[] = buildPrompts('short-phrase'
  * rather than bursts.
  */
 export const MEDIUM_PHRASES: readonly PromptEntry[] = buildPrompts('medium-phrase', [
-  { text: 'the dogs are gaining', minimumMap: 3 },
+  { text: 'the lane is clear', minimumMap: 3 },
   { text: 'do not look back now', minimumMap: 3 },
   { text: 'keep your feet moving', minimumMap: 4 },
   { text: 'the finish line is close', minimumMap: 4 },

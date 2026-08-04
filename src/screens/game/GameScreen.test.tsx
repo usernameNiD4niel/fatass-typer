@@ -5,54 +5,53 @@ import { describe, expect, it, vi } from 'vitest';
 import { GameScreen } from './GameScreen';
 
 /**
- * jsdom implements `<canvas>` but not a 2D context, so the runtime reports a
- * fatal error and renders nothing. That is exactly the path a locked-down
- * browser takes, and it is worth having covered: the screen must stay usable
- * and honest rather than showing a blank box.
+ * The screen around the scene.
+ *
+ * jsdom has no WebGL, so the Three.js canvas is mocked out entirely. That is
+ * not a compromise — it is the honest boundary. What this screen owns is the
+ * HUD, the overlay, the keyboard, and the live regions; what the scene draws is
+ * decided by the `WorldSnapshot`, which is tested where it is built.
  *
  * The simulation itself is tested headlessly in `run-session.test.ts`.
  */
 
+vi.mock('../../game-scene', () => ({
+  GameCanvas: () => <div data-testid="game-canvas" />,
+}));
+
 describe('GameScreen', () => {
-  it('renders the stage, the prompt area, and the typing field', () => {
+  it('renders the stage and the HUD', () => {
     render(<GameScreen />);
 
     expect(
-      screen.getByRole('img', { name: 'The runner, the track ahead, and the chasing dogs' }),
+      screen.getByRole('img', { name: 'The road ahead, the hazards on it, and the runner' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
-  });
-
-  it('shows the HUD readouts and both meters', () => {
-    render(<GameScreen />);
 
     for (const label of ['WPM', 'Accuracy', 'Combo', 'Score']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
 
     expect(screen.getByRole('progressbar', { name: 'To finish' })).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Dogs' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Speed' })).toBeInTheDocument();
   });
 
-  it('explains itself when the browser has no 2D canvas context', () => {
+  it('has no typing field at all', () => {
     render(<GameScreen />);
 
-    expect(screen.getByText(/did not provide a 2D canvas context/)).toBeInTheDocument();
+    // The PDF is explicit: no visible gameplay text input, no click-to-focus
+    // box. The keyboard is captured from the window instead.
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
-  it('disables typing until a run is under way', () => {
+  it('tells the player they can simply type', () => {
     render(<GameScreen />);
 
-    expect(screen.getByRole('textbox')).toBeDisabled();
+    // With no box to click, the absence of one has to be stated — otherwise a
+    // player waits for something to focus.
+    expect(screen.getByText(/just type/i)).toBeInTheDocument();
   });
 
-  it('keeps the start control unusable while the runtime is not ready', () => {
-    render(<GameScreen />);
-
-    expect(screen.getByRole('button', { name: 'Start run' })).toBeDisabled();
-  });
-
-  it('unmounts without leaving the loop running', () => {
+  it('unmounts without leaving the simulation running', () => {
     const view = render(<GameScreen />);
 
     expect(() => {
@@ -68,7 +67,16 @@ describe('GameScreen', () => {
     expect(screen.getByRole('button', { name: 'Pause' })).toBeDisabled();
   });
 
-  it('listens for Escape while mounted and stops on unmount', () => {
+  it('ignores Escape when nothing is running', async () => {
+    const user = userEvent.setup();
+    render(<GameScreen />);
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByText(/Paused/)).not.toBeInTheDocument();
+  });
+
+  it('stops listening to the keyboard on unmount', () => {
     const added: string[] = [];
     const removed: string[] = [];
     const addSpy = vi.spyOn(window, 'addEventListener').mockImplementation((type) => {
@@ -80,25 +88,16 @@ describe('GameScreen', () => {
 
     render(<GameScreen />).unmount();
 
-    // A leaked key listener would keep pausing a run that no longer exists.
+    // A leaked key listener would keep typing into a run that no longer exists.
     expect(added).toContain('keydown');
     expect(removed).toContain('keydown');
 
     addSpy.mockRestore();
     removeSpy.mockRestore();
   });
-
-  it('ignores Escape when nothing is running', async () => {
-    const user = userEvent.setup();
-    render(<GameScreen />);
-
-    await user.keyboard('{Escape}');
-
-    expect(screen.queryByText(/Paused/)).not.toBeInTheDocument();
-  });
 });
 
-describe('GameScreen accessibility (spec §12)', () => {
+describe('GameScreen accessibility (spec §12, §21)', () => {
   it('restarts on Ctrl+Enter from anywhere on the screen', async () => {
     const user = userEvent.setup();
     const onRestart = vi.fn();
@@ -119,7 +118,7 @@ describe('GameScreen accessibility (spec §12)', () => {
     expect(onRestart).toHaveBeenCalledTimes(1);
   });
 
-  it('does not restart on a bare Enter, which the typing field owns', async () => {
+  it('does not restart on a bare Enter', async () => {
     const user = userEvent.setup();
     const onRestart = vi.fn();
     render(<GameScreen onRestart={onRestart} />);
@@ -136,7 +135,7 @@ describe('GameScreen accessibility (spec §12)', () => {
     expect(screen.getByText('Ctrl')).toBeInTheDocument();
   });
 
-  it('carries one polite live region for the run', () => {
+  it('carries a polite live region for the run', () => {
     render(<GameScreen />);
 
     // `status` rather than `alert`: the run should not interrupt whatever the
@@ -151,16 +150,16 @@ describe('GameScreen accessibility (spec §12)', () => {
     const [region] = screen.getAllByRole('status');
     await user.keyboard('hello');
 
-    // The live region is for moments, not characters. The prompt itself is the
-    // field's accessible name, which is where a screen reader reads it from.
+    // The live region is for moments, not characters. A region that updated per
+    // keystroke would be a screen reader that never stops talking.
     expect(region?.textContent ?? '').not.toContain('hello');
   });
 
-  it('gives the canvas a description rather than leaving it unlabelled', () => {
+  it('describes the scene rather than leaving it unlabelled', () => {
     render(<GameScreen />);
 
     expect(
-      screen.getByRole('img', { name: 'The runner, the track ahead, and the chasing dogs' }),
+      screen.getByRole('img', { name: 'The road ahead, the hazards on it, and the runner' }),
     ).toBeInTheDocument();
   });
 });

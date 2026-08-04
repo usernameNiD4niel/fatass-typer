@@ -98,7 +98,6 @@ export type GameEvent =
   | { readonly type: 'stateChanged'; readonly state: GameState }
   | { readonly type: 'promptChanged'; readonly prompt: PromptViewModel | null }
   | { readonly type: 'statsUpdated'; readonly stats: LiveRunStats }
-  | { readonly type: 'dogDistanceChanged'; readonly normalizedDistance: number }
   | { readonly type: 'obstacleWarning'; readonly obstacle: ObstacleViewModel }
   /** A prompt was finished and the boost started. The runner's moment to gloat. */
   | { readonly type: 'boostStarted' }

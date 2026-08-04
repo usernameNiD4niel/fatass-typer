@@ -25,19 +25,17 @@ import {
  */
 
 describe('obstacle definitions', () => {
-  it('defines the seven obstacles from the spec, plus the rock', () => {
-    // The rock is ours, not the spec's: it is the one shape a player reads as
-    // "jump this" with no explanation, which earns it a place on every map.
+  it('defines five jump hazards and three cars', () => {
     expect(OBSTACLES.map((obstacle) => obstacle.id).sort()).toEqual(
       [
         'rock',
         'crate',
-        'hanging-sign',
         'low-barrier',
-        'narrow-passage',
-        'puddle',
+        'cone-beam',
         'roadwork-barrier',
-        'trash-bin',
+        'sedan',
+        'van',
+        'box-truck',
       ].sort(),
     );
   });
@@ -52,23 +50,27 @@ describe('obstacle definitions', () => {
     expect(new Set(OBSTACLES.map((obstacle) => obstacle.id)).size).toBe(OBSTACLES.length);
   });
 
-  it('matches the spec on how each one is avoided', () => {
+  it('gives every hazard one of the two verbs', () => {
     const actions = Object.fromEntries(OBSTACLES.map((o) => [o.id, o.action]));
 
     expect(actions).toMatchObject({
+      rock: 'jump',
       crate: 'jump',
       'low-barrier': 'jump',
-      puddle: 'jump',
+      'cone-beam': 'jump',
       'roadwork-barrier': 'jump',
-      'hanging-sign': 'slide',
-      'trash-bin': 'sidestep',
+      sedan: 'lane-change',
+      van: 'lane-change',
+      'box-truck': 'lane-change',
     });
   });
 
-  it('asks for a phrase only on the narrow passage', () => {
+  it('asks for a word, never a phrase', () => {
+    // A phrase inside the seconds a hazard gives you is a different game. Words
+    // only, and the length of the word is the difficulty dial.
     const phrases = OBSTACLES.filter((o) => o.promptCategory.endsWith('phrase'));
 
-    expect(phrases.map((o) => o.id)).toEqual(['narrow-passage']);
+    expect(phrases).toEqual([]);
   });
 
   it('keeps the harder obstacles off the early maps', () => {
@@ -84,9 +86,9 @@ describe('obstacle definitions', () => {
   });
 
   it('resolves ids to definitions and skips unknown ones', () => {
-    expect(findObstacle('crate')?.label).toBe('Wooden crate');
+    expect(findObstacle('crate')?.label).toBe('Fallen crate');
     expect(findObstacle('not-real')).toBeUndefined();
-    expect(obstaclesFor(['puddle', 'not-real']).map((o) => o.id)).toEqual(['puddle']);
+    expect(obstaclesFor(['sedan', 'not-real']).map((o) => o.id)).toEqual(['sedan']);
   });
 });
 

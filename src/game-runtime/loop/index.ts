@@ -4,12 +4,5 @@ export {
   drainAccumulator,
 } from './fixed-timestep';
 export type { AccumulatorResult, FixedTimestepConfig } from './fixed-timestep';
-export { browserScheduler, GameLoop } from './game-loop';
-export type {
-  GameLoopCallbacks,
-  GameLoopOptions,
-  GameLoopStats,
-  LoopRenderContext,
-  LoopScheduler,
-  LoopUpdateContext,
-} from './game-loop';
+export { FixedStepDriver } from './fixed-step-driver';
+export type { FixedStepDriverOptions, FixedStepResult, FixedStepStats } from './fixed-step-driver';

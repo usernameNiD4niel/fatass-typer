@@ -31,6 +31,23 @@ export {
 } from './prompt';
 export type { PromptCategory, PromptEntry, PromptUsage } from './prompt';
 
+export {
+  adjacentLanes,
+  CENTRE_LANE,
+  isLaneIndex,
+  isLaneSide,
+  LANE_COUNT,
+  LANE_INDICES,
+  LANE_SIDES,
+  laneOffset,
+  laneToward,
+  sideBetween,
+} from './lane';
+export type { LaneIndex, LaneSide } from './lane';
+
+export { isMotionProfile, jumpDurationMs, timeToClearanceMs } from './motion';
+export type { MotionProfile } from './motion';
+
 export { isObstacleAction, isObstacleDefinition, OBSTACLE_ACTIONS } from './obstacle';
 export type { ObstacleAction, ObstacleDefinition } from './obstacle';
 
@@ -38,10 +55,10 @@ export { DEFAULT_ADAPTIVE_ASSISTANCE, isMapConfig, MAP_THEMES } from './map';
 export type {
   AdaptiveAssistanceConfig,
   BoostProfile,
-  ChaseProfile,
   ContentProfile,
   MapConfig,
   MapTheme,
+  SpeedProfile,
   TimingProfile,
   UnlockRule,
 } from './map';

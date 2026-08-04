@@ -2,180 +2,22 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { PromptViewModel } from '../../game-bridge/messages';
 import { EMPTY_LIVE_STATS, type LiveRunStats } from '../../game-core/models';
 import { Hud } from './Hud';
-import { PauseOverlay } from './PauseOverlay';
-import { PromptDisplay } from './PromptDisplay';
-import { threatLevel } from './threat';
-
-const BOOST_PROMPT: PromptViewModel = {
-  promptId: 'p-1',
-  text: 'garden',
-  typedLength: 0,
-  mistakeCount: 0,
-  kind: 'boost',
-  remainingMs: null,
-};
-
-const OBSTACLE_PROMPT: PromptViewModel = {
-  ...BOOST_PROMPT,
-  promptId: 'p-2',
-  text: 'crate',
-  kind: 'obstacle',
-  remainingMs: 4000,
-};
 
 function statsWith(overrides: Partial<LiveRunStats> = {}): LiveRunStats {
   return { ...EMPTY_LIVE_STATS, ...overrides };
 }
 
-/** The rendered per-character classes, in order. */
-function characterClasses(): string[] {
-  const prompt = screen.getByLabelText(/^Type: /);
-
-  return [...prompt.querySelectorAll('span')].map((span) => span.className);
-}
-
-describe('threatLevel', () => {
-  it('reads the gap the way a player feels it', () => {
-    expect(threatLevel(1)).toBe('safe');
-    expect(threatLevel(0.5)).toBe('safe');
-    expect(threatLevel(0.35)).toBe('closing');
-    expect(threatLevel(0.15)).toBe('critical');
-    expect(threatLevel(0)).toBe('caught');
-  });
-});
-
-describe('PromptDisplay', () => {
-  it('shows the prompt text', () => {
-    render(<PromptDisplay prompt={BOOST_PROMPT} typed="" />);
-
-    expect(screen.getByLabelText('Type: garden')).toBeInTheDocument();
-  });
-
-  it('marks correct, incorrect, current, and untyped characters differently', () => {
-    render(<PromptDisplay prompt={BOOST_PROMPT} typed="gax" />);
-    const classNames = characterClasses();
-
-    // g a x d e n  →  correct correct incorrect current untyped untyped
-    expect(classNames[0]).toContain('correct');
-    expect(classNames[1]).toContain('correct');
-    expect(classNames[2]).toContain('incorrect');
-    expect(classNames[3]).toContain('current');
-    expect(classNames[4]).toContain('untyped');
-  });
-
-  it('agrees with the typing engine about what is correct', () => {
-    // Case-insensitive by default (spec §5), so this is a correct character.
-    render(<PromptDisplay prompt={BOOST_PROMPT} typed="G" />);
-
-    expect(characterClasses()[0]).toContain('correct');
-  });
-
-  it('tells the player which kind of prompt this is', () => {
-    const view = render(<PromptDisplay prompt={BOOST_PROMPT} typed="" />);
-    expect(screen.getByText('Boost prompt')).toBeInTheDocument();
-
-    view.rerender(<PromptDisplay prompt={OBSTACLE_PROMPT} typed="" />);
-    expect(screen.getByText(/Obstacle/)).toBeInTheDocument();
-  });
-
-  it('shows a deadline only for obstacle prompts', () => {
-    const view = render(
-      <PromptDisplay prompt={BOOST_PROMPT} typed="" deadlineMs={2000} pressure="warning" />,
-    );
-
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-
-    view.rerender(
-      <PromptDisplay prompt={OBSTACLE_PROMPT} typed="" deadlineMs={2000} pressure="warning" />,
-    );
-
-    expect(
-      screen.getByRole('progressbar', { name: 'Time left to type this prompt' }),
-    ).toBeInTheDocument();
-  });
-
-  it('states the time left as a number as well as a bar', () => {
-    render(
-      <PromptDisplay prompt={OBSTACLE_PROMPT} typed="" deadlineMs={1500} pressure="critical" />,
-    );
-
-    expect(screen.getByText('1.5s left')).toBeInTheDocument();
-  });
-
-  it('drains the bar as the deadline closes', () => {
-    const view = render(
-      <PromptDisplay prompt={OBSTACLE_PROMPT} typed="" deadlineMs={4000} pressure="safe" />,
-    );
-
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
-
-    view.rerender(
-      <PromptDisplay prompt={OBSTACLE_PROMPT} typed="" deadlineMs={1000} pressure="critical" />,
-    );
-
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '25');
-  });
-
-  it('never shows a negative countdown', () => {
-    render(
-      <PromptDisplay prompt={OBSTACLE_PROMPT} typed="" deadlineMs={-500} pressure="expired" />,
-    );
-
-    expect(screen.getByText('0.0s left')).toBeInTheDocument();
-  });
-
-  it('says something useful when there is no prompt', () => {
-    render(<PromptDisplay prompt={null} typed="" idleMessage="Press Start when you are ready" />);
-
-    expect(screen.getByText('Press Start when you are ready')).toBeInTheDocument();
-  });
-});
-
-describe('PauseOverlay', () => {
-  function setup() {
-    const handlers = { onResume: vi.fn(), onRestart: vi.fn(), onQuit: vi.fn() };
-    render(<PauseOverlay {...handlers} />);
-
-    return { ...handlers, user: userEvent.setup() };
-  }
-
-  it('is a dialog that says it is paused', () => {
-    setup();
-
-    expect(screen.getByRole('dialog', { name: 'Paused' })).toBeInTheDocument();
-    expect(screen.getByText('Press Escape to resume')).toBeInTheDocument();
-  });
-
-  it('takes focus, so a keyboard player can reach its controls', () => {
-    setup();
-
-    // Left in the typing field, the first keystroke of the resume would be
-    // swallowed — and these buttons would be unreachable.
-    expect(screen.getByRole('button', { name: 'Resume' })).toHaveFocus();
-  });
-
-  it('offers resume, restart, and quit', async () => {
-    const { user, onResume, onRestart, onQuit } = setup();
-
-    await user.click(screen.getByRole('button', { name: 'Resume' }));
-    await user.click(screen.getByRole('button', { name: 'Restart run' }));
-    await user.click(screen.getByRole('button', { name: 'Quit to maps' }));
-
-    expect(onResume).toHaveBeenCalledTimes(1);
-    expect(onRestart).toHaveBeenCalledTimes(1);
-    expect(onQuit).toHaveBeenCalledTimes(1);
-  });
-});
-
 describe('Hud', () => {
+  const TOP_SPEED = 12;
+
   function setup(stats: LiveRunStats, options: { paused?: boolean; canPause?: boolean } = {}) {
     const onPause = vi.fn();
     render(
       <Hud
         stats={stats}
+        topSpeedMetersPerSecond={TOP_SPEED}
         onPause={onPause}
         paused={options.paused ?? false}
         canPause={options.canPause ?? true}
@@ -209,31 +51,20 @@ describe('Hud', () => {
     );
   });
 
-  it('describes the dogs in words, not only colour', () => {
-    const view = render(
-      <Hud
-        stats={statsWith({ dogDistanceNormalized: 1 })}
-        onPause={vi.fn()}
-        paused={false}
-        canPause
-      />,
-    );
+  it('reports speed as a number, not only as a bar', () => {
+    setup(statsWith({ speedMetersPerSecond: 6.4 }));
 
-    expect(screen.getByRole('progressbar', { name: 'Dogs' })).toHaveAttribute(
-      'aria-valuetext',
-      'Safe',
-    );
+    const meter = screen.getByRole('progressbar', { name: 'Speed' });
 
-    view.rerender(
-      <Hud
-        stats={statsWith({ dogDistanceNormalized: 0.1 })}
-        onPause={vi.fn()}
-        paused={false}
-        canPause
-      />,
-    );
+    // Colour and length are not enough on their own (spec §21).
+    expect(meter).toHaveAttribute('aria-valuetext', '6.4 m/s');
+    expect(meter).toHaveAttribute('aria-valuenow', '53');
+  });
 
-    expect(screen.getByText('Right behind you')).toBeInTheDocument();
+  it('never shows the word being typed — that belongs beside its hazard', () => {
+    setup(statsWith({ currentWpm: 30 }));
+
+    expect(screen.queryByText(/type/i)).not.toBeInTheDocument();
   });
 
   it('offers pause, and says resume while paused', async () => {

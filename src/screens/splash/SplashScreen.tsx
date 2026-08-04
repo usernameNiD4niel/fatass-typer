@@ -62,7 +62,7 @@ export function SplashScreen({
   return (
     <section className={styles.screen} aria-label="Loading Typing Chase">
       <h1 className={styles.title}>Typing Chase</h1>
-      <p className={styles.tagline}>Type fast. The dogs are gaining.</p>
+      <p className={styles.tagline}>Type fast. The road does not wait.</p>
 
       <div
         className={styles.progressTrack}

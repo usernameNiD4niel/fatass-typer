@@ -63,7 +63,7 @@ export const TRANSITIONS: Readonly<Record<AppState, StateTransitions>> = {
 
   PlayerHit: {
     RECOVER: 'Running',
-    // A collision can be the one that lets the dogs close the gap completely.
+    // A collision is the end of the run: there is nothing left to absorb it.
     CAUGHT_BY_DOGS: 'GameOver',
     PAUSE: 'Paused',
   },

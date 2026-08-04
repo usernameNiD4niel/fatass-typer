@@ -30,6 +30,10 @@ const GAME_CORE_FORBIDDEN_GLOBALS = [
 
 const REACT_IMPORT_GROUP = ['react', 'react-dom', 'react/*', 'react-dom/*'];
 
+// Three.js is the scene layer's business and nobody else's. The rules must stay
+// renderer-free so they remain replaceable (CLAUDE.md §3).
+const THREE_IMPORT_GROUP = ['three', 'three/*', '@react-three/*'];
+
 export default tseslint.config(
   { ignores: ['dist', 'coverage', 'node_modules', 'playwright-report', 'test-results'] },
 
@@ -95,14 +99,20 @@ export default tseslint.config(
               message: 'game-core must not import React (CLAUDE.md §3).',
             },
             {
+              group: THREE_IMPORT_GROUP,
+              message: 'game-core must not import a renderer (CLAUDE.md §3).',
+            },
+            {
               group: [
                 '**/game-runtime/**',
                 '**/game-bridge/**',
+                '**/game-scene/**',
                 '**/storage/**',
                 '**/components/**',
                 '**/screens/**',
                 '@/game-runtime/**',
                 '@/game-bridge/**',
+                '@/game-scene/**',
                 '@/storage/**',
                 '@/components/**',
                 '@/screens/**',
@@ -136,8 +146,48 @@ export default tseslint.config(
               message: 'game-runtime must not import React (CLAUDE.md §3).',
             },
             {
-              group: ['**/components/**', '**/screens/**', '@/components/**', '@/screens/**'],
+              group: THREE_IMPORT_GROUP,
+              message:
+                'game-runtime drives the simulation; drawing belongs to game-scene (CLAUDE.md §3).',
+            },
+            {
+              group: [
+                '**/components/**',
+                '**/screens/**',
+                '**/game-scene/**',
+                '@/components/**',
+                '@/screens/**',
+                '@/game-scene/**',
+              ],
               message: 'game-runtime must not depend on the UI layer (CLAUDE.md §3).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // --- Layer boundary: game-scene draws, and only draws. --------------------
+  // It reads the world through game-bridge (events + WorldSnapshot) and knows
+  // nothing about how the simulation is stepped or where progress is stored.
+  {
+    files: ['src/game-scene/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/game-runtime/**',
+                '**/screens/**',
+                '**/storage/**',
+                '@/game-runtime/**',
+                '@/screens/**',
+                '@/storage/**',
+              ],
+              message:
+                'game-scene reads the world through game-bridge only (CLAUDE.md §3). No runtime internals, no screens, no storage.',
             },
           ],
         },
@@ -174,7 +224,9 @@ export default tseslint.config(
             {
               group: [
                 ...REACT_IMPORT_GROUP,
+                ...THREE_IMPORT_GROUP,
                 '**/game-runtime/**',
+                '**/game-scene/**',
                 '**/components/**',
                 '**/screens/**',
               ],

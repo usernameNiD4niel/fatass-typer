@@ -31,8 +31,12 @@ instruction from the user.
 Everything else in the spec stands: game rules, difficulty model, sustainable peak WPM,
 six maps, iOS-inspired desktop UI, accessibility, automated tests.
 
-Actual stack: React + TypeScript (strict) + Vite + Canvas 2D + Vanilla CSS / CSS Modules.
-Vitest for units and components, Playwright for e2e. No heavy component library.
+Actual stack: React + TypeScript (strict) + Vite + **Three.js via React Three Fiber** +
+Vanilla CSS / CSS Modules. Vitest for units and components, Playwright for e2e. No heavy
+component library.
+
+The scene was Canvas 2D until the three-lane rework (§4a). Everything in it is built from
+primitive geometry — no models, no textures, no fonts, no remote assets of any kind.
 
 ---
 
@@ -40,9 +44,10 @@ Vitest for units and components, Playwright for e2e. No heavy component library.
 
 ```
 src/
-├── game-core/      pure rules — no DOM, no React, no canvas
-├── game-runtime/   canvas renderer + fixed-timestep loop
-├── game-bridge/    command-in / event-out bus
+├── game-core/      pure rules — no DOM, no React, no renderer
+├── game-runtime/   the simulation: fixed timestep, hazards, the run
+├── game-bridge/    command-in / event-out bus, plus the per-frame WorldSnapshot
+├── game-scene/     Three.js — the road, the runner, the hazards, the word
 ├── storage/        StorageAdapter interface + in-memory impl
 ├── content/        word lists, map configs, obstacle data
 ├── components/     reusable UI primitives
@@ -57,7 +62,8 @@ game-core. Every draw returns `{ value, rng }` — the next generator travels wi
 so randomness is threaded as data and never hides in module state. Same seed, same run.
 
 Typing: `src/game-core/typing/` compares **whole input values**, not key events —
-`applyInput(state, inputElementValue)`. Insertions, backspace, and paste are all handled
+`applyInput(state, wholeValue)`. There is no input element any more; `useTypingCapture`
+keeps the buffer in a ref and feeds it the same way. Insertions, backspace, and paste are all handled
 by diffing against the previous value. Counters are event-based (a mistake that is fixed
 still counts as a mistake), and input is ignored once a prompt completes so nothing
 resolves twice.
@@ -69,6 +75,11 @@ in `models/guards.ts`. Every persisted shape carries `schemaVersion`, and recove
 (`coerceSettings`, `coercePlayerProfile`) repairs field-by-field rather than discarding a
 whole record (spec §17).
 
+Motion: `src/game-core/motion/` owns the lane and jump curves, and it owns them because
+the rules have to be able to answer "had the move finished when the hazard arrived". A
+curve that lived in the renderer would make that unanswerable. The scene multiplies the
+same numbers by lane width and apex height.
+
 Navigation: `src/game-core/app-state/` owns the state machine (spec §4) — an explicit
 transition table plus a pure `transition()`. `src/hooks/useAppMachine.ts` is the only
 React binding to it. Screens never track navigation with their own booleans, and a
@@ -76,17 +87,24 @@ control is only rendered when `machine.can(event)` allows it.
 
 Hard rules:
 
-- **`game-core` imports nothing from the DOM, React, or the renderer.** It is
+- **`game-core` imports nothing from the DOM, React, or a renderer.** It is
   deterministic, seeded, and fully unit-tested. This is the boundary a Rust
   implementation would later replace.
-- `game-runtime` never imports React. React never imports `game-runtime` internals —
-  only `game-bridge`.
+- `game-runtime` never imports React or Three.js. It decides what is true; it does not
+  draw.
+- `game-scene` draws and does not decide. Every position it renders comes from the
+  snapshot — which is to say from `game-core`. It adds only what cannot change the outcome
+  of a run: gait, lean, squash, camera drift.
+- Neither React nor `game-scene` imports `game-runtime` internals — only `game-bridge`.
 - No game rules inside React components.
 - No persistence code inside rendering code.
 - TypeScript strict. No `any`. Small focused modules. No magic numbers — map tuning
   lives in config files under `content/`.
-- Per-frame data does not flow into React. The bridge emits UI updates at a fixed
-  low frequency (~10Hz), never once per animation frame.
+- Per-frame data does not flow into React. The bridge emits UI *events* at a fixed low
+  frequency (~10Hz); per-frame state goes into `WorldSnapshot`, which the scene reads and
+  React never subscribes to.
+- One render loop. The simulation is advanced from inside R3F's `useFrame` at priority
+  `-1`, never from a second `requestAnimationFrame` chain of our own.
 
 **These boundaries are enforced by ESLint, not by convention.** See the layer blocks in
 `eslint.config.js`. `npm run lint` fails on a violation. Each layer folder also carries a
@@ -94,10 +112,11 @@ Hard rules:
 
 | Layer | Forbidden |
 |---|---|
-| `game-core` | browser globals, `Date.now`, `Math.random`, React, all outer layers |
-| `game-runtime` | React, `components`, `screens` |
+| `game-core` | browser globals, `Date.now`, `Math.random`, React, Three.js, all outer layers |
+| `game-runtime` | React, Three.js, `game-scene`, `components`, `screens` |
+| `game-scene` | `game-runtime` internals, `screens`, `storage` |
 | `components` / `screens` / `App.tsx` | `game-runtime` internals — go through `game-bridge` |
-| `content` | React, `game-runtime`, `components`, `screens` |
+| `content` | React, Three.js, `game-runtime`, `game-scene`, `components`, `screens` |
 
 ---
 
@@ -130,152 +149,114 @@ wait. Do not begin the next step unprompted.
 
 > Keep this block current. It is the first thing to read when picking the project back up.
 
-**Progress: 41 / 41 planned steps complete, plus H1 (below).** All six maps are
-playable end to end with obstacles, and a simulated typist at each map's advertised speed
-finishes it (spec §19 milestones 1 and 2).
+**The game is now a three-lane road runner.** The 41-step build plan below is complete
+and historical; on top of it sits the **three-lane rework** (`typing_runner_claude_prompt.pdf`),
+which replaced the gameplay itself. Read this block before the steps — several of them
+describe systems that no longer exist.
 
 | | |
 |---|---|
-| **Last completed** | **H1** — the chase view: perspective renderer, full-bleed UI |
+| **Last completed** | the three-lane rework: cars, jumps, world-space prompts, no dogs |
 | **Next up** | nothing scheduled — awaiting direction |
-
-**All six maps are tuned (F2, F3).** `session/playtest-harness.ts` drives a metronomic
-simulated typist; `map-1-playtest.test.ts` and `map-progression.test.ts` state the results as
-assertions, because playtesting a typing game by hand measures the tester. Every map is
-finishable at its advertised speed *including while mistyping one character in twelve*, and
-no prompt a map can spawn demands more WPM than the map advertises. Survival thresholds run
-roughly 12 → 29 WPM across the ladder.
-
-**Adaptive assistance is dormant (F4).** It is implemented, wired, clamped, and honours its
-setting — but it triggers on missed obstacles, and the obstacle timing budget is generous
-enough that a player missing obstacles has already been caught by the dogs. 360 simulated
-runs produced no easing. `game-core/assistance/README.md` explains why and what changing it
-would mean; the dormancy is pinned by a test so it cannot shift unnoticed.
-
-**Audio is entirely synthesised (G1).** No audio files, so nothing copyrighted and nothing
-to preload. `src/audio/` holds the engine behind a narrow `AudioContextLike` interface —
-jsdom has no Web Audio, so a recording `FakeAudioContext` is what makes the 24 tests assert
-on tones actually played rather than on mock calls. Nothing sounds before a user gesture
-(the Start button unlocks it), and every audio call is try/caught: silence is always an
-acceptable failure mode.
-
-**Accessibility is done to the edges of what a canvas allows (G2).** The run carries one
-polite live region that narrates *moments* — obstacle warning, collision, the dogs closing,
-the end of the run — and never keystrokes, because a region that updates per character is a
-screen reader that never stops talking. `components/hud/announcements.ts` owns the wording,
-pure and tested. Ctrl/Cmd+Enter restarts from anywhere including the typing field, and both
-shortcuts are printed on the screen they apply to. A locked map card is now `aria-disabled`
-rather than `disabled`: it stays in the tab order, because the unlock requirement is written
-on it. `prefers-contrast: more` pushes the prompt colours to the ends of the ramps and
-thickens the focus ring. Reduced motion reaches the canvas too — `stillLayers()` holds the
-decorative parallax while the run itself keeps scrolling, since the scrolling *is* the game.
-
-**Performance is measured, and the numbers are written down (G3).** `docs/performance.md`
-holds them. `session/profile-harness.ts` drives the real host at 60Hz of simulated time
-through a draw-call-counting context, with a metronomic typist so a run reaches its finish
-line — profiling in a browser measures the browser, since an automated window is throttled
-to a fraction of a frame per second. Simulation plus scene assembly costs **0.003–0.010ms**
-of a 16.67ms frame, at ~290 draw calls, *flat* from the first minute of a map to the last.
-Screens past the menu are `lazy()`-loaded and the vendor code is its own chunk, so first
-load is **~77 kB gzipped** instead of a single 98 kB bundle, and the whole runtime arrives
-only when a run starts. Rasterisation is the one thing these numbers do not cover.
-
-**The game is now a behind-the-runner chase (H1, on request).** The side-scrolling view is
-gone. `render/perspective.ts` is a pinhole projection down a straight track; `track-renderer`
-draws the world, `runner-renderer` draws him from behind, `pack-renderer` puts the dogs
-between the lens and the runner, and `obstacle-course-renderer` brings obstacles out of the
-vanishing point — including a rock, which is the one shape nobody needs told to jump. The run
-screen fills the browser viewport and the HUD, prompt, and field float over it on glass. While
-boosting he looks back over his shoulder, grins, and laughs at the dogs. Six render modules
-were deleted and replaced; `perspective.test.ts` and `scene-actors.test.ts` are their new
-tests, and the maps were re-tuned around it (catch-up 1.7 → 3.4 across the ladder).
-
-**The e2e suite found two real bugs (G4).** 13 Playwright tests run against the production
-build in Chromium: keyboard-only navigation, and a whole run — start, type, pause, restart,
-quit, get caught. They caught what unit tests structurally could not. First, the app machine
-never entered `Paused`, because pausing happened in the runtime and was never reported
-upward — so the pause overlay offered Quit and Restart from a state where the machine
-rejected both, silently. `GameScreen` now reports pause changes through `onPauseChange` and
-the machine follows. Second, `restart()` delegated to the shell when `onRestart` was given,
-so the screen said "restarted" while the same run carried on underneath; the runtime is now
-always restarted in place. `README.md`, `e2e/README.md`, and `.github/workflows/ci.yml`
-round the step out.
-| **In progress** | none — no step is half-done |
+| **In progress** | none |
 | **Blocked** | none |
 
-| Phase | Status |
-|---|---|
-| A — Foundation | ✅ 5 / 5 |
-| B — `game-core` pure rules | ✅ 8 / 8 |
-| C — Runtime + playable slice | ✅ 7 / 7 |
-| D — Obstacles & map rules | ✅ 5 / 5 |
-| E — UI shell | ✅ 7 / 7 |
-| F — Content, maps, storage | ✅ 5 / 5 |
-| G — Polish | ✅ 4 / 4 |
+### What the game is
 
-**Health at this checkpoint** — all green, verified by actually running them:
+You run down a three-lane road. One hazard at a time comes at you. A **car** blocks your
+lane and a word appears on the genuinely-open side; completing it starts an eased lane
+change. A **jump hazard** blocks the lane and the word sits above it; completing it starts
+a jump, *timed to the obstacle* rather than to the keystroke. Then the road is quiet for a
+moment and the next hazard is scheduled.
+
+Typing is forgiving within a word — a wrong character costs the combo, not the run, and can
+be corrected — because accuracy is the statistic the unlock gates read. What is not
+forgiving is the hazard: miss it and the run ends after a short impact beat.
+
+**Typing the word does not survive the hazard.** It *commits* the player and pays out the
+points; survival is decided at the collision plane by where their body actually is. In
+practice a committed player always makes it, because `motionReserveMs` placed the hazard far
+enough away — the check exists so that a retune which breaks that fails a test instead of
+confusing a player.
+
+### What changed, and what did not
+
+| | |
+|---|---|
+| **Renderer** | Canvas 2D → **Three.js via React Three Fiber**, in the new `src/game-scene/` |
+| **Dogs** | gone entirely — `game-core/chase`, the pack, the HUD meter, the copy |
+| **Failure** | collision or timeout ends the run; the `stumbled` outcome is gone |
+| **Input** | no typing field; global `keydown`, word drawn beside its hazard |
+| **Boost** | no longer a prompt cycle — it is the reward for clearing a hazard |
+| **WPM** | measured over `activeTypingMs`, not wall-clock run time |
+| **Kept** | six maps, unlock gates, progression, results, settings, statistics, storage |
+
+### Where the new work lives
+
+- `src/game-core/models/lane.ts` — three lanes, as an index. `motion.ts` — how long a move
+  takes, and the derived time to clearance.
+- `src/game-core/motion/` — the lane and jump curves. **The easing lives here, not in the
+  scene**, because "had the move finished when the car arrived" is a question about the
+  curve and it is the question the whole encounter turns on.
+- `src/game-core/timing/motion-reserve.ts` — the road an avoidance move needs, on top of the
+  typing budget. Deadline and animation read the same `MotionProfile`, so they cannot
+  disagree.
+- `src/game-core/obstacles/lane-assignment.ts` — the guarantee that a route always exists.
+- `src/game-bridge/snapshot.ts` — `WorldSnapshot`, the per-frame half of the bridge
+  contract. Mutated in place; React never sees it.
+- `src/game-scene/` — the road, the runner, the hazards, the word, the camera.
+- `src/hooks/useTypingCapture.ts` — the global keyboard, and the rules that stop it trapping
+  the user.
+
+### Tuning, as measured
+
+`map-progression.test.ts` states each map as three assertions, over 24 seeds each:
+
+- a perfect typist at the advertised speed finishes **100%** of runs;
+- a realistic one (200ms to notice, one character in twenty wrong) finishes **≥ 80%**;
+- one at **60%** of the advertised speed finishes **< 25%**.
+
+All six pass. Runs are 75–85 seconds and 7–11 hazards. Density is capped by encounter
+length, not by the interval: a hazard is visible for roughly its whole budget, so they
+cannot be packed closer and stay fair.
+
+The realistic typist's error rate is 5% rather than 8% deliberately. With binary failure a
+mistake on a four-letter word costs more time than typing 30% slower for the whole run, so
+an 8% error rate *at* target speed describes somebody who is not a target-speed typist.
+
+`content/fairness.test.ts` is the stronger guarantee: for every map × hazard × prompt the
+game can produce, the budget covers the typing, the map never demands more than it
+advertises, and the road covers the move. A playtest samples; that table proves.
+
+### Known limits
+
+- **Progress does not survive a reload.** `StorageAdapter` is the seam; the only
+  implementation is in memory.
+- **Adaptive assistance is effectively off.** It eases after three consecutive misses, and
+  one miss now ends the run. `game-core/assistance/README.md` explains what changing it
+  would mean.
+- **`mistakeBehavior` and `caseSensitive`** are stored and displayed but not read by the
+  typing engine.
+- **The prompt is HTML, not 3D text.** drei's `<Text>` fetches a font from a CDN and this
+  project ships no remote assets; `game-scene/README.md` sets out the trade.
+
+### Health at this checkpoint
+
+All green, verified by running them:
 
 ```bash
-npm run test          # 1001 passed, 61 files
-npm run test:e2e      # 13 passed, Chromium against the production build
+npm run test          # 817 passed, 51 files
+npm run test:e2e      # 15 passed, Chromium against the production build
 npm run lint          # clean
 npm run typecheck     # clean
 npm run format:check  # clean
 npm run build         # succeeds
 ```
 
-**What exists so far.** The complete rules engine, pure and DOM-free, under
-`src/game-core/`: `models/` `app-state/` `typing/` `stats/` `timing/` `chase/` `scoring/`
-`random/` `content/`. Plus the Vite/React scaffold, design tokens, and a throwaway
-state-machine harness in `App.tsx` that phase E replaces.
-
-`src/game-runtime/` now holds `loop/` (the frame driver — `drainAccumulator` plus
-`GameLoop` with an injected clock and scheduler, 60Hz fixed updates, interpolation alpha,
-frame and step clamps), `render/` (camera, parallax layers, theme palettes, HiDPI canvas
-sizing, `drawScene`, and the `CanvasRenderer` that owns the element), `actors/` (the MC's animation
-state machine and vector art, plus the three-dog pack derived from `ChaseState`), and
-`assets/` (the manifest — all entries optional, since the art is vector placeholders).
-
-`src/game-bridge/` holds the React seam: the `GameCommand` / `GameEvent` contract, boundary
-validation, and `GameBridge` — which throttles live stats to ~10Hz and drops every listener
-on `destroy`. No host is attached to it yet; C7 supplies one.
-
-`src/components/ui/` holds the primitives — Button, Card, Panel, Toggle, Slider, Modal — all
-built on native elements and tested through the accessibility tree. `src/components/hud/`
-holds the run HUD: the prompt display (per-character state from `game-core`'s own
-comparison) and the quieter readouts and meters around it.
-`src/components/typing-input/` is the typing field: a focused `<input>` that normalises text
-and sends whole values through the bridge. `src/screens/game/` mounts the canvas and renders
-the prompt, HUD, and outcome. `src/game-runtime/session/` holds the run itself — a pure
-`run-session` plus the `RuntimeHost` that gives it a loop, a renderer, and a clock.
-`src/content/` has all six maps, the seven obstacle definitions, and the full vocabulary —
-around 200 prompts across eight categories, gated by map number.
-`src/game-core/obstacles/` schedules them and places them: seeded spawning, then a placement
-derived from the B5 timing budget so the prompt is always on screen early enough for the
-map's stated WPM, plus resolution — avoided, stumbled, or hit, decided once. See that
-folder's README for the three moments and the three endings.
-
-Runs include obstacles end to end: spawned on schedule, drawn on the canvas with a warning
-chevron and then a deadline bar, resolved as avoided, stumbled, or hit, with the
-consequences applied to chase distance, combo, score, and run statistics. Escape pauses from
-anywhere on the screen.
-
-`src/screens/` now has the splash, main menu, map selection, level briefing, run results,
-settings, statistics, tutorial, and width guard alongside the game screen. `App.tsx` routes
-to them exhaustively from the state machine, so a new state fails the build until it has a
-screen — the development harness is gone. Choosing a map is what the run actually uses, and
-a finished run reports its result up to the shell, which owns what happens next.
-`src/hooks/usePlayerProfile.ts` is the profile, backed by the `StorageAdapter` in
-`src/storage/` — in memory today, so progress still resets on reload. A finished run is
-folded into the profile by `game-core/progress/` and appended to run history.
-
-**What does not exist yet.** Progress does not survive a reload — the
-storage seam is in place but its only implementation is in memory, and an IndexedDB one is
-explicitly deferred. The `mistakeBehavior`
-and `caseSensitive` settings are stored and displayed but the typing engine still uses its
-defaults.
+`docs/performance.md` has the frame-cost and bundle numbers, re-measured after the rework.
 
 ---
+
 
 ## 5. Steps
 

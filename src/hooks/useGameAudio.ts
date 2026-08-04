@@ -19,7 +19,7 @@ export interface GameAudio {
   readonly unlock: () => void;
   readonly play: (cue: SoundCue) => void;
   readonly setTrack: (track: MusicTrack | null) => void;
-  /** 0 (safe) to 1 (about to be caught). */
+  /** 0 (safe) to 1 (about to crash). */
   readonly setDanger: (level: number) => void;
   readonly isReady: () => boolean;
 }

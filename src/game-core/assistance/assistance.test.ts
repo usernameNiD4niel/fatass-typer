@@ -120,10 +120,11 @@ describe('what it is allowed to change', () => {
 
     expect(adjusted.timing.reactionBuffer).toBeGreaterThan(MAP_1.timing.reactionBuffer);
 
-    // The target speed the player is shown, the chase, and the scoring are all
+    // The target speed the player is shown, the road, and the scoring are all
     // untouched — spec §6 requires the displayed target to stay honest.
     expect(adjusted.targetWpm).toBe(MAP_1.targetWpm);
-    expect(adjusted.chase).toEqual(MAP_1.chase);
+    expect(adjusted.motion).toEqual(MAP_1.motion);
+    expect(adjusted.speed).toEqual(MAP_1.speed);
     expect(adjusted.boost).toEqual(MAP_1.boost);
     expect(adjusted.distanceMeters).toBe(MAP_1.distanceMeters);
     expect(adjusted.timing.fixedVisualLeadTimeMs).toBe(MAP_1.timing.fixedVisualLeadTimeMs);

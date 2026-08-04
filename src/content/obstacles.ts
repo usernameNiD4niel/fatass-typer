@@ -1,22 +1,26 @@
 import type { ObstacleDefinition } from '../game-core/models';
 
 /**
- * The seven obstacles (spec §5).
+ * The eight hazards.
  *
- * Data only. The avoidance action is what the MC *plays* when the prompt is
- * completed in time — the rules resolve an obstacle the moment the text is
- * typed, so the jump is feedback, never the mechanism (step D3).
+ * Data only. The avoidance action is what the player *does* when the prompt is
+ * completed in time, and unlike the old model it is not merely feedback: a
+ * lane-change hazard is only cleared if the player is actually in the safe lane
+ * when the collision plane arrives, and a jump only if they are above clearance
+ * height. Typing the word starts the move; the move is what saves you.
  *
- * Two dials matter here:
+ * Three dials matter here:
  *
+ *  - `action` decides which mechanic the hazard asks for. Jumps block the lane
+ *    you are in; cars block it and send you sideways.
  *  - `baseReactionTimeMs` is a flat allowance on top of the typing budget,
- *    covering the time to notice the thing at all. Obstacles that are hard to
- *    read at speed — a sign overhead, a narrow gap — get more of it.
+ *    covering the time to notice the thing at all. Bigger, faster, or less
+ *    familiar hazards get more of it.
  *  - `promptCategory` decides how much there is to type, which is what actually
- *    makes an obstacle hard. The narrow passage draws a phrase; everything else
- *    draws a word.
+ *    makes a hazard hard.
  */
 export const OBSTACLES: readonly ObstacleDefinition[] = [
+  /* --- Jump hazards: obstacles sitting in the player's own lane. ---------- */
   {
     id: 'rock',
     label: 'Rock',
@@ -30,7 +34,7 @@ export const OBSTACLES: readonly ObstacleDefinition[] = [
   },
   {
     id: 'crate',
-    label: 'Wooden crate',
+    label: 'Fallen crate',
     action: 'jump',
     difficultyWeight: 0.2,
     minimumMap: 1,
@@ -39,7 +43,7 @@ export const OBSTACLES: readonly ObstacleDefinition[] = [
   },
   {
     id: 'low-barrier',
-    label: 'Low barrier',
+    label: 'Concrete block',
     action: 'jump',
     difficultyWeight: 0.25,
     minimumMap: 1,
@@ -47,34 +51,15 @@ export const OBSTACLES: readonly ObstacleDefinition[] = [
     baseReactionTimeMs: 320,
   },
   {
-    id: 'puddle',
-    label: 'Puddle',
+    id: 'cone-beam',
+    label: 'Cones and beam',
     action: 'jump',
-    difficultyWeight: 0.15,
-    // The gentlest obstacle: wide, flat, and unmistakable on the road.
-    minimumMap: 1,
-    promptCategory: 'short-word',
-    baseReactionTimeMs: 380,
-  },
-  {
-    id: 'trash-bin',
-    label: 'Trash bin',
-    action: 'sidestep',
-    difficultyWeight: 0.3,
+    difficultyWeight: 0.35,
+    // Two cones with a beam between them: a wide silhouette, but the gap under
+    // the beam reads as passable for a moment before it doesn't.
     minimumMap: 2,
     promptCategory: 'medium-word',
-    baseReactionTimeMs: 340,
-  },
-  {
-    id: 'hanging-sign',
-    label: 'Hanging sign',
-    action: 'slide',
-    difficultyWeight: 0.45,
-    minimumMap: 2,
-    promptCategory: 'medium-word',
-    // Overhead, so it enters the frame from a direction the player is not
-    // watching. The extra allowance is for spotting it, not for typing it.
-    baseReactionTimeMs: 460,
+    baseReactionTimeMs: 400,
   },
   {
     id: 'roadwork-barrier',
@@ -85,16 +70,38 @@ export const OBSTACLES: readonly ObstacleDefinition[] = [
     promptCategory: 'medium-word',
     baseReactionTimeMs: 360,
   },
+
+  /* --- Cars: block the lane, and the word names the way out. -------------- */
   {
-    id: 'narrow-passage',
-    label: 'Narrow passage',
-    action: 'sidestep',
-    difficultyWeight: 0.8,
+    id: 'sedan',
+    label: 'Stalled sedan',
+    action: 'lane-change',
+    difficultyWeight: 0.3,
+    // Map 1 ships both verbs. With only two mechanics in the game, holding one
+    // back for a whole tutorial map makes that map monotonous rather than gentle.
+    minimumMap: 1,
+    promptCategory: 'short-word',
+    baseReactionTimeMs: 380,
+  },
+  {
+    id: 'van',
+    label: 'Delivery van',
+    action: 'lane-change',
+    difficultyWeight: 0.45,
+    minimumMap: 2,
+    promptCategory: 'medium-word',
+    baseReactionTimeMs: 420,
+  },
+  {
+    id: 'box-truck',
+    label: 'Box truck',
+    action: 'lane-change',
+    difficultyWeight: 0.7,
+    // Tall enough to hide what is behind it until late, which is what the extra
+    // allowance pays for — not the typing, the seeing.
     minimumMap: 4,
-    // The one obstacle that asks for a phrase — spec §5 calls for typing a
-    // phrase to pass cleanly, which is why it stays off the early maps.
-    promptCategory: 'short-phrase',
-    baseReactionTimeMs: 520,
+    promptCategory: 'medium-word',
+    baseReactionTimeMs: 480,
   },
 ];
 

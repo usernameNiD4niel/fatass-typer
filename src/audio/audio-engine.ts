@@ -117,7 +117,7 @@ export class AudioEngine {
   }
 
   /**
-   * How close the dogs are, 0 (safe) to 1 (about to be caught).
+   * How much danger the run is in, 0 (safe) to 1 (about to crash).
    *
    * Called at the bridge's ~10Hz, so it has to be cheap and idempotent.
    */

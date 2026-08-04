@@ -1,67 +1,50 @@
-import { type JSX, useCallback, useEffect, useRef, useState } from 'react';
+import { type JSX, lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
-import {
-  announcementFor,
-  Hud,
-  PauseOverlay,
-  PromptDisplay,
-  type RunMoment,
-  shouldAnnounceThreat,
-  type ThreatLevel,
-  threatLevel,
-} from '../../components/hud';
-import { type CommandSink, TypingInput } from '../../components/typing-input';
+import { announcementFor, Hud, PauseOverlay, type RunMoment } from '../../components/hud';
 import { Button, classes, VisuallyHidden } from '../../components/ui';
-import { attachGame, type GameBridge } from '../../game-bridge';
-import type {
-  DeadlinePressureLevel,
-  GameEvent,
-  GameState,
-  PromptViewModel,
-} from '../../game-bridge/messages';
+import { attachGame, type AttachedGame, type GameBridge } from '../../game-bridge';
+import type { GameEvent, GameState, PromptViewModel } from '../../game-bridge/messages';
 import type { GameAudio } from '../../hooks/useGameAudio';
-import { findMap } from '../../content';
+import { useTypingCapture } from '../../hooks/useTypingCapture';
+import { findMap, MAP_1 } from '../../content';
 import { EMPTY_LIVE_STATS, type LiveRunStats, type RunResult } from '../../game-core/models';
 import styles from './GameScreen.module.css';
 
 /**
- * The playable screen (spec §19 milestone 1).
+ * The playable screen.
  *
- * The vertical slice: a canvas driven by the runtime, the active prompt, a
- * minimal HUD, and the typing field. Step E4 designs the real HUD and E5 the
- * results screens — this is the smallest thing that is genuinely playable.
+ * The run fills the viewport: a Three.js scene with the HUD and the pause
+ * overlay floating on glass above it. There is no typing box and no prompt
+ * console — the word lives in the world beside the hazard it applies to, and
+ * the keyboard is captured globally while the run is going (spec §2, §15).
  *
- * The component knows no game rules. It attaches a bridge to a canvas, renders
- * the events that come back, and sends commands. Per-frame data never reaches
- * it: everything below arrives at the bridge's ~10Hz.
+ * The component knows no game rules. It attaches a bridge, renders the events
+ * that come back, and sends commands. Per-frame data never reaches it:
+ * everything below arrives at the bridge's ~10Hz, and the scene reads the world
+ * directly through a snapshot React never sees.
  */
 
 /**
- * Size the canvas starts at, before the first measurement.
+ * The scene is loaded on demand.
  *
- * The run fills the browser viewport, so the real size comes from the element
- * itself — but a canvas needs *a* size to be created with, and a stage that
- * flashed at the wrong aspect ratio for one frame would be visible.
+ * Three.js is several hundred kilobytes and only this screen needs it. Splitting
+ * it here means the menu still loads in tens of kilobytes, and the 3D arrives
+ * when a player actually goes to play (spec §20).
  */
-const FALLBACK_WIDTH = 1280;
-const FALLBACK_HEIGHT = 720;
+const GameCanvas = lazy(async () => {
+  const module = await import('../../game-scene');
 
-/**
- * Stands in for the bridge on the single render before the mount effect runs.
- *
- * Nothing is playable in that frame, so dropping the command is correct — and
- * it keeps `TypingInput` free of a null check on every keystroke.
- */
-const DISCONNECTED_SINK: CommandSink = { send: () => false };
+  return { default: module.GameCanvas };
+});
 
 /**
  * A non-breaking space, appended and removed in turn.
  *
- * A live region only speaks when its text actually changes, so two collisions
- * in a row would otherwise produce a single announcement. This character is not
+ * A live region only speaks when its text actually changes, so two collisions in
+ * a row would otherwise produce a single announcement. This character is not
  * spoken, so alternating it costs nothing and fixes that.
  */
-const NUDGE = '\u00a0';
+const NUDGE = ' ';
 
 function formatWpm(value: number): string {
   return String(Math.round(value));
@@ -78,14 +61,11 @@ export interface GameScreenProps {
   readonly seed?: string;
   /** The app's audio. Absent means a silent run, which is always acceptable. */
   readonly audio?: GameAudio;
-  /**
-   * Holds the decorative background still (spec §12). The run still scrolls —
-   * that is the game — but the parallax stops swimming behind it.
-   */
+  /** Stills the decoration and the camera effects (spec §12). */
   readonly reducedMotion?: boolean;
   /**
-   * The run ended. The shell decides what happens next — this screen reports
-   * the outcome and stops there, so navigation stays with the state machine.
+   * The run ended. The shell decides what happens next — this screen reports the
+   * outcome and stops there, so navigation stays with the state machine.
    */
   readonly onRunEnded?: (result: RunResult) => void;
   readonly onQuit?: () => void;
@@ -112,23 +92,19 @@ export function GameScreen({
   onRestart,
   onPauseChange,
 }: GameScreenProps = {}): JSX.Element {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const bridgeRef = useRef<GameBridge | null>(null);
-  // Held in a ref so the mount effect does not re-run — and tear the runtime
-  // down — every time the parent hands over a fresh callback.
+  // Held in refs so the mount effect does not re-run — and tear the runtime
+  // down — every time the parent hands over a fresh callback or audio object.
   const endedRef = useRef(onRunEnded);
   endedRef.current = onRunEnded;
-  // Same reasoning: the mount effect must not re-run — and tear the runtime
-  // down — because a parent handed over a fresh audio object.
   const audioRef = useRef(audio);
   audioRef.current = audio;
   const pauseChangeRef = useRef(onPauseChange);
   pauseChangeRef.current = onPauseChange;
-  const typedRef = useRef('');
-  // The last threat level announced, so a player hovering on a boundary is not
-  // told about it forty times (spec §12).
-  const threatRef = useRef<ThreatLevel>('safe');
+  /** Whether the shell has been told the run is paused. */
+  const pausedRef = useRef(false);
 
+  const [game, setGame] = useState<AttachedGame | null>(null);
   const [ready, setReady] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [state, setState] = useState<GameState>('uninitialized');
@@ -136,19 +112,9 @@ export function GameScreen({
   const [stats, setStats] = useState<LiveRunStats>(EMPTY_LIVE_STATS);
   const [result, setResult] = useState<RunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [typed, setTyped] = useState('');
-  const [deadline, setDeadline] = useState<{
-    remainingMs: number | null;
-    pressure: DeadlinePressureLevel;
-  }>({ remainingMs: null, pressure: 'safe' });
 
-  /**
-   * Says something once, in the run's live region.
-   *
-   * The trailing space alternates because a live region only speaks when its
-   * text actually changes: two collisions in a row would otherwise produce one
-   * announcement. The character is not spoken, so it costs nothing.
-   */
+  const map = (mapId === undefined ? undefined : findMap(mapId)) ?? MAP_1;
+
   const announce = useCallback((moment: RunMoment) => {
     setAnnouncement((previous) => {
       const text = announcementFor(moment);
@@ -158,28 +124,21 @@ export function GameScreen({
   }, []);
 
   useEffect(() => {
-    const map = mapId === undefined ? undefined : findMap(mapId);
+    const chosen = mapId === undefined ? undefined : findMap(mapId);
 
-    const canvas = canvasRef.current;
-    const bounds = canvas?.getBoundingClientRect();
-
-    const game = attachGame({
-      canvas,
-      widthPx: Math.round(bounds?.width ?? FALLBACK_WIDTH) || FALLBACK_WIDTH,
-      heightPx: Math.round(bounds?.height ?? FALLBACK_HEIGHT) || FALLBACK_HEIGHT,
-      devicePixelRatio: window.devicePixelRatio,
-      reducedMotion,
+    const attached = attachGame({
       // A new seed per run. The clock is read here, at the edge, because
       // `game-core` may not read one (CLAUDE.md §3).
       seed: seed ?? `run-${String(Date.now())}`,
       // An unknown id falls back to the default map rather than failing to
       // start: the run matters more than the routing mistake behind it.
-      ...(map === undefined ? {} : { map }),
+      ...(chosen === undefined ? {} : { map: chosen }),
     });
 
-    bridgeRef.current = game.bridge;
+    bridgeRef.current = attached.bridge;
+    setGame(attached);
 
-    const unsubscribe = game.bridge.subscribe((event: GameEvent) => {
+    const unsubscribe = attached.bridge.subscribe((event: GameEvent) => {
       switch (event.type) {
         case 'ready':
           setReady(true);
@@ -187,46 +146,38 @@ export function GameScreen({
         case 'stateChanged':
           setState(event.state);
           // Kept in step with the shell, so the machine's idea of "paused"
-          // matches the runtime's.
-          if (event.state === 'paused') pauseChangeRef.current?.(true);
-          else if (event.state === 'running') pauseChangeRef.current?.(false);
+          // matches the runtime's — but only on an actual change. A run that
+          // starts is not a run that resumed, and telling the shell otherwise
+          // makes it reject a transition it was never asked for.
+          if (event.state === 'paused' && !pausedRef.current) {
+            pausedRef.current = true;
+            pauseChangeRef.current?.(true);
+          } else if (event.state === 'running' && pausedRef.current) {
+            pausedRef.current = false;
+            pauseChangeRef.current?.(false);
+          }
           break;
         case 'promptChanged':
           setPrompt(event.prompt);
-          setTyped('');
-          typedRef.current = '';
-          // A new prompt starts with no deadline until the runtime reports one.
-          setDeadline({ remainingMs: event.prompt?.remainingMs ?? null, pressure: 'safe' });
-          break;
-        case 'statsUpdated': {
-          setStats(event.stats);
-          // The danger layer follows the gap, at the bridge's ~10Hz.
-          audioRef.current?.setDanger(1 - event.stats.dogDistanceNormalized);
-
-          // The dogs are behind the runner and off to the side of everything a
-          // screen reader can see, so the chase is narrated when it changes.
-          const level = threatLevel(event.stats.dogDistanceNormalized);
-          if (shouldAnnounceThreat(threatRef.current, level)) {
-            threatRef.current = level;
-            announce({ kind: 'threat', level });
+          if (event.prompt !== null) {
+            // The word is in the world, where a screen reader cannot follow it.
+            // Naming it once when it appears is the substitute (spec §21).
+            announce({ kind: 'challenge', word: event.prompt.text });
           }
           break;
-        }
+        case 'statsUpdated':
+          setStats(event.stats);
+          break;
         case 'boostStarted':
-          // He is pulling away, and he wants the dogs to know it.
           audioRef.current?.play('boost');
-          audioRef.current?.play('taunt');
           break;
         case 'obstacleWarning':
           audioRef.current?.play('obstacleWarning');
           announce({ kind: 'obstacleWarning' });
           break;
         case 'playerHit':
-          audioRef.current?.play(event.reason === 'stumbled' ? 'stumble' : 'collision');
-          announce({ kind: 'hit', reason: event.reason === 'stumbled' ? 'stumbled' : 'collided' });
-          break;
-        case 'deadlineChanged':
-          setDeadline({ remainingMs: event.remainingMs, pressure: event.pressure });
+          audioRef.current?.play('collision');
+          announce({ kind: 'hit', reason: 'collided' });
           break;
         case 'levelCompleted':
         case 'gameOver':
@@ -249,44 +200,20 @@ export function GameScreen({
       }
     });
 
-    game.bridge.send({ type: 'initialize', canvasId: 'game-canvas' });
+    attached.bridge.send({ type: 'initialize', canvasId: 'game-canvas' });
 
-    /*
-     * The canvas follows the window.
-     *
-     * A `ResizeObserver` rather than a `resize` listener: the element can change
-     * size without the window doing so — a scrollbar appearing is enough — and
-     * a stretched backing store is the most visible bug a canvas can have.
-     */
-    const observer =
-      canvas === null || typeof ResizeObserver === 'undefined'
-        ? null
-        : new ResizeObserver((entries) => {
-            const entry = entries[0];
-            if (entry === undefined) return;
-
-            const { width, height } = entry.contentRect;
-            if (width < 1 || height < 1) return;
-
-            game.resize(Math.round(width), Math.round(height), window.devicePixelRatio);
-          });
-
-    if (canvas !== null) observer?.observe(canvas);
-
-    // Everything is torn down together: a leaked loop would keep rendering into
-    // a detached canvas and hold the whole run in memory.
+    // Everything is torn down together: a leaked runtime would keep simulating
+    // and hold the whole run in memory.
     return () => {
-      observer?.disconnect();
       unsubscribe();
-      game.destroy();
+      attached.destroy();
       bridgeRef.current = null;
+      setGame(null);
     };
     // Changing map tears the runtime down and builds a new one: a run belongs to
-    // exactly one map, and swapping it underneath a live loop would be worse.
-    // Changing the motion preference rebuilds the runtime, which is why it is
-    // a setting rather than a mid-run control: the player is in Settings when
-    // they change it, not on the road.
-  }, [mapId, seed, reducedMotion, announce]);
+    // exactly one map, and swapping it underneath a live simulation would be
+    // worse.
+  }, [mapId, seed, announce]);
 
   const send = useCallback((command: Parameters<GameBridge['send']>[0]) => {
     bridgeRef.current?.send(command);
@@ -307,7 +234,6 @@ export function GameScreen({
 
   const start = useCallback(() => {
     setResult(null);
-    threatRef.current = 'safe';
     // This is a click, so it is a legitimate moment to start the audio context.
     audioRef.current?.unlock();
     audioRef.current?.setTrack('running');
@@ -318,11 +244,10 @@ export function GameScreen({
   /**
    * Restart, from the keyboard, from anywhere on the screen (spec §12).
    *
-   * Ctrl or Cmd with Enter rather than a bare letter: the typing field owns
-   * every printable key, and a shortcut that fires mid-prompt would be a trap.
+   * Ctrl or Cmd with Enter rather than a bare letter: every printable key is a
+   * keystroke in the game now, so an unmodified shortcut would be a trap.
    */
   const restart = useCallback(() => {
-    threatRef.current = 'safe';
     setResult(null);
 
     // The runtime is restarted here, always. Leaving it to the shell was a bug
@@ -335,42 +260,46 @@ export function GameScreen({
   }, [onRestart, send, announce]);
 
   /**
-   * Per-character feedback (spec §11).
+   * Every keystroke, straight from the window.
    *
-   * Driven from the field's own value rather than a bridge event: keystrokes
-   * happen at typing speed, and pushing one event per character through a
-   * bridge that exists to throttle traffic would be working against it.
+   * Per-character audio is driven from the value here rather than from a bridge
+   * event: keystrokes happen at typing speed, and pushing one event per
+   * character through a bridge that exists to throttle traffic would be working
+   * against it.
    */
-  const handleTyped = useCallback(
+  const handleValue = useCallback(
     (value: string) => {
-      const previous = typedRef.current;
-      typedRef.current = value;
-      setTyped(value);
-
-      if (value.length <= previous.length) return;
+      send({ type: 'submitInput', value, timestampMs: Date.now() });
 
       const target = prompt?.text ?? '';
-      const correct = target.slice(0, value.length).toLowerCase() === value.toLowerCase();
+      if (value.length === 0 || target.length === 0) return;
 
+      const correct = target.slice(0, value.length).toLowerCase() === value.toLowerCase();
       if (!correct) {
         audioRef.current?.play('mistake');
 
         return;
       }
 
-      // A completed prompt gets its own sound; the last correct character does
-      // not also click, or the two would collide.
       audioRef.current?.play(value.length === target.length ? 'promptComplete' : 'keystroke');
     },
-    [prompt],
+    [prompt, send],
   );
 
-  // Escape pauses from anywhere on the screen, not only from the typing field —
-  // a player who clicked away still expects it to work (spec §4).
+  useTypingCapture({
+    enabled: running,
+    promptId: prompt?.promptId ?? null,
+    onValue: handleValue,
+    onPause: togglePause,
+    onRestart: restart,
+  });
+
+  // Escape and Ctrl+Enter still work when the capture is off — paused, finished,
+  // or not yet started.
   useEffect(() => {
+    if (running) return;
+
     function onKeyDown(event: KeyboardEvent): void {
-      // Ctrl/Cmd+Enter restarts, including from inside the typing field: the
-      // modifier is what makes it safe to listen for there.
       if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
         restart();
@@ -379,7 +308,6 @@ export function GameScreen({
       }
 
       if (event.key !== 'Escape') return;
-      // The field handles its own Escape; reacting twice would toggle back.
       if (event.target instanceof HTMLInputElement) return;
 
       togglePause();
@@ -390,27 +318,52 @@ export function GameScreen({
     return () => {
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [togglePause, restart]);
+  }, [running, togglePause, restart]);
+
+  // A hidden tab is a paused run (spec §20). Deadlines must not run down while
+  // nobody can see them.
+  useEffect(() => {
+    function onVisibility(): void {
+      if (document.visibilityState === 'hidden' && state === 'running') send({ type: 'pause' });
+    }
+
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [state, send]);
+
+  const topSpeed = map.speed.maxMetersPerSecond * map.boost.speedMultiplier;
 
   return (
-    <section className={styles.screen} aria-label="Typing Chase run">
-      <canvas
-        ref={canvasRef}
-        id="game-canvas"
-        className={styles.canvas}
+    <section className={styles.screen} aria-label="Typing Runner">
+      <div
+        className={styles.stage}
         role="img"
-        aria-label="The runner, the track ahead, and the chasing dogs"
-      />
+        aria-label="The road ahead, the hazards on it, and the runner"
+      >
+        <Suspense fallback={<div className={styles.loading}>Loading the road…</div>}>
+          {game !== null && (
+            <GameCanvas
+              snapshot={game.snapshot}
+              advance={game.advance}
+              theme={map.theme}
+              reducedMotion={reducedMotion}
+            />
+          )}
+        </Suspense>
+      </div>
 
       {/*
-        Everything below floats over the canvas and lets clicks through, except
-        the controls themselves. The grid is three rows: readouts up top, the
-        occasional message in the middle, the prompt where the eye already is.
+        Everything below floats over the scene and lets clicks through, except
+        the controls themselves.
       */}
       <div className={styles.overlay}>
         <div className={styles.topBar}>
           <Hud
             stats={stats}
+            topSpeedMetersPerSecond={topSpeed}
             onPause={togglePause}
             paused={state === 'paused'}
             canPause={running || state === 'paused'}
@@ -423,31 +376,12 @@ export function GameScreen({
             <p className={styles.outcome}>
               {result.completed
                 ? `Finished! Score ${String(Math.round(result.score))} at ${formatWpm(result.averageWpm)} WPM.`
-                : `Caught by the dogs. Score ${String(Math.round(result.score))}.`}
+                : `Crashed. Score ${String(Math.round(result.score))}.`}
             </p>
           )}
         </div>
 
         <div className={styles.bottom}>
-          <div className={styles.console}>
-            <PromptDisplay
-              prompt={running || state === 'paused' ? prompt : null}
-              typed={typed}
-              deadlineMs={deadline.remainingMs}
-              pressure={deadline.pressure}
-              idleMessage={finished ? 'Run over' : 'Press Start when you are ready'}
-            />
-
-            <TypingInput
-              bridge={bridgeRef.current ?? DISCONNECTED_SINK}
-              disabled={!running}
-              promptId={prompt?.promptId ?? null}
-              label={prompt ? `Type: ${prompt.text}` : 'Type the prompt'}
-              onValueChange={handleTyped}
-              onEscape={togglePause}
-            />
-          </div>
-
           <div className={styles.controls}>
             {!running && (
               <Button variant="primary" onClick={start} disabled={!ready}>
@@ -456,7 +390,8 @@ export function GameScreen({
             )}
             {/* Stated, not hidden in a tutorial the player saw once (spec §12). */}
             <p className={styles.shortcuts}>
-              <kbd>Esc</kbd> pause · <kbd>Ctrl</kbd> + <kbd>Enter</kbd> restart
+              Just type — no clicking needed · <kbd>Esc</kbd> pause · <kbd>Ctrl</kbd> +{' '}
+              <kbd>Enter</kbd> restart
             </p>
           </div>
         </div>
@@ -473,11 +408,14 @@ export function GameScreen({
       )}
 
       {/*
-        The run's one live region. It narrates moments — a warning, a collision,
-        the dogs closing, the end — and never keystrokes: a region that updated
-        per character would be a screen reader that never stops talking.
+        The run's live regions. The first narrates *moments* — a warning, a
+        collision, the end — and never keystrokes: a region that updated per
+        character would be a screen reader that never stops talking. The second
+        holds only the current word — not a live region, so it can be re-read on
+        demand without announcing itself again.
       */}
       <VisuallyHidden live="polite">{announcement}</VisuallyHidden>
+      <VisuallyHidden>{prompt === null ? '' : `Current word: ${prompt.text}`}</VisuallyHidden>
     </section>
   );
 }

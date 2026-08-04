@@ -1,0 +1,65 @@
+/*
+ * The world-space prompt.
+ *
+ * Sits over the road, so it cannot rely on a background it controls. Every
+ * character carries its own outline and the whole word carries a backing plate,
+ * because the thing behind it is a moving road that is sometimes pale asphalt
+ * and sometimes a red car (spec §15).
+ */
+
+.word {
+  margin: 0;
+  padding: 0.35em 0.7em;
+  border-radius: var(--radius-lg);
+  background: rgb(12 15 20 / 72%);
+  box-shadow: 0 0.3em 1.2em rgb(0 0 0 / 35%);
+  font-family: var(--font-family-mono);
+  font-size: 2.6rem;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.03em;
+  line-height: 1.15;
+  white-space: nowrap;
+  user-select: none;
+  transform-origin: center;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.word[data-urgent='true'] {
+  background: rgb(52 12 16 / 82%);
+}
+
+/*
+ * State is never colour alone (spec §21): typed characters are dimmed *and*
+ * underlined, the cursor is boxed, and an error is struck through.
+ */
+.correct {
+  color: var(--prompt-correct, #7ee0a6);
+  border-bottom: 0.08em solid currentcolor;
+}
+
+.current {
+  color: var(--prompt-current, #ffffff);
+  background: rgb(255 255 255 / 18%);
+  border-radius: 0.12em;
+  box-shadow: inset 0 -0.14em 0 var(--accent-default, #4aa3ff);
+}
+
+.incorrect {
+  color: var(--prompt-incorrect, #ff8a8a);
+  text-decoration: line-through;
+  text-decoration-thickness: 0.08em;
+}
+
+.untyped {
+  color: rgb(255 255 255 / 78%);
+}
+
+@media (prefers-contrast: more) {
+  .word {
+    background: rgb(0 0 0 / 92%);
+  }
+
+  .untyped {
+    color: #ffffff;
+  }
+}

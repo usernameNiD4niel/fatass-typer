@@ -1,13 +1,15 @@
-import type { MapConfig, ObstacleDefinition, PromptEntry } from '../models';
+import type { LaneIndex, LaneSide, MapConfig, ObstacleDefinition, PromptEntry } from '../models';
 import {
   deadlinePressure,
   type DeadlinePressure,
   deadlineProgress,
+  motionReserveMs,
   obstaclePromptTiming,
   type PromptTiming,
   spawnDistanceMeters,
   timeToImpactMs,
 } from '../timing';
+import type { LaneAssignment } from './lane-assignment';
 
 /**
  * An obstacle placed in a run (spec §5, §6).
@@ -33,7 +35,7 @@ import {
  * Pure: no clock, no randomness, no DOM. Time and position arrive as arguments.
  */
 
-export type ObstacleStatus = 'approaching' | 'active' | 'resolved' | 'missed';
+export type ObstacleStatus = 'approaching' | 'active' | 'committed' | 'resolved' | 'missed';
 
 export interface ActiveObstacle {
   /** Unique within a run, so two crates are never confused for each other. */
@@ -43,6 +45,12 @@ export interface ActiveObstacle {
   readonly timing: PromptTiming;
   /** World position of the obstacle, in meters. Fixed once placed. */
   readonly impactMeters: number;
+  /** Lanes the hazard occupies. The player must be in none of them at impact. */
+  readonly blockedLanes: readonly LaneIndex[];
+  /** The lane the challenge points at, or `null` for a jump hazard. */
+  readonly safeLane: LaneIndex | null;
+  /** Which way that lane lies from the player. `null` for a jump hazard. */
+  readonly safeSide: LaneSide | null;
   readonly status: ObstacleStatus;
   /** Run time the obstacle was placed. */
   readonly spawnedAtMs: number;
@@ -56,6 +64,30 @@ export interface ActiveObstacle {
    */
   readonly deadlineAtMs: number | null;
   readonly warned: boolean;
+  /**
+   * Run time the prompt was finished and the avoidance move began, or `null`.
+   *
+   * Typing the word is not surviving the hazard. It starts the move; the move
+   * has to finish, and whether it did is decided at the collision plane.
+   */
+  readonly committedAtMs: number | null;
+  /** The collision plane has been reached and reported once. */
+  readonly impacted: boolean;
+  /**
+   * Road the avoidance move needs, in milliseconds.
+   *
+   * Frozen at placement, so the deadline sits exactly this far in front of the
+   * collision plane however the map is retuned afterwards.
+   */
+  readonly reserveMs: number;
+  /**
+   * The avoidance move has actually begun.
+   *
+   * Separate from `committedAtMs` because the two are not the same moment for a
+   * jump: committing early would otherwise mean landing before the obstacle
+   * arrived. See `moveIsDue`.
+   */
+  readonly moveStarted: boolean;
   /**
    * The deadline has passed and has been reported once.
    *
@@ -81,9 +113,19 @@ export interface PlaceObstacleInput {
   readonly definition: ObstacleDefinition;
   readonly prompt: PromptEntry;
   readonly map: MapConfig;
-  /** Where the MC is now, in meters. */
+  /** Where the player is now, in meters. */
   readonly playerMeters: number;
   readonly elapsedMs: number;
+  /** Which lanes this hazard blocks, from `lane-assignment.ts`. */
+  readonly assignment: LaneAssignment;
+  /**
+   * Speed the placement is measured against, in metres per second.
+   *
+   * Defaults to the map's base speed. The run passes the fastest the player
+   * could be travelling while this hazard approaches, so that a boost cannot
+   * eat the budget the deadline promised.
+   */
+  readonly speedMetersPerSecond?: number;
 }
 
 /**
@@ -95,9 +137,19 @@ export interface PlaceObstacleInput {
  */
 export function placeObstacle(input: PlaceObstacleInput): ActiveObstacle {
   const timing = obstaclePromptTiming(input.map, input.definition, input.prompt);
+  /*
+   * The budget buys typing time; the reserve buys road.
+   *
+   * After the last keystroke the player still has to travel — sideways into the
+   * safe lane, or upward over the barrier. Adding the reserve here is what makes
+   * the deadline and the animation incapable of disagreeing: both read the same
+   * `MotionProfile`, so slowing a lane change automatically moves cars further
+   * away rather than quietly making them unavoidable.
+   */
+  const reserveMs = motionReserveMs(input.definition.action, input.map.motion);
   const leadMeters = spawnDistanceMeters(
-    timing.availableMs * WARNING_LEAD_FACTOR,
-    input.map.baseSpeedMetersPerSecond,
+    (timing.availableMs + reserveMs) * WARNING_LEAD_FACTOR,
+    input.speedMetersPerSecond ?? input.map.baseSpeedMetersPerSecond,
   );
 
   return {
@@ -106,13 +158,30 @@ export function placeObstacle(input: PlaceObstacleInput): ActiveObstacle {
     prompt: input.prompt,
     timing,
     impactMeters: input.playerMeters + leadMeters,
+    blockedLanes: input.assignment.blockedLanes,
+    safeLane: input.assignment.safeLane,
+    safeSide: input.assignment.safeSide,
     status: 'approaching',
     spawnedAtMs: input.elapsedMs,
     attachedAtMs: null,
     deadlineAtMs: null,
     warned: false,
+    committedAtMs: null,
+    impacted: false,
+    reserveMs,
+    moveStarted: false,
     expired: false,
   };
+}
+
+/** Reserve this hazard's avoidance move needs, in milliseconds. */
+export function reserveMsFor(obstacle: ActiveObstacle, map: MapConfig): number {
+  return motionReserveMs(obstacle.definition.action, map.motion);
+}
+
+/** Does the hazard occupy `lane`? Accepts a continuous, mid-transition lane. */
+export function blocksLane(obstacle: ActiveObstacle, lane: number): boolean {
+  return obstacle.blockedLanes.some((blocked) => blocked === lane);
 }
 
 /** Meters between the MC and the obstacle. Negative once it is behind them. */
@@ -171,7 +240,50 @@ export function isFair(obstacle: ActiveObstacle): boolean {
 export type ObstacleEvent =
   | { readonly type: 'obstacleWarning'; readonly obstacle: ActiveObstacle }
   | { readonly type: 'promptAttached'; readonly obstacle: ActiveObstacle }
-  | { readonly type: 'deadlineExpired'; readonly obstacle: ActiveObstacle };
+  | { readonly type: 'deadlineExpired'; readonly obstacle: ActiveObstacle }
+  /** The player has reached the hazard. Whatever their motion is now, is the answer. */
+  | { readonly type: 'reachedImpact'; readonly obstacle: ActiveObstacle };
+
+/**
+ * Marks the prompt finished and the avoidance move started.
+ *
+ * Does not resolve anything. The hazard is survived at the collision plane or
+ * not at all — this only records that the player earned the attempt.
+ */
+export function commitObstacle(
+  obstacle: ActiveObstacle,
+  elapsedMs: number,
+  moveStarted = false,
+): ActiveObstacle {
+  if (obstacle.status !== 'active') return obstacle;
+
+  return { ...obstacle, status: 'committed', committedAtMs: elapsedMs, moveStarted };
+}
+
+/**
+ * Is it time to actually jump?
+ *
+ * A lane change begins the moment the word is finished — moving early is only
+ * ever safer, and it reads as decisiveness. A jump is different: an arc started
+ * too early has landed again by the time the obstacle arrives, and the player
+ * would clip a barrier they had beaten. So the jump waits until the obstacle is
+ * one reserve away, which is precisely the PDF's "synchronized jump that clears
+ * the obstacle at its collision point" (§7).
+ */
+export function moveIsDue(
+  obstacle: ActiveObstacle,
+  playerMeters: number,
+  speedMetersPerSecond: number,
+): boolean {
+  if (obstacle.status !== 'committed' || obstacle.moveStarted) return false;
+
+  return timeToImpact(obstacle, playerMeters, speedMetersPerSecond) <= obstacle.reserveMs;
+}
+
+/** Records that the avoidance move has begun. */
+export function startMove(obstacle: ActiveObstacle): ActiveObstacle {
+  return obstacle.moveStarted ? obstacle : { ...obstacle, moveStarted: true };
+}
 
 export interface ObstacleAdvanceInput {
   readonly playerMeters: number;
@@ -211,7 +323,12 @@ export function advanceObstacle(
     events.push({ type: 'obstacleWarning', obstacle: current });
   }
 
-  if (current.status === 'approaching' && untilImpactMs <= current.timing.availableMs) {
+  // Attached a reserve early, so the deadline lands a move's worth of road in
+  // front of the collision plane rather than on top of it.
+  if (
+    current.status === 'approaching' &&
+    untilImpactMs <= current.timing.availableMs + current.reserveMs
+  ) {
     current = {
       ...current,
       status: 'active',
@@ -229,10 +346,17 @@ export function advanceObstacle(
     current.deadlineAtMs !== null &&
     input.elapsedMs >= current.deadlineAtMs
   ) {
-    // The status stays `active`: `resolution.ts` turns this into a stumble or a
-    // hit, and it needs an unresolved obstacle to work on.
+    // The status stays `active`: `resolution.ts` decides what it costs, and it
+    // needs an unresolved obstacle to work on.
     current = { ...current, expired: true };
     events.push({ type: 'deadlineExpired', obstacle: current });
+  }
+
+  // The collision plane. Reached at most once, and only reported for a hazard
+  // still in play — an expired one has already failed at its deadline.
+  if (!current.impacted && input.playerMeters >= current.impactMeters) {
+    current = { ...current, impacted: true };
+    events.push({ type: 'reachedImpact', obstacle: current });
   }
 
   return { obstacle: current, events };

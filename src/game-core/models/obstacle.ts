@@ -10,8 +10,16 @@ import type { PromptCategory } from './prompt';
  * runtime concern owned by phase D.
  */
 
-/** How the MC avoids the obstacle when the prompt is completed in time. */
-export const OBSTACLE_ACTIONS = ['jump', 'slide', 'sidestep'] as const;
+/**
+ * How the player avoids the hazard when the prompt is completed in time.
+ *
+ * Two verbs, no more. Every hazard on the road either blocks the lane you are
+ * in and has to be jumped, or blocks it and has to be driven around — and the
+ * road has three lanes precisely so that the second one always has an answer.
+ * A third verb would need a third readable silhouette and a third animation
+ * budget without adding a decision the player does not already make.
+ */
+export const OBSTACLE_ACTIONS = ['jump', 'lane-change'] as const;
 
 export type ObstacleAction = (typeof OBSTACLE_ACTIONS)[number];
 

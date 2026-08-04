@@ -4,6 +4,7 @@ import type { ContentProfile, ObstacleDefinition } from '../models';
 import { createRngFromString } from '../random';
 import {
   advanceSpawner,
+  beginRecovery,
   createSpawner,
   eligibleObstacles,
   msUntilNextSpawn,
@@ -31,9 +32,9 @@ const POOL: readonly ObstacleDefinition[] = [
     baseReactionTimeMs: 380,
   },
   {
-    id: 'hanging-sign',
-    label: 'Hanging sign',
-    action: 'slide',
+    id: 'van',
+    label: 'Delivery van',
+    action: 'lane-change',
     difficultyWeight: 0.45,
     minimumMap: 3,
     promptCategory: 'medium-word',
@@ -43,14 +44,16 @@ const POOL: readonly ObstacleDefinition[] = [
 
 const CONTENT: ContentProfile = {
   promptCategories: ['short-word'],
-  obstacleIds: ['crate', 'puddle', 'hanging-sign'],
+  obstacleIds: ['crate', 'puddle', 'van'],
   obstacleIntervalSeconds: 10,
   obstacleIntervalJitter: 0.2,
+  recoverySeconds: 1.5,
+  doubleBlockChance: 0,
   themeTags: [],
 };
 
 function input(overrides: Partial<SpawnerInput> = {}): SpawnerInput {
-  return { content: CONTENT, mapNumber: 1, pool: POOL, ...overrides };
+  return { content: CONTENT, mapNumber: 1, pool: POOL, hazardsLive: false, ...overrides };
 }
 
 function spawner(seed = 'seed', content: ContentProfile = CONTENT): SpawnerState {
@@ -69,7 +72,7 @@ function run(
   for (let elapsed = 0; elapsed <= totalMs; elapsed += 100) {
     const result = advanceSpawner(current, elapsed, spawnerInput);
     current = result.state;
-    ids.push(...result.spawned.map((obstacle) => obstacle.id));
+    if (result.spawned !== null) ids.push(result.spawned.id);
   }
 
   return { state: current, ids };
@@ -97,7 +100,7 @@ describe('spawn schedule', () => {
     const state = spawner();
 
     expect(state.nextSpawnAtMs).toBeGreaterThan(CONTENT.obstacleIntervalSeconds * 1_000);
-    expect(advanceSpawner(state, 0, input()).spawned).toHaveLength(0);
+    expect(advanceSpawner(state, 0, input()).spawned).toBeNull();
   });
 
   it('spawns nothing before the first due time', () => {
@@ -132,13 +135,60 @@ describe('spawn schedule', () => {
     expect(new Set(dueTimes).size).toBeGreaterThan(1);
   });
 
-  it('catches up on a long frame instead of silently dropping obstacles', () => {
+  it('spawns one hazard after a long frame, not a pile of them', () => {
     const state = spawner();
-    // A tab restored after a minute crosses several due times at once.
+    // A tab restored after a minute crosses several due times at once. The old
+    // spawner returned a list and stacked them; one at a time is the rule that
+    // makes overlapping hazards impossible rather than merely unlikely.
     const result = advanceSpawner(state, 60_000, input());
 
-    expect(result.spawned.length).toBeGreaterThan(1);
+    expect(result.spawned).not.toBeNull();
+    // Rescheduled from now, so the run resumes its rhythm instead of trying to
+    // make up for the minute it was asleep.
     expect(result.state.nextSpawnAtMs).toBeGreaterThan(60_000);
+  });
+
+  it('refuses to spawn while a hazard is still unresolved', () => {
+    const state = spawner();
+    const blocked = advanceSpawner(state, 60_000, input({ hazardsLive: true }));
+
+    expect(blocked.spawned).toBeNull();
+    // The schedule is untouched, so the hazard appears as soon as the road is
+    // clear rather than being skipped.
+    expect(blocked.state).toBe(state);
+  });
+
+  it('holds off for the recovery interval after a hazard resolves', () => {
+    let state = advanceSpawner(spawner(), 60_000, input()).state;
+    state = beginRecovery(state, 60_000, CONTENT.recoverySeconds);
+
+    // Due by the schedule, but the player is still landing.
+    const early = advanceSpawner({ ...state, nextSpawnAtMs: 60_100 }, 60_500, input());
+    expect(early.spawned).toBeNull();
+
+    const later = advanceSpawner({ ...state, nextSpawnAtMs: 60_100 }, 62_000, input());
+    expect(later.spawned).not.toBeNull();
+  });
+
+  it('does not shorten a recovery already under way', () => {
+    const state = beginRecovery(spawner(), 10_000, 3);
+    const again = beginRecovery(state, 10_000, 1);
+
+    expect(again.recoveryUntilMs).toBe(state.recoveryUntilMs);
+  });
+
+  it('breaks up a run of the same verb', () => {
+    // Two jumps and one car are eligible on map 3, so chance alone would produce
+    // long jump streaks. Three of a kind in a row is a slalom, not a road.
+    const { ids } = run(spawner('verbs'), 400_000, input({ mapNumber: 3 }));
+    const actions = ids.map((id) => POOL.find((entry) => entry.id === id)?.action);
+
+    expect(actions.length).toBeGreaterThan(6);
+    for (let index = 2; index < actions.length; index += 1) {
+      const streak =
+        actions[index] === actions[index - 1] && actions[index - 1] === actions[index - 2];
+      expect(streak).toBe(false);
+    }
   });
 
   it('never repeats an obstacle back to back while alternatives exist', () => {

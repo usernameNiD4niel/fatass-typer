@@ -1,9 +1,23 @@
 import type { JSX } from 'react';
 
 import { Button, Card } from '../../components/ui';
-import type { MapConfig, ObstacleDefinition, PlayerProfile } from '../../game-core/models';
+import type {
+  MapConfig,
+  ObstacleAction,
+  ObstacleDefinition,
+  PlayerProfile,
+} from '../../game-core/models';
 import { progressFor } from '../../game-core/models';
 import styles from './LevelBriefing.module.css';
+
+/**
+ * What each hazard asks for, in words rather than in the rules' vocabulary.
+ * "type the prompt to lane-change past it" is accurate and unreadable.
+ */
+const ACTION_BRIEFING: Readonly<Record<ObstacleAction, string>> = {
+  jump: 'type the prompt to jump past it.',
+  'lane-change': 'type the word on the open side to pull into that lane.',
+};
 
 /**
  * Level briefing (spec §9).
@@ -78,7 +92,7 @@ export function LevelBriefing({
           <ul className={styles.tips}>
             {obstacles.map((obstacle) => (
               <li key={obstacle.id}>
-                <strong>{obstacle.label}</strong> — type the prompt to {obstacle.action} past it.
+                <strong>{obstacle.label}</strong> — {ACTION_BRIEFING[obstacle.action]}
               </li>
             ))}
           </ul>

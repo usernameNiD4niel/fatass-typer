@@ -29,13 +29,13 @@ const BASE = { map: MAP_4, prompts: ALL_PROMPTS, obstacles: OBSTACLES };
 const OFF = { ...DEFAULT_ADAPTIVE_ASSISTANCE, enabled: false };
 
 /**
- * Map 4 with the dogs called off.
+ * Map 4, unchanged.
  *
- * These tests are about where an obstacle is *placed*, and a player who types
- * nothing is caught long before the first one spawns. Removing the chase is the
- * smallest change that lets the placement be observed at all.
+ * These tests are about where a hazard is *placed*, which is decided the moment
+ * it spawns — before anything can go wrong with it. The run does not need to
+ * survive for the placement to be observed.
  */
-const CALM = { ...MAP_4, chase: { ...MAP_4.chase, baseCatchUpMetersPerSecond: 0 } };
+const CALM = MAP_4;
 
 /** Runs until an obstacle has been placed, and returns it. */
 function firstObstacle(session: RunSession) {
@@ -85,7 +85,10 @@ describe('assistance reaches the world', () => {
       firstObstacle(plain)?.impactMeters ?? 0,
     );
     expect(eased.map).toBe(plain.map);
-    expect(eased.chase).toEqual(plain.chase);
+    // Assistance moves the reaction buffer and nothing else: the score, the
+    // speed, and the road are identical.
+    expect(eased.score).toEqual(plain.score);
+    expect(eased.playerMeters).toBe(plain.playerMeters);
   });
 
   it('never lets a run drift outside the clamp', () => {
@@ -119,9 +122,8 @@ describe('assistance reaches the world', () => {
 describe('how often it actually fires', () => {
   it('stays dormant across the whole ladder under ordinary play', () => {
     // Documented, not endorsed. See the note at the top of this file: the map
-    // that kills a struggling player is the chase, and assistance is not
-    // allowed to touch it. If this test starts failing, assistance has begun
-    // to matter and its thresholds deserve a fresh look.
+    // If this test starts failing, assistance has begun to matter and its
+    // thresholds deserve a fresh look.
     for (const map of MAPS) {
       for (const wpm of [map.targetWpm, map.targetWpm + 4]) {
         const result = playtest({

@@ -24,4 +24,4 @@ this folder makes that swap impossible and makes the rules untestable in isolati
 ## Contents
 
 Populated by phase B: types, typing comparison, WPM and accuracy, sustainable peak WPM,
-prompt timing, chase distance, scoring, seeded prompt selection. See CLAUDE.md §5.
+prompt timing, lane and jump motion, scoring, seeded prompt selection.

@@ -21,7 +21,7 @@ export function WidthGuard({ minimumWidthPx }: WidthGuardProps): JSX.Element {
       <h1 className={styles.title}>A little more room, please</h1>
       <p className={styles.body}>
         Typing Chase runs on a desktop browser with a physical keyboard. The track needs a wide view
-        so you can see the obstacles coming — and the dogs behind you.
+        so you can read the road far enough ahead to type your way out of it.
       </p>
       <p className={styles.detail}>Widen the window to at least {minimumWidthPx}px to play.</p>
     </section>

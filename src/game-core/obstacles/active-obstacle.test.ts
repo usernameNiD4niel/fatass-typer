@@ -4,7 +4,7 @@ import { MAP_1 } from '../../content/maps';
 import { findObstacle } from '../../content/obstacles';
 import { ALL_PROMPTS } from '../../content/prompts';
 import type { MapConfig, ObstacleDefinition, PromptEntry } from '../models';
-import { requiredWpm } from '../timing';
+import { motionReserveMs, requiredWpm } from '../timing';
 import {
   type ActiveObstacle,
   advanceObstacle,
@@ -23,6 +23,9 @@ const CRATE = findObstacle('crate') as ObstacleDefinition;
 const PROMPT = ALL_PROMPTS.find((entry) => entry.text === 'gate') as PromptEntry;
 const BASE_SPEED = MAP_1.baseSpeedMetersPerSecond;
 
+/** A jump hazard blocks the lane the player is in; there is no safe lane. */
+const JUMP_ASSIGNMENT = { blockedLanes: [1] as const, safeLane: null, safeSide: null };
+
 function place(overrides: Partial<Parameters<typeof placeObstacle>[0]> = {}): ActiveObstacle {
   return placeObstacle({
     instanceId: 'obstacle-1',
@@ -31,6 +34,7 @@ function place(overrides: Partial<Parameters<typeof placeObstacle>[0]> = {}): Ac
     map: MAP_1,
     playerMeters: 100,
     elapsedMs: 5_000,
+    assignment: JUMP_ASSIGNMENT,
     ...overrides,
   });
 }
@@ -67,12 +71,19 @@ function approach(
 }
 
 describe('placing an obstacle', () => {
-  it('places it ahead of the MC, further than the prompt budget alone', () => {
+  it('adds the avoidance move to the budget, not just the typing time', () => {
     const obstacle = place();
     const budgetMeters = (obstacle.timing.availableMs / 1_000) * BASE_SPEED;
+    const reserveMeters = (motionReserveMs(CRATE.action, MAP_1.motion) / 1_000) * BASE_SPEED;
 
     expect(obstacle.impactMeters).toBeGreaterThan(100);
-    expect(distanceToImpact(obstacle, 100)).toBeCloseTo(budgetMeters * WARNING_LEAD_FACTOR, 5);
+    // The reserve is road, not slack: the player's deadline is unchanged, but
+    // the hazard sits far enough away for the jump to reach clearance first.
+    expect(distanceToImpact(obstacle, 100)).toBeCloseTo(
+      (budgetMeters + reserveMeters) * WARNING_LEAD_FACTOR,
+      5,
+    );
+    expect(distanceToImpact(obstacle, 100)).toBeGreaterThan(budgetMeters * WARNING_LEAD_FACTOR);
   });
 
   it('starts with no prompt attached and no deadline', () => {
@@ -100,11 +111,11 @@ describe('placing an obstacle', () => {
   });
 
   it('accounts for the obstacle-specific reaction allowance', () => {
-    const sign = findObstacle('hanging-sign') as ObstacleDefinition;
-    const withSign = place({ definition: sign });
+    const truck = findObstacle('box-truck') as ObstacleDefinition;
+    const withTruck = place({ definition: truck });
 
     // Harder to notice, so more lead time even for the same prompt.
-    expect(withSign.timing.availableMs).toBeGreaterThan(place().timing.availableMs);
+    expect(withTruck.timing.availableMs).toBeGreaterThan(place().timing.availableMs);
   });
 });
 
@@ -169,13 +180,15 @@ describe('approaching', () => {
 
     expect(current.status).toBe('active');
     expect(attachedAt).toBe(current.attachedAtMs);
-    // Within one 100ms step of the budget.
-    expect(timeToImpact(current, meters, BASE_SPEED)).toBeLessThanOrEqual(
-      current.timing.availableMs,
-    );
+    // The prompt attaches a reserve *before* the budget would put it, so the
+    // deadline lands a move's worth of road in front of the collision plane
+    // rather than on top of it. The player's own budget is unchanged.
+    const attachedWith = current.timing.availableMs + current.reserveMs;
+    expect(timeToImpact(current, meters, BASE_SPEED)).toBeLessThanOrEqual(attachedWith);
     expect(timeToImpact(current, meters, BASE_SPEED)).toBeGreaterThan(
-      current.timing.availableMs - BASE_SPEED * 0.1 * 200,
+      attachedWith - BASE_SPEED * 0.1 * 200,
     );
+    expect(current.deadlineAtMs).toBe((current.attachedAtMs ?? 0) + current.timing.availableMs);
   });
 
   it('freezes the deadline at attachment, so speeding up cannot shorten it', () => {

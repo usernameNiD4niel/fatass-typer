@@ -43,7 +43,7 @@ test('walks from the menu into a run using only the keyboard', async ({ page }) 
 
   await page.getByRole('button', { name: 'Start run' }).press('Enter');
   await expect(
-    page.getByRole('img', { name: 'The runner, the track ahead, and the chasing dogs' }),
+    page.getByRole('img', { name: 'The road ahead, the hazards on it, and the runner' }),
   ).toBeVisible();
 });
 

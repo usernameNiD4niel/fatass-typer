@@ -98,17 +98,8 @@
   background: var(--accent-default);
 }
 
-.safe {
+.speedFill {
   background: var(--threat-safe);
-}
-
-.closing {
-  background: var(--threat-close);
-}
-
-.critical,
-.caught {
-  background: var(--threat-critical);
 }
 
 /* The threat word, so the danger is never colour-only (spec §12). */

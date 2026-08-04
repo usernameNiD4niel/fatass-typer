@@ -95,7 +95,7 @@ export function MainMenu({
     <section className={styles.screen} aria-label="Main menu">
       <header className={styles.header}>
         <h1 className={styles.title}>Typing Chase</h1>
-        <p className={styles.tagline}>Type fast. The dogs are gaining.</p>
+        <p className={styles.tagline}>Type fast. The road does not wait.</p>
       </header>
 
       <nav className={styles.actions} aria-label="Main menu actions">

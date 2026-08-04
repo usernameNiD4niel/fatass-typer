@@ -3,7 +3,6 @@ import type { JSX } from 'react';
 import type { LiveRunStats } from '../../game-core/models';
 import { Button, classes } from '../ui';
 import styles from './Hud.module.css';
-import { THREAT_WORD, type ThreatLevel, threatLevel } from './threat';
 
 /**
  * The run HUD (spec §9).
@@ -12,24 +11,23 @@ import { THREAT_WORD, type ThreatLevel, threatLevel } from './threat';
  * contrast, one row. Spec §4 warns against overloading the HUD, and the way that
  * happens is six readouts all shouting at once.
  *
- * Two meters, because they answer the only two questions that matter mid-run:
- * *how far to go* and *how close are they*.
+ * Two meters, because they answer the two questions that matter mid-run: *how
+ * far to go* and *how fast am I going* — the second being the thing that decides
+ * how much road the next hazard leaves you.
+ *
+ * The active word is never here. It belongs beside the hazard it applies to
+ * (spec §16), out in the world where the player is already looking.
  */
 
 export interface HudProps {
   readonly stats: LiveRunStats;
+  /** Top speed the map can reach, for the speed meter's scale. */
+  readonly topSpeedMetersPerSecond: number;
   readonly onPause: () => void;
   readonly paused: boolean;
   /** Disabled outside a run, when pausing means nothing. */
   readonly canPause: boolean;
 }
-
-const THREAT_CLASS: Readonly<Record<ThreatLevel, string | undefined>> = {
-  safe: styles.safe,
-  closing: styles.closing,
-  critical: styles.critical,
-  caught: styles.caught,
-};
 
 function Stat({ label, value }: { label: string; value: string }): JSX.Element {
   return (
@@ -78,8 +76,15 @@ function Meter({
   );
 }
 
-export function Hud({ stats, onPause, paused, canPause }: HudProps): JSX.Element {
-  const threat = threatLevel(stats.dogDistanceNormalized);
+export function Hud({
+  stats,
+  topSpeedMetersPerSecond,
+  onPause,
+  paused,
+  canPause,
+}: HudProps): JSX.Element {
+  const speedRatio =
+    topSpeedMetersPerSecond > 0 ? stats.speedMetersPerSecond / topSpeedMetersPerSecond : 0;
 
   return (
     <div className={styles.hud}>
@@ -98,12 +103,11 @@ export function Hud({ stats, onPause, paused, canPause }: HudProps): JSX.Element
           fillClass={styles.progressFill}
         />
         <Meter
-          label="Dogs"
-          // A word, not only a colour and a length (spec §12).
-          valueText={THREAT_WORD[threat]}
-          ratio={stats.dogDistanceNormalized}
-          fillClass={THREAT_CLASS[threat]}
-          emphasise={threat === 'critical' || threat === 'caught'}
+          label="Speed"
+          // A number, not only a colour and a length (spec §12).
+          valueText={`${stats.speedMetersPerSecond.toFixed(1)} m/s`}
+          ratio={speedRatio}
+          fillClass={styles.speedFill}
         />
       </div>
 

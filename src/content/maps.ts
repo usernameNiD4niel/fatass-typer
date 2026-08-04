@@ -1,4 +1,5 @@
 import type { MapConfig } from '../game-core/models';
+import { DEFAULT_MOTION } from './road';
 
 /**
  * Map 1 (spec §6).
@@ -26,31 +27,19 @@ export const MAP_1: MapConfig = {
   theme: 'neighborhood',
   targetWpm: 20,
   // ~50 seconds at base speed, less when boosting well.
-  distanceMeters: 320,
+  distanceMeters: 600,
   baseSpeedMetersPerSecond: 6,
   timing: {
     // The most generous buffer in the game. Map 6 runs at 1.08.
-    reactionBuffer: 1.7,
-    fixedVisualLeadTimeMs: 900,
+    reactionBuffer: 1.38,
+    fixedVisualLeadTimeMs: 120,
   },
-  chase: {
-    // Close enough that all three dogs are on screen at the start. A gap wider
-    // than the camera can show turns the chase into an invisible timer.
-    startingDistanceMeters: 16,
-    /**
-     * The dial that decides everything.
-     *
-     * At 1.2 (where this started) a 10 WPM typist finished comfortably and the
-     * dogs never came closer than 88% of the starting gap — the chase was
-     * scenery. At 2.0 a 20 WPM typist still has room and a 10 WPM typist is
-     * caught, which is what the map's label promises.
-     */
-    baseCatchUpMetersPerSecond: 1.7,
-    collisionPenaltyMeters: 5,
-    missedPromptPenaltyMeters: 3,
-    streakRecoveryMeters: 2,
-    streakThreshold: 3,
-    dangerThresholdMeters: 8,
+  // The road is the road: lane width and jump timing are shared by every
+  // map (see `content/road.ts`). Difficulty lives in the dials below it.
+  motion: DEFAULT_MOTION,
+  speed: {
+    maxMetersPerSecond: 7.4,
+    rampPerMinute: 1.0,
   },
   boost: {
     speedMultiplier: 1.55,
@@ -62,9 +51,11 @@ export const MAP_1: MapConfig = {
     promptCategories: ['short-word', 'medium-word', 'short-phrase', 'themed'],
     // The three gentlest obstacles, all avoided by jumping. Nothing overhead and
     // nothing needing a phrase — those start on later maps.
-    obstacleIds: ['rock', 'crate', 'low-barrier', 'puddle'],
-    obstacleIntervalSeconds: 9,
+    obstacleIds: ['rock', 'crate', 'low-barrier', 'sedan'],
+    obstacleIntervalSeconds: 3.6,
     obstacleIntervalJitter: 0.25,
+    recoverySeconds: 1.2,
+    doubleBlockChance: 0,
     themeTags: ['street', 'chase'],
   },
   unlock: {
@@ -87,20 +78,18 @@ export const MAP_2: MapConfig = {
   name: 'Downtown Sprint',
   theme: 'downtown',
   targetWpm: 25,
-  distanceMeters: 360,
+  distanceMeters: 650,
   baseSpeedMetersPerSecond: 6.4,
   timing: {
-    reactionBuffer: 1.55,
-    fixedVisualLeadTimeMs: 850,
+    reactionBuffer: 1.32,
+    fixedVisualLeadTimeMs: 115,
   },
-  chase: {
-    startingDistanceMeters: 16,
-    baseCatchUpMetersPerSecond: 2.1,
-    collisionPenaltyMeters: 5.5,
-    missedPromptPenaltyMeters: 3.5,
-    streakRecoveryMeters: 2,
-    streakThreshold: 3,
-    dangerThresholdMeters: 8,
+  // The road is the road: lane width and jump timing are shared by every
+  // map (see `content/road.ts`). Difficulty lives in the dials below it.
+  motion: DEFAULT_MOTION,
+  speed: {
+    maxMetersPerSecond: 7.9,
+    rampPerMinute: 1.1,
   },
   boost: {
     speedMultiplier: 1.55,
@@ -108,9 +97,11 @@ export const MAP_2: MapConfig = {
   },
   content: {
     promptCategories: ['short-word', 'medium-word', 'short-phrase', 'themed', 'punctuation'],
-    obstacleIds: ['rock', 'crate', 'low-barrier', 'puddle', 'trash-bin'],
-    obstacleIntervalSeconds: 8.5,
+    obstacleIds: ['rock', 'crate', 'low-barrier', 'cone-beam', 'sedan', 'van'],
+    obstacleIntervalSeconds: 3.4,
     obstacleIntervalJitter: 0.25,
+    recoverySeconds: 1.1,
+    doubleBlockChance: 0,
     themeTags: ['downtown', 'street', 'chase'],
   },
   unlock: {
@@ -132,20 +123,18 @@ export const MAP_3: MapConfig = {
   name: 'Market District',
   theme: 'market-district',
   targetWpm: 30,
-  distanceMeters: 400,
+  distanceMeters: 700,
   baseSpeedMetersPerSecond: 6.8,
   timing: {
-    reactionBuffer: 1.4,
-    fixedVisualLeadTimeMs: 800,
+    reactionBuffer: 1.28,
+    fixedVisualLeadTimeMs: 110,
   },
-  chase: {
-    startingDistanceMeters: 18,
-    baseCatchUpMetersPerSecond: 2.3,
-    collisionPenaltyMeters: 6,
-    missedPromptPenaltyMeters: 4,
-    streakRecoveryMeters: 2,
-    streakThreshold: 3,
-    dangerThresholdMeters: 7,
+  // The road is the road: lane width and jump timing are shared by every
+  // map (see `content/road.ts`). Difficulty lives in the dials below it.
+  motion: DEFAULT_MOTION,
+  speed: {
+    maxMetersPerSecond: 8.4,
+    rampPerMinute: 1.2,
   },
   boost: {
     speedMultiplier: 1.55,
@@ -161,17 +150,11 @@ export const MAP_3: MapConfig = {
       'punctuation',
       'number',
     ],
-    obstacleIds: [
-      'rock',
-      'crate',
-      'low-barrier',
-      'puddle',
-      'trash-bin',
-      'hanging-sign',
-      'roadwork-barrier',
-    ],
-    obstacleIntervalSeconds: 8,
+    obstacleIds: ['rock', 'crate', 'low-barrier', 'cone-beam', 'roadwork-barrier', 'sedan', 'van'],
+    obstacleIntervalSeconds: 3.2,
     obstacleIntervalJitter: 0.3,
+    recoverySeconds: 1.0,
+    doubleBlockChance: 0.15,
     themeTags: ['market-district', 'street', 'chase'],
   },
   unlock: {
@@ -193,20 +176,18 @@ export const MAP_4: MapConfig = {
   name: 'Industrial Zone',
   theme: 'industrial-zone',
   targetWpm: 35,
-  distanceMeters: 440,
+  distanceMeters: 750,
   baseSpeedMetersPerSecond: 7.2,
   timing: {
-    reactionBuffer: 1.28,
-    fixedVisualLeadTimeMs: 750,
+    reactionBuffer: 1.24,
+    fixedVisualLeadTimeMs: 105,
   },
-  chase: {
-    startingDistanceMeters: 24,
-    baseCatchUpMetersPerSecond: 2.4,
-    collisionPenaltyMeters: 6.5,
-    missedPromptPenaltyMeters: 4.5,
-    streakRecoveryMeters: 2.5,
-    streakThreshold: 3,
-    dangerThresholdMeters: 7,
+  // The road is the road: lane width and jump timing are shared by every
+  // map (see `content/road.ts`). Difficulty lives in the dials below it.
+  motion: DEFAULT_MOTION,
+  speed: {
+    maxMetersPerSecond: 8.9,
+    rampPerMinute: 1.3,
   },
   boost: {
     speedMultiplier: 1.6,
@@ -224,15 +205,17 @@ export const MAP_4: MapConfig = {
     ],
     obstacleIds: [
       'rock',
-      'crate',
       'low-barrier',
-      'trash-bin',
-      'hanging-sign',
+      'cone-beam',
       'roadwork-barrier',
-      'narrow-passage',
+      'sedan',
+      'van',
+      'box-truck',
     ],
-    obstacleIntervalSeconds: 7.5,
+    obstacleIntervalSeconds: 3.0,
     obstacleIntervalJitter: 0.3,
+    recoverySeconds: 0.9,
+    doubleBlockChance: 0.25,
     themeTags: ['industrial-zone', 'chase'],
   },
   unlock: {
@@ -253,28 +236,18 @@ export const MAP_5: MapConfig = {
   name: 'Night Highway',
   theme: 'night-highway',
   targetWpm: 40,
-  distanceMeters: 440,
+  distanceMeters: 800,
   baseSpeedMetersPerSecond: 7.6,
   timing: {
-    reactionBuffer: 1.18,
-    fixedVisualLeadTimeMs: 700,
+    reactionBuffer: 1.22,
+    fixedVisualLeadTimeMs: 100,
   },
-  chase: {
-    startingDistanceMeters: 22,
-    /**
-     * Softer than the ladder below it would suggest.
-     *
-     * The unlock gate into Map 6 asks for 90% accuracy *on this map*. If a
-     * typist at the advertised 40 WPM making one mistake in twelve were caught,
-     * that gate would only be reachable by someone typing well above target —
-     * the map would be asking for one thing and requiring another.
-     */
-    baseCatchUpMetersPerSecond: 2.9,
-    collisionPenaltyMeters: 7,
-    missedPromptPenaltyMeters: 5,
-    streakRecoveryMeters: 2.5,
-    streakThreshold: 3,
-    dangerThresholdMeters: 6,
+  // The road is the road: lane width and jump timing are shared by every
+  // map (see `content/road.ts`). Difficulty lives in the dials below it.
+  motion: DEFAULT_MOTION,
+  speed: {
+    maxMetersPerSecond: 9.4,
+    rampPerMinute: 1.4,
   },
   boost: {
     speedMultiplier: 1.65,
@@ -290,16 +263,11 @@ export const MAP_5: MapConfig = {
       'punctuation',
       'number',
     ],
-    obstacleIds: [
-      'rock',
-      'low-barrier',
-      'trash-bin',
-      'hanging-sign',
-      'roadwork-barrier',
-      'narrow-passage',
-    ],
-    obstacleIntervalSeconds: 7,
+    obstacleIds: ['rock', 'low-barrier', 'cone-beam', 'roadwork-barrier', 'van', 'box-truck'],
+    obstacleIntervalSeconds: 2.9,
     obstacleIntervalJitter: 0.3,
+    recoverySeconds: 0.8,
+    doubleBlockChance: 0.35,
     themeTags: ['night-highway', 'chase'],
   },
   unlock: {
@@ -322,21 +290,18 @@ export const MAP_6: MapConfig = {
   name: 'Final Pursuit',
   theme: 'final-pursuit',
   targetWpm: 50,
-  distanceMeters: 520,
+  distanceMeters: 860,
   baseSpeedMetersPerSecond: 8,
   timing: {
-    reactionBuffer: 1.08,
-    fixedVisualLeadTimeMs: 650,
+    reactionBuffer: 1.2,
+    fixedVisualLeadTimeMs: 95,
   },
-  chase: {
-    startingDistanceMeters: 18,
-    // Same reasoning as Map 5: the 92% gate has to be reachable at 50 WPM.
-    baseCatchUpMetersPerSecond: 3.4,
-    collisionPenaltyMeters: 8,
-    missedPromptPenaltyMeters: 5.5,
-    streakRecoveryMeters: 3,
-    streakThreshold: 3,
-    dangerThresholdMeters: 6,
+  // The road is the road: lane width and jump timing are shared by every
+  // map (see `content/road.ts`). Difficulty lives in the dials below it.
+  motion: DEFAULT_MOTION,
+  speed: {
+    maxMetersPerSecond: 10.0,
+    rampPerMinute: 1.5,
   },
   boost: {
     speedMultiplier: 1.7,
@@ -356,14 +321,16 @@ export const MAP_6: MapConfig = {
       'rock',
       'crate',
       'low-barrier',
-      'puddle',
-      'trash-bin',
-      'hanging-sign',
+      'cone-beam',
       'roadwork-barrier',
-      'narrow-passage',
+      'sedan',
+      'van',
+      'box-truck',
     ],
-    obstacleIntervalSeconds: 6.5,
+    obstacleIntervalSeconds: 2.8,
     obstacleIntervalJitter: 0.3,
+    recoverySeconds: 0.7,
+    doubleBlockChance: 0.45,
     themeTags: ['final-pursuit', 'chase'],
   },
   unlock: {

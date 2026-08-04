@@ -33,8 +33,16 @@ export default defineConfig(({ mode }) => ({
          * out means a gameplay tweak does not invalidate ~190kB of vendor code
          * in everyone's cache. The screens split themselves, through `lazy()`
          * in `App.tsx`.
+         *
+         * Three.js gets its own chunk rather than riding in `vendor`, because it
+         * is several times the size of everything else combined and only the run
+         * screen needs it. `GameScreen` is `lazy()`, so this chunk arrives when a
+         * run starts — not when the menu does.
          */
-        manualChunks: (id: string) => (id.includes('node_modules') ? 'vendor' : undefined),
+        manualChunks: (id: string) => {
+          if (id.includes('three') || id.includes('@react-three')) return 'three';
+          return id.includes('node_modules') ? 'vendor' : undefined;
+        },
       },
     },
   },

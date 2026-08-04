@@ -45,15 +45,15 @@ describe('LevelBriefing', () => {
     setup();
 
     expect(screen.getByText('20 WPM')).toBeInTheDocument();
-    expect(screen.getByText('320 m')).toBeInTheDocument();
-    // Roughly 53 seconds at 6 m/s — a length, not a mystery.
+    expect(screen.getByText('600 m')).toBeInTheDocument();
+    // A length, not a mystery.
     expect(screen.getByText(/^\d+ s$/)).toBeInTheDocument();
   });
 
   it('lists the obstacles and how to get past each one', () => {
     setup();
 
-    expect(screen.getByText('Wooden crate')).toBeInTheDocument();
+    expect(screen.getByText('Fallen crate')).toBeInTheDocument();
     expect(screen.getAllByText(/type the prompt to jump past it/).length).toBeGreaterThan(0);
   });
 

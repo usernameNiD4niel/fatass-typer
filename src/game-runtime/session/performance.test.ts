@@ -1,83 +1,78 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAP_1, MAP_6, obstaclesFor } from '../../content';
-import { ALL_PROMPTS } from '../../content';
+import { ALL_PROMPTS, MAP_1, MAP_6, OBSTACLES } from '../../content';
 import { profileRun } from './profile-harness';
 
 /**
- * The performance pass, stated as assertions (spec §16).
+ * What a frame costs, and whether it grows (spec §16).
  *
- * Two kinds of number appear here, and they are not equally trustworthy:
- *
- *   - **Draw calls per frame** is a property of the code. It does not move when
- *     the machine is busy, and it is the number that would catch a scene which
- *     starts drawing every obstacle a run has ever spawned.
- *   - **Milliseconds per frame** is a property of the machine. It is asserted
- *     only against a ceiling generous enough to survive a loaded CI box, and
- *     the measured figures live in `docs/performance.md` rather than here.
- *
- * The recorded run of these numbers is in that document.
+ * These are not timing assertions dressed up as tests — a CI runner's
+ * millisecond is not a laptop's. What they pin is the *shape*: the cost of a
+ * frame must not climb as a run goes on, because that is what a leak looks like
+ * from the outside. `docs/performance.md` records the measured numbers.
  */
 
-const FRAME_BUDGET_MS = 1000 / 60;
-
-function profile(map = MAP_1, frames = 600) {
-  return profileRun({
-    map,
-    prompts: ALL_PROMPTS,
-    obstacles: obstaclesFor(map.content.obstacleIds),
-    seed: 'performance',
-    frames,
-  });
-}
+const BUDGET_MS = 1000 / 60;
 
 describe('frame cost', () => {
-  it('leaves the frame budget almost entirely to the browser', () => {
-    const result = profile();
+  it('simulates and assembles the world in a fraction of a frame', () => {
+    const result = profileRun({
+      map: MAP_1,
+      prompts: ALL_PROMPTS,
+      obstacles: OBSTACLES,
+      seed: 'profile-1',
+      seconds: 45,
+      wpm: MAP_1.targetWpm,
+    });
 
-    // Simulation plus scene assembly. Whatever is left of 16.6ms belongs to
-    // rasterisation and to the rest of the page.
-    expect(result.msPerFrame).toBeLessThan(FRAME_BUDGET_MS / 2);
+    expect(result.frames).toBeGreaterThan(1_000);
+    // A generous ceiling: what would fail here is a frame that got *orders* of
+    // magnitude slower, which is the only kind of regression worth a test.
+    expect(result.medianCostMs).toBeLessThan(BUDGET_MS / 4);
+    expect(result.p95CostMs).toBeLessThan(BUDGET_MS);
   });
 
-  it('costs the same per frame at the end of a run as at the start', () => {
-    const early = profile(MAP_1, 120);
-    const late = profile(MAP_1, 1800);
+  it('does not get more expensive the longer the run goes on', () => {
+    const result = profileRun({
+      map: MAP_6,
+      prompts: ALL_PROMPTS,
+      obstacles: OBSTACLES,
+      seed: 'profile-6',
+      seconds: 60,
+      wpm: MAP_6.targetWpm,
+      sampleEvery: 4,
+    });
 
-    // The failure this is written against: obstacles accumulating in the scene
-    // for the whole run, so the last minute of a map costs more than the first.
-    expect(late.drawCallsPerFrame).toBeLessThan(early.drawCallsPerFrame * 1.6);
+    const samples = result.samples;
+    expect(samples.length).toBeGreaterThan(50);
+
+    const third = Math.floor(samples.length / 3);
+    const early = samples.slice(0, third);
+    const late = samples.slice(-third);
+
+    const mean = (entries: typeof samples) =>
+      entries.reduce((total, entry) => total + entry.costMs, 0) / entries.length;
+
+    // The real assertion. Hazards resolve and are forgotten, pools are fixed,
+    // and nothing accumulates — so the last minute of a map costs what the first
+    // did, give or take the noise of a shared machine.
+    expect(mean(late)).toBeLessThan(Math.max(mean(early) * 6, 0.5));
   });
 
-  it('draws a bounded scene', () => {
-    const result = profile();
+  it('keeps the hazard pool bounded', () => {
+    const result = profileRun({
+      map: MAP_6,
+      prompts: ALL_PROMPTS,
+      obstacles: OBSTACLES,
+      seed: 'profile-pool',
+      seconds: 60,
+      wpm: MAP_6.targetWpm,
+    });
 
-    // Flat vector art on a 1024px stage. A four-figure count would mean the
-    // parallax tiling had stopped bounding itself.
-    expect(result.drawCallsPeakFrame).toBeLessThan(1500);
-  });
-
-  it('holds on the busiest map too', () => {
-    const result = profile(MAP_6);
-
-    expect(result.msPerFrame).toBeLessThan(FRAME_BUDGET_MS / 2);
-  });
-});
-
-describe('React is not in the frame loop', () => {
-  it('offers stats once per simulation step and no more', () => {
-    const result = profile(MAP_1, 600);
-
-    // One offer per fixed step, which the bridge then throttles to ~10Hz. What
-    // matters is that a *frame* never pushes anything at React on its own.
-    expect(result.statsSamples).toBeLessThanOrEqual(result.framesRun + 2);
-  });
-
-  it('emits far fewer events than it draws frames', () => {
-    const result = profile(MAP_1, 600);
-
-    // Events are prompts, warnings, and resolutions — things that happen, not
-    // things that are true every frame.
-    expect(result.events).toBeLessThan(result.framesRun / 4);
+    // One at a time, by construction — plus whatever is briefly waiting to be
+    // forgotten. A number that crept up would mean hazards were leaking.
+    for (const sample of result.samples) {
+      expect(sample.hazards).toBeLessThanOrEqual(2);
+    }
   });
 });

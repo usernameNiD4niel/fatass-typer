@@ -1,20 +1,27 @@
 import { describe, expect, it } from 'vitest';
 
-import { announcementFor, shouldAnnounceThreat } from './announcements';
+import { announcementFor } from './announcements';
 
 describe('announcementFor', () => {
   it('says what happened, in a sentence', () => {
-    expect(announcementFor({ kind: 'obstacleWarning' })).toMatch(/obstacle ahead/i);
+    expect(announcementFor({ kind: 'obstacleWarning' })).toMatch(/hazard ahead/i);
     expect(announcementFor({ kind: 'paused' })).toMatch(/paused/i);
   });
 
-  it('distinguishes a stumble from a collision', () => {
-    const stumble = announcementFor({ kind: 'hit', reason: 'stumbled' });
-    const collision = announcementFor({ kind: 'hit', reason: 'collided' });
+  it('names the word, because it is out in the world where nothing can read it', () => {
+    // The typing field used to carry the word as its accessible name. With the
+    // field gone, this sentence is the only thing that says it out loud.
+    expect(announcementFor({ kind: 'challenge', word: 'river' })).toContain('river');
+  });
 
-    // They cost the player different amounts; hearing the same sentence for
-    // both would hide that.
-    expect(stumble).not.toBe(collision);
+  it('distinguishes running out of time from driving into something', () => {
+    const timedOut = announcementFor({ kind: 'hit', reason: 'timedOut' });
+    const collided = announcementFor({ kind: 'hit', reason: 'collided' });
+
+    // They happen for different reasons; hearing the same sentence for both
+    // would hide which mistake was made.
+    expect(timedOut).not.toBe(collided);
+    expect(timedOut).toMatch(/time/i);
   });
 
   it('reports the outcome of a finished run with its numbers', () => {
@@ -25,10 +32,11 @@ describe('announcementFor', () => {
     expect(text).toMatch(/finished/i);
   });
 
-  it('says plainly that the dogs won', () => {
+  it('says plainly that the run was lost', () => {
     const text = announcementFor({ kind: 'finished', completed: false, score: 400, wpm: 18 });
 
-    expect(text).toMatch(/caught/i);
+    expect(text).toMatch(/crashed/i);
+    expect(text).toContain('400');
   });
 
   it('never announces a keystroke', () => {
@@ -39,26 +47,5 @@ describe('announcementFor', () => {
     for (const kind of kinds) {
       expect(announcementFor({ kind })).not.toMatch(/character|letter|key/i);
     }
-  });
-});
-
-describe('shouldAnnounceThreat', () => {
-  it('announces the dogs closing in', () => {
-    expect(shouldAnnounceThreat('safe', 'closing')).toBe(true);
-    expect(shouldAnnounceThreat('closing', 'critical')).toBe(true);
-  });
-
-  it('stays quiet while nothing has changed', () => {
-    expect(shouldAnnounceThreat('critical', 'critical')).toBe(false);
-  });
-
-  it('stays quiet on a partial recovery', () => {
-    // Drifting between critical and closing repeatedly is normal play, and
-    // narrating each crossing would be unbearable.
-    expect(shouldAnnounceThreat('critical', 'closing')).toBe(false);
-  });
-
-  it('announces a full recovery, which is the one piece of good news', () => {
-    expect(shouldAnnounceThreat('critical', 'safe')).toBe(true);
   });
 });
