@@ -79,6 +79,18 @@ export interface PromptOutcome {
    * prompts, which carry no deadline.
    */
   readonly remainingMs: number;
+  /**
+   * Fraction of the obstacle's whole budget still unspent, 0..1.
+   *
+   * Not the same thing as `remainingMs`, and the difference is the point.
+   * `remainingMs` is absolute, so a long word on a slow map pays more for the
+   * same *quality* of clear than a short word on a fast one. The margin is
+   * normalised against the budget the hazard actually gave, so it asks "how
+   * decisively did you beat this deadline" rather than "how big was it".
+   *
+   * Zero for anything without a deadline.
+   */
+  readonly marginFraction: number;
 }
 
 /** Breakdown of a single prompt's award. Surfaced on the results screen. */
@@ -88,6 +100,7 @@ export interface PromptScoreBreakdown {
   readonly speedBonus: number;
   readonly accuracyBonus: number;
   readonly remainingTimeBonus: number;
+  readonly marginBonus: number;
   readonly multiplier: number;
   readonly penalty: number;
   readonly total: number;
@@ -121,8 +134,23 @@ export function scorePrompt(
   const remainingTimeBonus =
     Math.max(0, outcome.remainingMs / 1_000) * config.remainingTimeBonusPerSecond;
 
+  /*
+   * Squared, deliberately.
+   *
+   * A linear reward for beating a deadline pays a scraped clear nearly as well
+   * as a decisive one, and the game already had that in `remainingTimeBonus`.
+   * Squaring means the last fraction of margin is worth far more than the
+   * first: clearing with 80% of the budget spare pays four times what 40% does,
+   * not twice. That is the shape a player has to feel before typing faster
+   * looks worth doing, given clearing at all is already a pass.
+   */
+  const margin = Math.max(0, Math.min(1, outcome.marginFraction));
+  const marginBonus = margin * margin * config.marginBonusMax;
+
   const multiplier = comboMultiplier(combo, config);
-  const earned = (base + characters + speedBonus + accuracyBonus + remainingTimeBonus) * multiplier;
+  const earned =
+    (base + characters + speedBonus + accuracyBonus + remainingTimeBonus + marginBonus) *
+    multiplier;
 
   return {
     base,
@@ -130,6 +158,7 @@ export function scorePrompt(
     speedBonus,
     accuracyBonus,
     remainingTimeBonus,
+    marginBonus,
     multiplier,
     penalty,
     total: earned - penalty,

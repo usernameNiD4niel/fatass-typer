@@ -235,6 +235,36 @@ describe('hazards', () => {
     expect(currentSpeed(session)).toBeGreaterThan(MAP_1.baseSpeedMetersPerSecond);
   });
 
+  it('pays a bigger boost for clearing with more of the budget to spare', () => {
+    // The same hazard, same seed, cleared instantly versus cleared at the
+    // last moment. Before the margin curve these produced identical speed,
+    // which is why there was no reason to type faster than the deadline.
+    const decisive = typePrompt(untilChallenge(newSession('margin')));
+
+    let late = untilChallenge(newSession('margin'));
+    const hazard = late.obstacles.find((entry) => entry.status === 'active');
+    const budgetMs = hazard?.timing.availableMs ?? 0;
+    // Sit on it until almost nothing is left, then answer.
+    late = typePrompt(advance(late, budgetMs * 0.9));
+
+    expect(isBoosting(decisive)).toBe(true);
+    expect(isBoosting(late)).toBe(true);
+    expect(decisive.boostMultiplier).toBeGreaterThan(late.boostMultiplier);
+    expect(currentSpeed(decisive)).toBeGreaterThan(currentSpeed(late));
+    // And the ceiling is still the map's own number, because hazard placement
+    // is measured against it.
+    expect(decisive.boostMultiplier).toBeLessThanOrEqual(MAP_1.boost.speedMultiplier);
+  });
+
+  it('never lets a weak clear cancel the speed a strong one already earned', () => {
+    let session = typePrompt(untilChallenge(newSession('margin')));
+    const earned = session.boostMultiplier;
+
+    session = typePrompt(untilChallenge(session));
+
+    expect(session.boostMultiplier).toBeGreaterThanOrEqual(earned);
+  });
+
   it('leaves the road quiet for a moment after a hazard', () => {
     let session = untilChallenge(newSession('recovery'));
     session = typePrompt(session);

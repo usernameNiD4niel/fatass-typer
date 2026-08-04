@@ -197,6 +197,21 @@ export interface RunSession {
   readonly elapsedMs: number;
   /** Milliseconds of boost left, or 0. Earned by clearing a hazard. */
   readonly boostRemainingMs: number;
+  /**
+   * How much of the map's boost the current one is worth, 1..`speedMultiplier`.
+   *
+   * Earned, not given. A hazard cleared with most of its budget to spare pays
+   * the map's full multiplier; one scraped past the deadline pays almost
+   * nothing. This is what makes typing faster than the deadline demands worth
+   * doing — before it, clearing at 20 WPM and clearing at 60 produced exactly
+   * the same speed, so the game asked for a floor and rewarded nothing above it.
+   *
+   * It is never above `map.boost.speedMultiplier`, which matters: `placementSpeed`
+   * measures hazard placement against that ceiling, so a boost that could exceed
+   * it would let the player arrive early at a deadline that assumed they could
+   * not.
+   */
+  readonly boostMultiplier: number;
   /** Time left on the impact beat before the run ends. */
   readonly impactRemainingMs: number;
   /** Why the run ended, or `null` while it has not. */
@@ -369,6 +384,7 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     playerMeters: 0,
     elapsedMs: 0,
     boostRemainingMs: 0,
+    boostMultiplier: 1,
     impactRemainingMs: 0,
     failureReason: null,
     motion: createPlayerMotion(CENTRE_LANE),
@@ -423,7 +439,48 @@ export function currentSpeed(session: RunSession): number {
     session.elapsedMs,
   );
 
-  return session.boostRemainingMs > 0 ? ramped * session.map.boost.speedMultiplier : ramped;
+  return session.boostRemainingMs > 0 ? ramped * session.boostMultiplier : ramped;
+}
+
+/*
+ * The band of margins a run actually produces.
+ *
+ * Measured across all six maps at 1×, 1.25×, 1.6× and 2.2× their target speed:
+ * margins run from about 0.24 at the advertised speed to about 0.67 at more
+ * than twice it. They never approach 1, and they cannot — typing the word is
+ * most of what the budget is for.
+ *
+ * Mapping raw margin straight onto the boost range therefore wasted over half
+ * of it: a target-speed typist got 1.13× of an available 1.55×, and the cap was
+ * unreachable by anybody. Stretching the attainable band across the whole range
+ * is what makes the reward legible — the difference between a good clear and a
+ * great one is now most of the boost rather than a rounding error.
+ */
+const MARGIN_BAND_FLOOR = 0.15;
+const MARGIN_BAND_CEILING = 0.65;
+
+/**
+ * The share of the map's boost a scraped clear still pays.
+ *
+ * Not zero. A player typing at exactly the speed on the card is the audience the
+ * map was written for, and leaving them unboosted would make every map slower
+ * than its own label — punishing them for being precisely what was asked.
+ */
+const MARGIN_FLOOR_SHARE = 0.3;
+
+/**
+ * What a clear at this margin is worth as a speed multiplier.
+ *
+ * Linear across the band, rather than squared as the score is. The score is
+ * where the game asks the player to reach; speed is where it has to stay
+ * honest, and a squared curve here would leave a competent-but-not-fast player
+ * crawling.
+ */
+function boostMultiplierFor(map: MapConfig, marginFraction: number): number {
+  const banded = (marginFraction - MARGIN_BAND_FLOOR) / (MARGIN_BAND_CEILING - MARGIN_BAND_FLOOR);
+  const share = MARGIN_FLOOR_SHARE + (1 - MARGIN_FLOOR_SHARE) * Math.max(0, Math.min(1, banded));
+
+  return 1 + (map.boost.speedMultiplier - 1) * share;
 }
 
 /**
@@ -1389,6 +1446,13 @@ function commitToAvoidance(session: RunSession, instanceId: string): RunSessionR
 
   const committed = commitObstacle(obstacle, session.elapsedMs);
 
+  const remainingMs =
+    obstacle.deadlineAtMs === null ? 0 : Math.max(0, obstacle.deadlineAtMs - session.elapsedMs);
+  // Against the budget the hazard actually gave, so the reward is for how
+  // decisively the deadline was beaten rather than for how long the word was.
+  const marginFraction =
+    obstacle.timing.availableMs > 0 ? remainingMs / obstacle.timing.availableMs : 0;
+
   const scored = scorePromptCompleted(session.score, {
     correctCharacters: session.typing.correctCharacters,
     incorrectCharacters: session.typing.incorrectCharacters,
@@ -1397,8 +1461,8 @@ function commitToAvoidance(session: RunSession, instanceId: string): RunSessionR
     actualTypingMs: session.elapsedMs - session.promptStartedMs,
     // Finishing early is worth something: it is the difference between clearing
     // a hazard and scraping past it.
-    remainingMs:
-      obstacle.deadlineAtMs === null ? 0 : Math.max(0, obstacle.deadlineAtMs - session.elapsedMs),
+    remainingMs,
+    marginFraction,
   });
 
   /*
@@ -1435,6 +1499,18 @@ function commitToAvoidance(session: RunSession, instanceId: string): RunSessionR
       session.boostRemainingMs,
       boostDurationMs(session.map.boost, obstacle.prompt.normalizedText.length),
     ),
+    /*
+     * The better of the two, not simply the newest.
+     *
+     * `boostRemainingMs` already refreshes rather than stacking, and a weak
+     * clear arriving while a strong boost still runs must not cancel the speed
+     * the player earned a moment ago. Taking the maximum keeps the two halves
+     * consistent: whichever boost is still worth having is the one in effect.
+     */
+    boostMultiplier:
+      session.boostRemainingMs > 0
+        ? Math.max(session.boostMultiplier, boostMultiplierFor(session.map, marginFraction))
+        : boostMultiplierFor(session.map, marginFraction),
   };
 
   const move = moveForOutcome('avoided', obstacle.definition.action);
@@ -1798,6 +1874,16 @@ function completeFlow(session: RunSession, instanceId: string): RunSessionResult
     expectedTypingMs: word.timing.expectedTypingMs,
     actualTypingMs: session.elapsedMs - session.promptStartedMs,
     remainingMs: Math.max(0, word.deadlineAtMs - session.elapsedMs),
+    /*
+     * No margin bonus for a gap word, deliberately.
+     *
+     * It is the largest single term on offer, and a gap word costs nothing to
+     * miss. Paying it here would hand the biggest reward in the game to the one
+     * prompt with no stake — which is the exact complaint the density work was
+     * fixing. The margin bonus is for beating something that could have killed
+     * you.
+     */
+    marginFraction: 0,
   });
 
   const points = scored.score - session.score.score;

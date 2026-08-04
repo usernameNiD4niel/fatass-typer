@@ -70,10 +70,7 @@ Nothing else matters until this ships.
 
 - [x] **1.1 Raise hazard density.** Shipped — see "How 1.1 actually went" below.
       The route this plan proposed was wrong.
-- [ ] **1.2 Reward speed continuously.** Replace binary pass/fail with a margin
-      curve. `boost.speedMultiplier` scales with the fraction of the budget left
-      unused; hazard score becomes `base × marginFraction² × combo`. This is the
-      single change that makes players type faster.
+- [x] **1.2 Reward speed continuously.** Shipped — see "How 1.2 went" below.
 - [ ] **1.3 Restore a visible chaser.** Not necessarily dogs. Always on screen,
       gains ground on slow words, loses ground on fast ones, ends the run on
       contact. A discrete deadline is invisible; a closing object is felt every
@@ -121,6 +118,49 @@ tuning: a 20 WPM word takes ~5s to type, its body ~4s to arrive, and coin lines
 own most of the rest. Reaching 4–6s there needs a structural change to the
 one-encounter-at-a-time rule, which is load-bearing for the fairness guarantees.
 Not attempted.
+
+## How 1.2 went
+
+Clearing a hazard used to pay the map's full `boost.speedMultiplier` regardless
+of how it was cleared, so typing at 20 WPM and at 60 produced identical speed.
+Both halves of the reward now scale with **margin** — the fraction of the
+hazard's own budget still unspent when the word was finished. Normalised against
+the budget rather than measured in absolute seconds, so it asks how decisively
+the deadline was beaten, not how long the word happened to be.
+
+- **Score:** a new `marginBonusMax` term, paid on `margin²`. Squared, because a
+  linear reward pays a scraped clear nearly as well as a decisive one — and the
+  game already had that in `remainingTimeBonus`. At 250 it is the largest single
+  term available on a hazard, which it has to be: clearing at all is already a
+  pass.
+- **Speed:** `boostMultiplier` scales linearly with margin, never above the map's
+  configured ceiling. The ceiling matters — `placementSpeed` measures hazard
+  placement against it, so a boost that could exceed it would let the player
+  arrive early at a deadline that assumed they could not.
+
+Gap words are explicitly excluded from the margin bonus. It is the biggest
+reward in the game and they cost nothing to miss; paying it there would recreate
+the free-points problem 1.1 existed to fix.
+
+**The band had to be calibrated, not assumed.** Measured across all six maps at
+1×, 1.25×, 1.6× and 2.2× target speed, real margins run 0.24 to 0.67 and never
+approach 1 — typing the word is most of what the budget is for. Mapping raw
+margin onto the boost range wasted over half of it: a target-speed typist got
+1.13× of an available 1.55×, and the cap was unreachable by anyone. Stretching
+the attainable band (`MARGIN_BAND_FLOOR`/`CEILING`) across the full range fixes
+that, with a `MARGIN_FLOOR_SHARE` so a typist at exactly the advertised speed is
+never left unboosted — they are the audience the map was written for.
+
+Resulting boost, and run time, by typing speed:
+
+| Map | 1× target  | 1.25×      | 1.6×       | 2.2×       |
+| --- | ---------- | ---------- | ---------- | ---------- |
+| 1   | 1.23× 166s | 1.34× 162s | 1.49× 160s | 1.55× 158s |
+| 3   | 1.28× 166s | 1.36× 159s | 1.44× 152s | 1.55× 149s |
+| 6   | 1.30× 160s | 1.55× 151s | 1.65× 140s | 1.70× 131s |
+
+A fast typist now finishes Map 6 18% quicker than a target-speed one. Every
+speed still finishes every map.
 
 ## Phase 2 — make them come back
 

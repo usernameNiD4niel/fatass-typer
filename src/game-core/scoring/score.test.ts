@@ -24,6 +24,7 @@ const CLEAN_OBSTACLE: PromptOutcome = {
   expectedTypingMs: 3_000,
   actualTypingMs: 3_000,
   remainingMs: 2_000,
+  marginFraction: 0.4,
 };
 
 const CLEAN_BOOST: PromptOutcome = {
@@ -33,6 +34,7 @@ const CLEAN_BOOST: PromptOutcome = {
   expectedTypingMs: 3_000,
   actualTypingMs: 3_000,
   remainingMs: 0,
+  marginFraction: 0,
 };
 
 /** Completes `count` identical prompts in a row. */
@@ -82,9 +84,28 @@ describe('scoring one prompt — spec §8 model', () => {
     expect(breakdown.speedBonus).toBe(0);
     expect(breakdown.accuracyBonus).toBe(40);
     expect(breakdown.remainingTimeBonus).toBe(40);
+    // Squared: 0.4 of the budget left is 0.16 of the maximum, not 0.4 of it.
+    expect(breakdown.marginBonus).toBeCloseTo(0.16 * CONFIG.marginBonusMax, 6);
     expect(breakdown.multiplier).toBe(1);
     expect(breakdown.penalty).toBe(0);
-    expect(breakdown.total).toBe(280);
+    expect(breakdown.total).toBe(320);
+  });
+
+  it('pays superlinearly for margin, so decisive clears beat scraped ones', () => {
+    const scraped = scorePrompt({ ...CLEAN_OBSTACLE, marginFraction: 0.2 }, 1, CONFIG);
+    const decisive = scorePrompt({ ...CLEAN_OBSTACLE, marginFraction: 0.8 }, 1, CONFIG);
+
+    // Four times the margin, sixteen times the bonus — the whole point of the
+    // curve. A linear reward would make speed barely worth reaching for.
+    expect(decisive.marginBonus).toBeCloseTo(scraped.marginBonus * 16, 6);
+  });
+
+  it('clamps margin, so a deadline beaten by more than its budget pays no more', () => {
+    const full = scorePrompt({ ...CLEAN_OBSTACLE, marginFraction: 1 }, 1, CONFIG);
+    const absurd = scorePrompt({ ...CLEAN_OBSTACLE, marginFraction: 4 }, 1, CONFIG);
+
+    expect(absurd.marginBonus).toBe(full.marginBonus);
+    expect(full.marginBonus).toBe(CONFIG.marginBonusMax);
   });
 
   it('pays more for an obstacle than for a boost prompt', () => {

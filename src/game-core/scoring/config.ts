@@ -20,6 +20,16 @@ export interface ScoringConfig {
   readonly accuracyBonusMax: number;
   /** Awarded per second left on an obstacle deadline. */
   readonly remainingTimeBonusPerSecond: number;
+  /**
+   * Maximum awarded for the *fraction* of a hazard's budget left unspent,
+   * scaled by the square of it.
+   *
+   * The largest single term available on a hazard, and that is the point: it is
+   * the only one that pays for speed the player did not have to have. Clearing
+   * at all is already a pass, so without something this size there is no reason
+   * to type faster than the deadline demands.
+   */
+  readonly marginBonusMax: number;
 
   /* Combo. */
   /** Completed prompts before the multiplier starts rising. */
@@ -53,6 +63,7 @@ export const DEFAULT_SCORING_CONFIG: ScoringConfig = {
   speedBonusMax: 60,
   accuracyBonusMax: 40,
   remainingTimeBonusPerSecond: 20,
+  marginBonusMax: 250,
 
   comboStartsAt: 3,
   comboStep: 0.1,
