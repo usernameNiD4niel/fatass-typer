@@ -1,4 +1,5 @@
 import type { IsoTimestamp, MapConfig, MapProgress, PlayerProfile, RunResult } from '../models';
+import { mergeKeyStats } from '../keystats';
 import { progressFor } from '../models';
 
 /**
@@ -85,5 +86,8 @@ export function applyRunResult(input: ApplyRunInput): PlayerProfile {
       ...profile.mapProgress,
       [result.mapId]: betterProgress(previous, result),
     },
+    // Lifetime, across every run: a weakness is a property of the typist rather
+    // than of the road they were on when it showed up.
+    keyStats: mergeKeyStats(profile.keyStats, result.keyStats),
   };
 }

@@ -63,6 +63,13 @@ export interface GameScreenProps {
    */
   readonly bestDistanceMeters?: number;
   /**
+   * Characters the player fumbles, from their profile (plan 2.4).
+   *
+   * The run's vocabulary leans toward them, so the game practises what they are
+   * bad at without their having to choose to.
+   */
+  readonly weakCharacters?: readonly string[];
+  /**
    * Fixes the run's prompt sequence. Omitted in play, where every run gets a
    * fresh seed — otherwise the second attempt at a map is word-for-word the
    * first. Tests and bug reports pass one to get a run back.
@@ -94,6 +101,7 @@ export interface GameScreenProps {
 export function GameScreen({
   mapId,
   bestDistanceMeters = 0,
+  weakCharacters,
   seed,
   audio,
   reducedMotion = false,
@@ -111,6 +119,13 @@ export function GameScreen({
   audioRef.current = audio;
   const pauseChangeRef = useRef(onPauseChange);
   pauseChangeRef.current = onPauseChange;
+  /*
+   * Held in a ref so a fresh array identity from the parent cannot re-run the
+   * mount effect and tear the runtime down mid-run. The value is fixed for the
+   * run by design anyway — see `CreateRunSessionInput.weakCharacters`.
+   */
+  const weakRef = useRef(weakCharacters);
+  weakRef.current = weakCharacters;
   /** Whether the shell has been told the run is paused. */
   const pausedRef = useRef(false);
 
@@ -143,6 +158,7 @@ export function GameScreen({
       // An unknown id falls back to the default map rather than failing to
       // start: the run matters more than the routing mistake behind it.
       ...(chosen === undefined ? {} : { map: chosen }),
+      ...(weakRef.current === undefined ? {} : { weakCharacters: weakRef.current }),
     });
 
     bridgeRef.current = attached.bridge;

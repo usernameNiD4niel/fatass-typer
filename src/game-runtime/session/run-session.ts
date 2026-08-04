@@ -89,6 +89,7 @@ import {
   pursuitPressure,
   type PursuitState,
 } from '../../game-core/pursuit';
+import { EMPTY_KEY_STATS, recordAttempts, type KeyStats } from '../../game-core/keystats';
 import { createRngFromString, type Rng } from '../../game-core/random';
 import {
   awardCoins,
@@ -222,6 +223,15 @@ export interface RunSession {
    * not.
    */
   readonly boostMultiplier: number;
+  /**
+   * Which keys this run has fumbled (plan 2.4).
+   *
+   * Accumulated live so the run can be weighted toward them as it goes, and
+   * folded into the profile when it ends.
+   */
+  readonly keyStats: KeyStats;
+  /** Characters to steer this run's vocabulary toward. Fixed for the run. */
+  readonly weakCharacters: readonly string[];
   /**
    * The chaser (plan 1.3).
    *
@@ -397,6 +407,15 @@ export interface CreateRunSessionInput {
   readonly obstacles?: readonly ObstacleDefinition[];
   /** Adaptive assistance. Pass `{ ...config, enabled: false }` to turn it off. */
   readonly assistance?: AdaptiveAssistanceConfig;
+  /**
+   * Characters the player fumbles, from their profile (plan 2.4).
+   *
+   * Passed in rather than derived from `keyStats` as the run goes: the words
+   * the run practises should be chosen from what the player is known to be bad
+   * at, not from the handful of mistakes they have made in the last thirty
+   * seconds. Lifetime evidence, decided once, at the start.
+   */
+  readonly weakCharacters?: readonly string[];
   /** Same seed, same run — the property the whole test suite leans on. */
   readonly seed: string;
 }
@@ -413,6 +432,8 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     elapsedMs: 0,
     boostRemainingMs: 0,
     boostMultiplier: 1,
+    keyStats: EMPTY_KEY_STATS,
+    weakCharacters: input.weakCharacters ?? [],
     pursuit: createPursuit(),
     impactRemainingMs: 0,
     failureReason: null,
@@ -636,6 +657,8 @@ function drawPrompt(
     categories: criteria.categories,
     usage: criteria.usage,
     preferredTags: session.map.content.themeTags,
+    // The run quietly practises what the player is bad at (plan 2.4).
+    weakCharacters: session.weakCharacters,
   });
 
   return { prompt: drawn.prompt, session: { ...session, selector: drawn.selector } };
@@ -1470,7 +1493,14 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
   if (typing === session.typing) return { session, events: [] };
 
   const stats = recordTypingDelta(session.stats, session.typing, typing, session.elapsedMs);
-  const typed: RunSession = { ...session, typing, stats };
+  const typed: RunSession = {
+    ...session,
+    typing,
+    stats,
+    // Every keystroke, right or wrong. Accuracy says how much went wrong; this
+    // is the only thing that says *what*.
+    keyStats: recordAttempts(session.keyStats, typing.lastAttempts),
+  };
 
   const mistyped = typing.incorrectCharacters > session.typing.incorrectCharacters;
 

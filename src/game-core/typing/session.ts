@@ -5,6 +5,7 @@ import {
   firstErrorIndex,
   isExactMatch,
 } from './comparison';
+import type { KeyAttempt } from '../keystats';
 import type { CharacterState, TypingOptions } from './comparison';
 
 /**
@@ -32,6 +33,19 @@ export interface TypingState {
   readonly keystrokes: number;
   /** True once `typed` matches `target` exactly. */
   readonly complete: boolean;
+  /**
+   * The characters entered by the *last* call, and whether each was right.
+   *
+   * Transient: replaced on every `applyInput`, empty after a deletion. It lives
+   * here because this loop is the only place that knows which character the
+   * prompt was asking for at the moment a key was pressed — recovering that
+   * afterwards would mean re-deriving the diff, and two implementations of the
+   * same diff is one too many.
+   *
+   * Feeds `game-core/keystats`, which is what turns "88% accurate" into
+   * something a player can practise.
+   */
+  readonly lastAttempts: readonly KeyAttempt[];
 }
 
 export function createTypingState(target: string): TypingState {
@@ -42,6 +56,7 @@ export function createTypingState(target: string): TypingState {
     incorrectCharacters: 0,
     correctedErrors: 0,
     keystrokes: 0,
+    lastAttempts: [],
     // An empty prompt would otherwise be permanently uncompletable.
     complete: target.length === 0,
   };
@@ -88,6 +103,7 @@ export function applyInput(
   const shared = commonPrefixLength(state.typed, next, { ...options, caseSensitive: true });
 
   let { correctCharacters, incorrectCharacters, correctedErrors, keystrokes } = state;
+  const lastAttempts: KeyAttempt[] = [];
 
   // Deletions: a removed character that was wrong counts as a correction.
   for (let index = state.typed.length - 1; index >= shared; index -= 1) {
@@ -100,10 +116,19 @@ export function applyInput(
   for (let index = shared; index < next.length; index += 1) {
     keystrokes += 1;
 
-    if (charactersMatch(state.target[index], next[index], options)) {
-      correctCharacters += 1;
-    } else {
+    const expected = state.target[index];
+    const missed = !charactersMatch(expected, next[index], options);
+
+    if (missed) {
       incorrectCharacters += 1;
+    } else {
+      correctCharacters += 1;
+    }
+
+    // Past the end of the target there is no expected character, so there is
+    // nothing to attribute the mistake to.
+    if (expected !== undefined) {
+      lastAttempts.push({ expected, previous: state.target[index - 1] ?? null, missed });
     }
   }
 
@@ -115,6 +140,7 @@ export function applyInput(
     correctedErrors,
     keystrokes,
     complete: isExactMatch(state.target, next, options),
+    lastAttempts,
   };
 }
 

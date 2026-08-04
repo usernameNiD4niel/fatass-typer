@@ -37,6 +37,18 @@ export interface PromptCriteria {
   /** Tags to prefer, for map-themed vocabulary. Never a hard requirement. */
   readonly preferredTags?: readonly string[];
   /**
+   * Characters the player fumbles, from `game-core/keystats` (plan 2.4).
+   *
+   * A *preference*, exactly like `preferredTags`, and never a requirement. The
+   * point is that the game quietly practises what you are bad at without you
+   * having to choose to; the point is not to hand somebody nothing but words
+   * full of the letter they cannot type, which would be a drill rather than a
+   * game and would stop being fun in about a minute.
+   */
+  readonly weakCharacters?: readonly string[];
+  /** How often a weakness-targeted prompt is drawn, 0..1. */
+  readonly weaknessShare?: number;
+  /**
    * How often a themed prompt is drawn, 0..1. Defaults to
    * `DEFAULT_THEMED_SHARE`.
    */
@@ -157,6 +169,44 @@ function preferTagged(
   return { candidates: tagged.length > 0 ? tagged : candidates, rng: roll.rng };
 }
 
+/**
+ * How often practice is steered toward a weakness.
+ *
+ * A third. High enough that a weakness gets meaningfully more exposure than
+ * chance would give it, low enough that the run still reads as a run — the
+ * remaining two thirds are drawn normally, so the vocabulary keeps its variety
+ * and the weak keys arrive often rather than constantly.
+ */
+const DEFAULT_WEAKNESS_SHARE = 0.34;
+
+/**
+ * Narrows to prompts that exercise a weak key, some of the time.
+ *
+ * Deliberately the same shape as `preferTagged`: roll once, and on a hit narrow
+ * the field rather than reordering it. Falling back to the full set when
+ * nothing matches is what keeps this a preference — a map whose vocabulary
+ * happens to contain none of the player's weak characters simply plays normally.
+ */
+function preferWeaknesses(
+  candidates: readonly PromptEntry[],
+  weakCharacters: readonly string[] | undefined,
+  share: number,
+  rng: Rng,
+): { readonly candidates: readonly PromptEntry[]; readonly rng: Rng } {
+  if (weakCharacters === undefined || weakCharacters.length === 0 || share <= 0) {
+    return { candidates, rng };
+  }
+
+  const roll = nextFloat(rng);
+  if (roll.value >= share) return { candidates, rng: roll.rng };
+
+  const targeted = candidates.filter((prompt) =>
+    weakCharacters.some((character) => prompt.normalizedText.includes(character)),
+  );
+
+  return { candidates: targeted.length > 0 ? targeted : candidates, rng: roll.rng };
+}
+
 export interface PromptSelectionResult {
   /** `null` only when no prompt in the pool satisfies the hard filters. */
   readonly prompt: PromptEntry | null;
@@ -178,8 +228,14 @@ export function nextPrompt(
     criteria.themedShare ?? DEFAULT_THEMED_SHARE,
     selector.rng,
   );
-  const candidates = avoidRepeats(themed.candidates, selector);
-  const { value, rng } = pick(themed.rng, candidates);
+  const targeted = preferWeaknesses(
+    themed.candidates,
+    criteria.weakCharacters,
+    criteria.weaknessShare ?? DEFAULT_WEAKNESS_SHARE,
+    themed.rng,
+  );
+  const candidates = avoidRepeats(targeted.candidates, selector);
+  const { value, rng } = pick(targeted.rng, candidates);
 
   if (value === null) return { prompt: null, selector: { ...selector, rng } };
 

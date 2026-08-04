@@ -2,6 +2,7 @@ import { type JSX, lazy, type ReactNode, Suspense, useCallback, useEffect, useSt
 
 import { Button } from './components/ui';
 import { ALL_MAPS, findMap, MAP_1, MAPS, obstaclesFor } from './content';
+import { weakCharacters } from './game-core/keystats';
 import { progressFor, type PlayerProfile, type RunResult } from './game-core/models';
 import { useAppliedSettings } from './hooks/useAppliedSettings';
 import { useGameAudio } from './hooks/useGameAudio';
@@ -254,6 +255,8 @@ export function App(): JSX.Element {
             // Read once, as the run starts: a best that updated mid-run would
             // be a target that moves as you approach it.
             bestDistanceMeters={progressFor(profile, selectedMapId).bestDistanceMeters}
+            // What the player is known to be bad at, so the run practises it.
+            weakCharacters={weakCharacters(profile.keyStats)}
             audio={audio}
             reducedMotion={reducedMotion}
             onRunEnded={endRun}

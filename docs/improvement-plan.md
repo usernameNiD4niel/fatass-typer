@@ -259,9 +259,7 @@ own piece of work.
 - [x] **2.1 Real persistence.** Shipped — see "How 2.1 went" below.
 - [x] **2.2 Endless mode.** Shipped — see "How 2.2 went" below.
 - [ ] **2.3 Daily seed.** One shared seed per day plus a local history.
-- [ ] **2.4 Per-key weakness tracking.** Log fumbled characters and digraphs,
-      weight prompt selection toward them, show a "worst keys" panel on results.
-      This is what turns the game into training with a visible improvement curve.
+- [x] **2.4 Per-key weakness tracking.** Shipped — see "How 2.4 went" below.
 
 ## How 2.1 went
 
@@ -355,6 +353,57 @@ progress was validated all-or-nothing, so a record missing _any_ field was
 discarded — and a field is always missing the first time the game adds one.
 Shipping this as it stood would have silently zeroed every existing player's
 bests. Map progress is now repaired field by field like the profile above it.
+
+## How 2.4 went
+
+`game-core/keystats` counts, per character and per digraph, how often it was
+reached and how often it was got wrong. It has its own README; the parts worth
+repeating:
+
+**Record what the prompt asked for, never what was typed.** Typing `q` where the
+prompt wanted `e` is evidence about `e`. Recording `q` would build a table of the
+keys a player reaches for by accident — which teaches nothing and would steer
+practice toward words they have no trouble with. Only `applyInput` knows which
+character was expected at the moment a key landed, so `TypingState` now carries
+`lastAttempts`; recovering it afterwards would mean a second implementation of
+the same diff.
+
+**Digraphs are tracked and reported but not steered on.** A lot of difficulty is
+in the transition rather than the key. But prompt selection matches on characters
+a word _contains_, and a word containing `t` and `h` does not necessarily contain
+`th` — weighting on the pair would practise the wrong words.
+
+**Weighting is a preference, not a filter.** A third of draws are steered toward
+a weak character; the rest are normal. A run made entirely of one letter would
+stop being a game in about a minute. Measured, a targeted character appears in
+~29% of prompts against ~9% untargeted.
+
+**Two things are deliberately not counted.** Spaces — the most-typed character by
+a long way and almost never wrong, so counting them buries every real weakness
+under one useless row. And keys with under six attempts, because otherwise the
+table is topped by whatever was typed twice and got wrong once, which is an
+accident rather than a weakness.
+
+### The honest limit
+
+While a map's secret sentence is running it supplies **every** prompt, in order,
+so the selector is never consulted and weighting cannot apply. Steering operates
+on the fallback vocabulary: after the sentence is finished, and on the endless
+map, which has none.
+
+That is a real limit, not a bug — the sentence is a designed feature and
+reordering it to chase weak keys would destroy it. Endless being where targeting
+fully applies is a reasonable fit, since it is the mode that exists to be
+replayed.
+
+### A test that measured nothing
+
+The first version of the steering test counted _distinct_ words drawn, and passed
+identically with and without targeting. It had to: weighting changes how often a
+word comes up, not which words exist, so the set of distinct prompts a long run
+shows converges on the pool either way. Counting occurrences instead shows the
+9% → 29% difference. Worth remembering — the feature was fine and the measurement
+was empty.
 
 ## Phase 3 — make it feel good
 

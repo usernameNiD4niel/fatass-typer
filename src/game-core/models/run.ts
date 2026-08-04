@@ -1,3 +1,4 @@
+import type { KeyStats } from '../keystats';
 import { isCount, isRatio, isRecord } from './guards';
 import type { IsoTimestamp, MapId, RunId } from './ids';
 import { isId, isIsoTimestamp } from './ids';
@@ -23,6 +24,15 @@ export interface RunResult extends Versioned {
    * beat (plan 2.2).
    */
   readonly distanceMeters: number;
+  /**
+   * Which keys this run fumbled (plan 2.4).
+   *
+   * Optional, and validated only when present. It is additive to a shape that
+   * is already on disk, and a required field would make every previously stored
+   * run fail validation and vanish from the player's history — runs are skipped
+   * rather than repaired, so there is no second chance for them.
+   */
+  readonly keyStats?: KeyStats;
   /** True only when the finish line was reached. */
   readonly completed: boolean;
   readonly score: number;
@@ -129,6 +139,8 @@ export function isRunResult(value: unknown): value is RunResult {
     isIsoTimestamp(value['startedAt']) &&
     isCount(value['durationMs']) &&
     isCount(value['distanceMeters']) &&
+    // Present or absent, but never nonsense.
+    (value['keyStats'] === undefined || isRecord(value['keyStats'])) &&
     typeof value['completed'] === 'boolean' &&
     isCount(value['score']) &&
     isCount(value['averageWpm']) &&

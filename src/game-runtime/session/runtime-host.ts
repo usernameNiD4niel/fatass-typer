@@ -73,6 +73,8 @@ export interface RuntimeHostOptions {
   readonly obstacles?: readonly ObstacleDefinition[];
   /** The map's secret, as words in order. Every prompt comes from here first. */
   readonly secretWords?: readonly PromptEntry[];
+  /** Characters the player fumbles. The run's vocabulary leans toward them. */
+  readonly weakCharacters?: readonly string[];
   readonly seed: string;
   readonly emit: (event: GameEvent) => void;
   /** Offers a stats sample; the bridge decides whether it leaves. */
@@ -140,6 +142,7 @@ export class RuntimeHost implements GameHost {
       pool: options.prompts,
       obstacles: options.obstacles ?? [],
       secretWords: options.secretWords ?? [],
+      weakCharacters: options.weakCharacters ?? [],
       seed: options.seed,
     });
 
@@ -245,6 +248,7 @@ export class RuntimeHost implements GameHost {
       pool: this.options.prompts,
       obstacles: this.options.obstacles ?? [],
       secretWords: this.options.secretWords ?? [],
+      weakCharacters: this.options.weakCharacters ?? [],
       assistance: this.assistanceConfig,
       // A restart is a fresh run, not a replay: a new seed means new prompts.
       seed: `${this.options.seed}:${String(Math.round(this.now()))}`,
@@ -393,6 +397,7 @@ export class RuntimeHost implements GameHost {
       startedAt: new Date().toISOString(),
       durationMs: this.session.elapsedMs,
       distanceMeters: this.session.playerMeters,
+      keyStats: this.session.keyStats,
       completed,
       score: stats.score,
       averageWpm: stats.averageWpm,

@@ -5,6 +5,7 @@ import { findSecret } from '../../content';
 import type { MapConfig, PlayerProfile, RunResult } from '../../game-core/models';
 import styles from './RunResults.module.css';
 import { missedUnlockReason, newRecords, unlockedMap } from './run-summary';
+import { mergeKeyStats, weakestKeys } from '../../game-core/keystats';
 
 /**
  * Run results (spec §9).
@@ -64,6 +65,13 @@ export function RunResults({
   onReturnToMaps,
 }: RunResultsProps): JSX.Element {
   const records = newRecords(result, profile);
+  /*
+   * The lifetime table with this run already folded in, so the screen reflects
+   * what just happened rather than the state before it. `profile` here is
+   * deliberately the *pre-run* profile — that is what makes record comparison
+   * work — so the run's own table has to be added back for this one panel.
+   */
+  const weakest = weakestKeys(mergeKeyStats(profile.keyStats, result.keyStats), { limit: 4 });
   const unlocked = unlockedMap(result, profile, maps);
   const missed = unlocked === null ? missedUnlockReason(result, profile, maps) : null;
   const mistakes = result.incorrectCharacters;
@@ -153,6 +161,33 @@ export function RunResults({
           <p className={styles.secretProgress}>
             {`${String(result.secretWordsTyped)} of ${String(result.secretWordCount)} words typed. Finish the sentence to read it.`}
           </p>
+        </Card>
+      )}
+
+      {/*
+        The only actionable thing on this screen (plan 2.4).
+
+        "88% accurate" does not tell anybody what to practise. This does, and it
+        is drawn from the *lifetime* table rather than from this run: one run is
+        a handful of keystrokes per character, and a weakness read off that is
+        mostly noise. The game is already steering the vocabulary toward these,
+        so this is as much an explanation of what it is doing as a report.
+      */}
+      {weakest.length > 0 && (
+        <Card title="Worst keys" titleLevel={2}>
+          <p className={styles.weakNote}>Words with these in them will come up more often.</p>
+          <ul className={styles.records}>
+            {weakest.map((entry) => (
+              <li key={entry.key} className={styles.record}>
+                <span className={styles.recordLabel}>
+                  <kbd className={styles.weakKey}>{entry.key}</kbd>
+                </span>
+                <span className={styles.recordValue}>
+                  {`${String(Math.round(entry.missRate * 100))}% missed`}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 

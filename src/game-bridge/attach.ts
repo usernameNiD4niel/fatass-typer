@@ -23,6 +23,13 @@ export interface AttachGameOptions {
   readonly obstacles?: readonly ObstacleDefinition[];
   /** Fixing the seed makes a run reproducible — used by tests and bug reports. */
   readonly seed?: string;
+  /**
+   * Characters the player fumbles, from their profile (plan 2.4).
+   *
+   * The run's vocabulary is weighted toward them, so the game practises what
+   * the player is bad at without their having to choose to.
+   */
+  readonly weakCharacters?: readonly string[];
 }
 
 export interface AttachedGame {
@@ -54,6 +61,7 @@ export function attachGame(options: AttachGameOptions = {}): AttachedGame {
     obstacles: options.obstacles ?? OBSTACLES,
     secretWords: secret === undefined ? [] : secretPrompts(secret),
     seed: options.seed ?? 'typing-chase',
+    ...(options.weakCharacters === undefined ? {} : { weakCharacters: options.weakCharacters }),
     emit: (event) => {
       bridge.emit(event);
     },

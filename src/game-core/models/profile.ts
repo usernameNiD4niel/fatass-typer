@@ -1,3 +1,4 @@
+import { coerceKeyStats, EMPTY_KEY_STATS, type KeyStats } from '../keystats';
 import { isCount, isIntegerAtLeast, isNonEmptyString, isRatio, isRecord } from './guards';
 import type { IsoTimestamp, MapId } from './ids';
 import { isIsoTimestamp } from './ids';
@@ -53,6 +54,13 @@ export interface PlayerProfile extends Versioned {
   readonly lifetimeCorrectCharacters: number;
   readonly unlockedMapIds: readonly MapId[];
   readonly mapProgress: Readonly<Record<MapId, MapProgress>>;
+  /**
+   * Which keys the player fumbles, across every run (plan 2.4).
+   *
+   * Lifetime rather than per-map: a weakness is a property of the typist, not of
+   * the road they were on when it showed up.
+   */
+  readonly keyStats: KeyStats;
   readonly settings: GameSettings;
 }
 
@@ -72,6 +80,7 @@ export function createPlayerProfile(now: IsoTimestamp, firstMapId: MapId): Playe
     lifetimeCorrectCharacters: 0,
     unlockedMapIds: [firstMapId],
     mapProgress: {},
+    keyStats: EMPTY_KEY_STATS,
     settings: DEFAULT_SETTINGS,
   };
 }
@@ -208,6 +217,7 @@ export function coercePlayerProfile(
     // The first map is always playable, whatever the save says.
     unlockedMapIds: unlocked.includes(firstMapId) ? unlocked : [firstMapId, ...unlocked],
     mapProgress,
+    keyStats: coerceKeyStats(value['keyStats']),
     settings: coerceSettings(value['settings']),
   };
 }
