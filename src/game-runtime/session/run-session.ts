@@ -85,6 +85,7 @@ import {
   awardCoins,
   breakCombo,
   createScoreState,
+  DEFAULT_SCORING_CONFIG,
   registerCollision as scoreCollision,
   registerPromptCompleted as scorePromptCompleted,
   type ScoreState,
@@ -300,6 +301,15 @@ export interface RunSession {
 export type SessionEvent =
   | { readonly type: 'promptChanged'; readonly prompt: PromptEntry | null }
   | { readonly type: 'promptCompleted'; readonly prompt: PromptEntry; readonly points: number }
+  /**
+   * A wrong character was typed.
+   *
+   * Carries the points it will cost so the scene can say so at the moment it
+   * happens. The charge is real but deferred — `scorePrompt` subtracts it when
+   * the prompt is finished — and a penalty the player is told about three
+   * seconds after the keystroke that caused it teaches nothing.
+   */
+  | { readonly type: 'mistyped'; readonly penalty: number }
   | { readonly type: 'boostStarted' }
   | { readonly type: 'boostEnded' }
   | { readonly type: 'obstacleSpawned'; readonly obstacle: ActiveObstacle }
@@ -311,6 +321,8 @@ export type SessionEvent =
       readonly obstacle: ActiveObstacle;
       readonly move: AvoidanceMove;
       readonly points: number;
+      /** How much of the budget was left, 0..1. Drives how big the payoff looks. */
+      readonly marginFraction: number;
     }
   | {
       readonly type: 'obstacleResolved';
@@ -1405,11 +1417,19 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
     if (!mistyped) return { session: typed, events: [] };
 
     const penalised: RunSession = { ...typed, score: breakCombo(typed.score) };
+    const mistake: SessionEvent = {
+      type: 'mistyped',
+      penalty: DEFAULT_SCORING_CONFIG.incorrectCharacterPenalty,
+    };
 
     // The one exception in the whole game: a powerup sentence has to be perfect.
-    return typed.challenge?.kind === 'powerup'
-      ? forfeitActivePowerup(penalised)
-      : { session: penalised, events: [] };
+    if (typed.challenge?.kind === 'powerup') {
+      const forfeited = forfeitActivePowerup(penalised);
+
+      return { session: forfeited.session, events: [mistake, ...forfeited.events] };
+    }
+
+    return { session: penalised, events: [mistake] };
   }
 
   // Completing it *with* a mistake in the history is still a forfeit — the
@@ -1518,7 +1538,7 @@ function commitToAvoidance(session: RunSession, instanceId: string): RunSessionR
 
   const events: SessionEvent[] = [
     { type: 'promptCompleted', prompt: obstacle.prompt, points },
-    { type: 'obstacleCommitted', obstacle: moved, move, points },
+    { type: 'obstacleCommitted', obstacle: moved, move, points, marginFraction },
     { type: 'boostStarted' },
   ];
 

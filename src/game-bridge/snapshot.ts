@@ -147,7 +147,48 @@ export interface ImpulseSnapshot {
   shake: number;
   /** Additional field of view in degrees, from speed. */
   fovBias: number;
+  /**
+   * A one-off kick of extra field of view, in degrees, decaying to zero.
+   *
+   * Separate from `fovBias` because they answer different questions. The bias is
+   * how fast the player *is* going; the punch is the moment they earned it. Held
+   * in one number they would fight: a punch would read as a permanent speed
+   * change and the decay would read as slowing down.
+   */
+  punch: number;
 }
+
+/** Kinds of floating score label the scene can draw. */
+export type PopupKind = 'gain' | 'loss';
+
+/**
+ * A floating score label.
+ *
+ * Per-frame, so it travels in the snapshot rather than through the event bus:
+ * these are spawned by keystrokes, and pushing one React event per mistyped
+ * character through a bus that exists to throttle traffic would be working
+ * against it.
+ */
+export interface PopupSnapshot {
+  /** Empty when the slot is unused. Changes when the slot is reused. */
+  id: string;
+  /** Signed. Negative for a penalty, so the scene never has to infer the sign. */
+  points: number;
+  kind: PopupKind;
+  /** Milliseconds since it appeared. The scene turns this into rise and fade. */
+  ageMs: number;
+  /** Lane it belongs over, so labels do not all stack in the middle. */
+  lane: number;
+}
+
+/**
+ * Labels drawable at once.
+ *
+ * Small on purpose. Mistyping fast can produce a label per keystroke, and a
+ * screen full of them is noise rather than feedback — the oldest slot is
+ * recycled, so the newest is always visible.
+ */
+export const MAX_SNAPSHOT_POPUPS = 6;
 
 export interface WorldSnapshot {
   phase: GameState;
@@ -169,10 +210,16 @@ export interface WorldSnapshot {
   effects: EffectsSnapshot;
   challenge: ChallengeSnapshot | null;
   impulse: ImpulseSnapshot;
+  popupCount: number;
+  popups: PopupSnapshot[];
 }
 
 /** Maximum powerup crates the pool can describe at once. */
 export const MAX_SNAPSHOT_POWERUPS = 2;
+
+function emptyPopup(): PopupSnapshot {
+  return { id: '', points: 0, kind: 'gain', ageMs: 0, lane: 1 };
+}
 
 function emptyPowerup(): PowerupSnapshot {
   return { instanceId: '', kind: 'shield', distanceMeters: 0, lane: 1, claimed: false };
@@ -231,7 +278,9 @@ export function createWorldSnapshot(): WorldSnapshot {
       shields: 0,
     },
     challenge: null,
-    impulse: { shake: 0, fovBias: 0 },
+    impulse: { shake: 0, fovBias: 0, punch: 0 },
+    popupCount: 0,
+    popups: Array.from({ length: MAX_SNAPSHOT_POPUPS }, emptyPopup),
   };
 }
 

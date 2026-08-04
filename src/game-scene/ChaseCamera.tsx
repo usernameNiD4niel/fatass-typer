@@ -46,6 +46,8 @@ export function ChaseCamera({ snapshot, reducedMotion }: ChaseCameraProps): JSX.
   const { camera } = useThree();
   const lookAt = useRef(new Vector3(0, 1, -CAMERA_TARGET_AHEAD_METERS));
   const shakeSeed = useRef(0);
+  /** The speed-driven field of view, without the punch. See `useFrame`. */
+  const easedFov = useRef(BASE_FOV_DEGREES);
 
   useFrame((_, delta) => {
     const playerX = laneCenterX(snapshot.lanePosition);
@@ -76,9 +78,26 @@ export function ChaseCamera({ snapshot, reducedMotion }: ChaseCameraProps): JSX.
     camera.lookAt(lookAt.current);
 
     if (camera instanceof PerspectiveCamera) {
+      /*
+       * The bias eases; the punch does not.
+       *
+       * The bias is how fast the player is going, and easing it is what stops
+       * the view breathing on every small speed change. The punch is the moment
+       * they cleared something, and easing it would blunt the one thing it
+       * exists to sell — so it is added on top of the eased value, and its own
+       * decay in the runtime host is what takes it away.
+       *
+       * The eased value is tracked separately rather than read back off the
+       * camera, because the camera's `fov` includes the punch: easing towards
+       * the target from a punched value would drag the punch into the next
+       * frame's smoothing and leave the view permanently wide.
+       */
       const wanted = BASE_FOV_DEGREES + (reducedMotion ? 0 : snapshot.impulse.fovBias);
-      if (Math.abs(camera.fov - wanted) > 0.01) {
-        camera.fov += (wanted - camera.fov) * Math.min(1, delta * 4);
+      easedFov.current += (wanted - easedFov.current) * Math.min(1, delta * 4);
+
+      const punched = easedFov.current + (reducedMotion ? 0 : snapshot.impulse.punch);
+      if (Math.abs(camera.fov - punched) > 0.01) {
+        camera.fov = punched;
         camera.updateProjectionMatrix();
       }
     }

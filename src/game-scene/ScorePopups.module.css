@@ -1,0 +1,38 @@
+/*
+ * Floating score labels.
+ *
+ * Drawn over the road, so like the world prompt they cannot rely on a
+ * background they control: the outline is what keeps a number legible against
+ * pale asphalt and a red car alike.
+ *
+ * Colour is never the only signal (spec §12). A gain carries a leading "+" and
+ * a loss a "−", so the two are distinguishable without seeing colour at all.
+ */
+
+.popup {
+  margin: 0;
+  padding: 0.15em 0.45em;
+  border-radius: var(--radius-md);
+  background: rgb(12 15 20 / 62%);
+  font-family: var(--font-family-mono);
+  font-size: 1.5rem;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+  user-select: none;
+  text-shadow:
+    0 0 0.25em rgb(0 0 0 / 80%),
+    0 0.08em 0.2em rgb(0 0 0 / 60%);
+}
+
+.popup[data-kind='gain'] {
+  color: var(--status-success-text, #6ee7a8);
+}
+
+.popup[data-kind='loss'] {
+  color: var(--status-danger-text, #ff8a8a);
+  /* Smaller than a gain: a penalty should register without dominating. */
+  font-size: 1.25rem;
+}

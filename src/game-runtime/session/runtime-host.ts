@@ -4,6 +4,7 @@ import {
   MAX_SNAPSHOT_COIN_UNITS,
   MAX_SNAPSHOT_COINS,
   MAX_SNAPSHOT_HAZARDS,
+  MAX_SNAPSHOT_POPUPS,
   MAX_SNAPSHOT_POWERUPS,
 } from '../../game-bridge';
 import type {
@@ -88,6 +89,25 @@ export interface RuntimeHostOptions {
 /** How quickly a camera shake impulse decays, per second. */
 const SHAKE_DECAY_PER_SECOND = 3.2;
 
+/**
+ * Degrees of field of view a perfect clear kicks in, before it decays.
+ *
+ * Scaled by margin, so the size of the kick *is* the feedback: a scraped clear
+ * barely moves the camera and a decisive one is unmistakable. Without that the
+ * speed earned in 1.2 was visible only as a number on the HUD, which is not
+ * somewhere a player is looking while a car is coming at them.
+ */
+const MAX_PUNCH_DEGREES = 9;
+
+/** How quickly the punch decays, per second. Fast — it is a hit, not a state. */
+const PUNCH_DECAY_PER_SECOND = 4.5;
+
+/** A shake big enough to notice on a mistake, small enough not to obscure the word. */
+const MISTAKE_SHAKE = 0.22;
+
+/** How long a floating score label lives. */
+const POPUP_LIFETIME_MS = 950;
+
 /** Degrees of extra field of view at the top of the speed range. */
 const MAX_FOV_BIAS_DEGREES = 6;
 
@@ -106,6 +126,10 @@ export class RuntimeHost implements GameHost {
   /** Position at the last completed step, for render interpolation. */
   private previousMeters = 0;
   private shake = 0;
+  private punch = 0;
+  /** Ring buffer over the snapshot's fixed popup pool. */
+  private popupCursor = 0;
+  private popupSequence = 0;
 
   constructor(options: RuntimeHostOptions) {
     this.options = options;
@@ -226,6 +250,8 @@ export class RuntimeHost implements GameHost {
     });
     this.previousMeters = 0;
     this.shake = 0;
+    this.punch = 0;
+    this.clearPopups();
 
     emit({ type: 'stateChanged', state: 'ready' });
     this.emitPrompt(this.session.prompt, emit);
@@ -302,8 +328,24 @@ export class RuntimeHost implements GameHost {
 
         case 'promptCompleted':
         case 'flowWordCompleted':
-        case 'flowWordMissed':
+          // Every word that pays says what it paid, at the moment it pays it.
+          if (event.points > 0) this.pushPopup(event.points, 'gain');
+          break;
+
+        case 'mistyped':
+          // Charged at the end of the prompt, but shown now — a penalty
+          // explained three seconds after the keystroke that caused it teaches
+          // nothing about the keystroke.
+          this.pushPopup(-event.penalty, 'loss');
+          this.shake = Math.max(this.shake, MISTAKE_SHAKE);
+          break;
+
         case 'obstacleCommitted':
+          // The size of the kick is the reward. See `MAX_PUNCH_DEGREES`.
+          this.punch = Math.max(this.punch, event.marginFraction * MAX_PUNCH_DEGREES);
+          break;
+
+        case 'flowWordMissed':
         case 'obstacleSpawned':
         case 'obstacleAttached':
         case 'boostEnded':
@@ -502,8 +544,79 @@ export class RuntimeHost implements GameHost {
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - (frameDeltaMs / 1000) * SHAKE_DECAY_PER_SECOND);
     }
+    if (this.punch > 0) {
+      this.punch = Math.max(0, this.punch - (frameDeltaMs / 1000) * PUNCH_DECAY_PER_SECOND);
+    }
     world.impulse.shake = this.shake;
     world.impulse.fovBias = fovBias(session);
+    world.impulse.punch = this.punch;
+
+    this.agePopups(frameDeltaMs);
+  }
+
+  /**
+   * Ages the floating labels and drops the expired ones.
+   *
+   * Wall-clock, like the shake, so labels still finish their rise while the
+   * rules are frozen on the impact beat — a run that ends on a mistake should
+   * not leave its last penalty frozen mid-air.
+   */
+  private agePopups(frameDeltaMs: number): void {
+    const popups = this.world.popups;
+    let live = 0;
+
+    for (let index = 0; index < MAX_SNAPSHOT_POPUPS; index += 1) {
+      const popup = popups[index];
+      if (popup === undefined || popup.id === '') continue;
+
+      popup.ageMs += frameDeltaMs;
+      if (popup.ageMs >= POPUP_LIFETIME_MS) {
+        popup.id = '';
+        continue;
+      }
+      live += 1;
+    }
+
+    // The scene reads the whole pool and skips empty slots, so this is a count
+    // for the HUD's benefit rather than a bound on iteration.
+    this.world.popupCount = live;
+  }
+
+  /**
+   * Empties the label pool.
+   *
+   * A restart is a fresh run, and a label from the previous one hanging over the
+   * new road is both wrong and confusing — it was seen doing exactly that. The
+   * labels age on wall-clock time, so a run that ends leaves its last few frozen
+   * mid-rise until something clears them.
+   */
+  private clearPopups(): void {
+    for (const popup of this.world.popups) popup.id = '';
+    this.world.popupCount = 0;
+  }
+
+  /**
+   * Puts a floating score label over the road.
+   *
+   * The oldest slot is recycled rather than the label being dropped: mistyping
+   * quickly can outrun the pool, and the newest number is the one the player
+   * needs to see.
+   */
+  private pushPopup(points: number, kind: 'gain' | 'loss'): void {
+    const popup = this.world.popups[this.popupCursor % MAX_SNAPSHOT_POPUPS];
+    this.popupCursor += 1;
+    if (popup === undefined) return;
+
+    this.popupSequence += 1;
+    popup.id = `popup-${String(this.popupSequence)}`;
+    // Rounded here rather than in the scene. The score is carried as a float —
+    // speed and accuracy bonuses are fractions — and a label reading
+    // "+654.4791532272574" is not a number anybody can read at speed. The HUD
+    // rounds the running total for the same reason; the two must agree.
+    popup.points = Math.round(points);
+    popup.kind = kind;
+    popup.ageMs = 0;
+    popup.lane = this.world.lanePosition;
   }
 
   private buildChallenge(): WorldSnapshot['challenge'] {

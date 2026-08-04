@@ -75,9 +75,10 @@ Nothing else matters until this ships.
       gains ground on slow words, loses ground on fast ones, ends the run on
       contact. A discrete deadline is invisible; a closing object is felt every
       frame.
-- [ ] **1.4 Impact feedback.** On clear: FOV punch (+8° over 120ms, decaying),
-      speed lines, the object passing with a doppler whoosh, an edge vignette
-      flash. On mistake: chromatic split and a low thud.
+- [x] **1.4 Impact feedback.** Shipped — see "How 1.4 went" below. Floating score
+      labels and a margin-sized camera punch. Speed lines and the vignette are
+      not done; chromatic split is dropped (it needs a post-processing pass, and
+      this project ships no extra render dependencies).
 - [ ] **1.5 One-click start.** Remove the second "Start run".
 
 ## How 1.1 actually went
@@ -161,6 +162,49 @@ Resulting boost, and run time, by typing speed:
 
 A fast typist now finishes Map 6 18% quicker than a target-speed one. Every
 speed still finishes every map.
+
+## How 1.4 went
+
+The rules already knew what every word was worth and what every mistake cost,
+and said none of it. Score was a number in a corner that changed by an
+unexplained amount, so a decisive clear and a scraped one looked identical and a
+mistyped character cost points silently. 1.2 made speed pay; this is what makes
+the payment visible.
+
+**Floating score labels.** Every completed word puts a `+N` over the road where
+it happened, and every wrong character puts a `−5` there. The penalty is shown
+on the keystroke that caused it even though it is not charged until the prompt
+finishes — a cost explained three seconds after the fact teaches nothing about
+the keystroke.
+
+They travel in `WorldSnapshot`, not through the event bus. These are spawned by
+keystrokes, and pushing a React event per mistyped character through a bus that
+exists to throttle traffic would be working against it. A fixed pool of six slots
+recycles oldest-first, so mistyping quickly never hides the newest number, and
+nothing allocates per frame.
+
+**Camera punch.** Clearing a hazard kicks the field of view by up to 9°, scaled
+by the same margin that pays the score and the boost — so the size of the kick is
+the feedback. It is tracked separately from the speed-driven `fovBias` because
+they answer different questions: the bias is how fast you _are_ going and eases;
+the punch is the moment you earned it and must not. A mistake gets a small shake
+instead.
+
+Colour is never the only signal: a gain carries a leading `+` and a loss a `−`,
+so the two are distinguishable without seeing colour at all. Reduced motion drops
+the rise and the punch and keeps the labels.
+
+Two bugs found by looking at it rather than by testing it:
+
+- Labels drew the raw float — the first one on screen read
+  `+654.4791532272574`. Rounded at the source, where the HUD already rounds.
+- A label from a finished run hung over the new road after a restart. They age on
+  wall-clock time, so a stopped run has no frames left to age them with; the pool
+  is now cleared on restart.
+
+**Not done:** speed lines and the edge vignette. Chromatic split is dropped — it
+needs a post-processing pass and a new render dependency, which this project does
+not take.
 
 ## Phase 2 — make them come back
 
