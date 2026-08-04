@@ -30,6 +30,7 @@ import type { DeadlinePressure } from '../../game-core/timing';
 import { FixedStepDriver } from '../loop';
 import { distanceToCoins } from '../../game-core/pickups';
 import { distanceToPowerup, hasMagnet, isFlying } from '../../game-core/powerups';
+import { pursuitPressure } from '../../game-core/pursuit';
 import { flowUrgency } from '../../game-core/flow';
 import {
   activeCoin,
@@ -550,6 +551,9 @@ export class RuntimeHost implements GameHost {
     world.impulse.shake = this.shake;
     world.impulse.fovBias = fovBias(session);
     world.impulse.punch = this.punch;
+
+    world.pursuit.gapMeters = session.pursuit.gapMeters;
+    world.pursuit.pressure = pursuitPressure(session.pursuit);
 
     this.agePopups(frameDeltaMs);
   }

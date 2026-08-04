@@ -190,6 +190,19 @@ export interface PopupSnapshot {
  */
 export const MAX_SNAPSHOT_POPUPS = 6;
 
+/**
+ * The chaser (plan 1.3).
+ *
+ * A rule, not a decoration: at a gap of zero the run ends. The scene draws the
+ * body from `gapMeters` and its danger cue from `pressure`, so retuning the
+ * distances never silently retunes how alarming it looks.
+ */
+export interface PursuitSnapshot {
+  gapMeters: number;
+  /** 0..1, where 1 is on top of the player. */
+  pressure: number;
+}
+
 export interface WorldSnapshot {
   phase: GameState;
   /** Distance travelled, interpolated between simulation steps. */
@@ -210,6 +223,7 @@ export interface WorldSnapshot {
   effects: EffectsSnapshot;
   challenge: ChallengeSnapshot | null;
   impulse: ImpulseSnapshot;
+  pursuit: PursuitSnapshot;
   popupCount: number;
   popups: PopupSnapshot[];
 }
@@ -279,6 +293,7 @@ export function createWorldSnapshot(): WorldSnapshot {
     },
     challenge: null,
     impulse: { shake: 0, fovBias: 0, punch: 0 },
+    pursuit: { gapMeters: 0, pressure: 0 },
     popupCount: 0,
     popups: Array.from({ length: MAX_SNAPSHOT_POPUPS }, emptyPopup),
   };

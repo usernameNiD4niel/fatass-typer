@@ -71,15 +71,17 @@ Nothing else matters until this ships.
 - [x] **1.1 Raise hazard density.** Shipped — see "How 1.1 actually went" below.
       The route this plan proposed was wrong.
 - [x] **1.2 Reward speed continuously.** Shipped — see "How 1.2 went" below.
-- [ ] **1.3 Restore a visible chaser.** Not necessarily dogs. Always on screen,
-      gains ground on slow words, loses ground on fast ones, ends the run on
-      contact. A discrete deadline is invisible; a closing object is felt every
-      frame.
+- [x] **1.3 Restore a visible chaser.** Shipped — see "How 1.3 went" below.
 - [x] **1.4 Impact feedback.** Shipped — see "How 1.4 went" below. Floating score
       labels and a margin-sized camera punch. Speed lines and the vignette are
       not done; chromatic split is dropped (it needs a post-processing pass, and
       this project ships no extra render dependencies).
-- [ ] **1.5 One-click start.** Remove the second "Start run".
+- [x] **1.5 One-click start.** Done. The game screen's own "Start run" is gone:
+      the briefing click already gives the document sticky user activation, which
+      is what `AudioContext.resume()` actually needs, so the second button was
+      asking the player to confirm a decision they had already made on a screen
+      that looked exactly like the game. The button still appears when the run is
+      genuinely stopped, after a crash or a finish.
 
 ## How 1.1 actually went
 
@@ -205,6 +207,52 @@ Two bugs found by looking at it rather than by testing it:
 **Not done:** speed lines and the edge vignette. Chromatic split is dropped — it
 needs a post-processing pass and a new render dependency, which this project does
 not take.
+
+## How 1.3 went
+
+`game-core/pursuit` — a gap in metres, and at zero the run ends. It has its own
+README; the short version follows.
+
+**It invents no new currency.** The gap responds to the same **margin** that pays
+the score and the boost, so there is one thing to get good at and three things
+that reward it. Clear decisively and it falls back; scrape past, mistype, or let
+a gap word lapse and it closes. **A declined coin line moves it not at all** —
+coins are the only optional thing in the game and that is true only while
+declining them is free.
+
+The scene draws it behind the player, in their lane, with an emissive grille that
+brightens as it closes. At the full gap it sits behind the camera, deliberately:
+a threat permanently in frame stops being read after a minute, and this one
+arrives exactly when it matters. The HUD carries a "Chaser" meter reading
+Behind / Closing / On you — a word rather than a percentage, because "68% caught"
+is not something a player can act on, and so the danger is never colour-only.
+
+**The break-even point had to be measured, not chosen.** The first build set it
+at the margin a typist at the advertised speed actually clears with (0.30), and
+that killed the entire tolerance band: a typist at 85% of target was caught 8
+runs out of 8 on every map. A map promises a floor, not a ceiling, so break-even
+belongs below the band rather than at its top. At 0.10:
+
+| Error rate at target speed | Outcome                 |
+| -------------------------- | ----------------------- |
+| 0%                         | finishes every time     |
+| 3%                         | finishes every time     |
+| 6%                         | **caught** in most runs |
+| 10%                        | dead                    |
+
+A clean run is never threatened; an inaccurate one is hunted down. Accuracy is
+what the unlock gates read, so the chaser and the progression now want the same
+thing from the player.
+
+It follows that the chaser is nearly inert against the metronomic typist in
+`playtest-harness`, which never mistypes — every map-progression guarantee passes
+unchanged. That is not the feature doing nothing; it is the harness modelling a
+player who does not make the mistake the feature punishes.
+
+**Not done:** the results screen still says "Crashed" when the chaser catches
+you. `RunResult` carries no failure reason, and adding one is a persisted-shape
+change — new `schemaVersion`, validator and coercion. Worth doing, but it is its
+own piece of work.
 
 ## Phase 2 — make them come back
 

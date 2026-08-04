@@ -35,7 +35,15 @@ export type FailureReason =
   /** The word was never finished and the player drove into the hazard. */
   | 'collision'
   /** Committed, but the move had not carried them clear in time. */
-  | 'late-move';
+  | 'late-move'
+  /**
+   * The chaser reached them.
+   *
+   * Not an obstacle outcome at all, but it shares this type because it is the
+   * same question — why the run ended — and a second enum would mean every
+   * consumer switching on two.
+   */
+  | 'caught';
 
 /** Fraction of the prompt correctly entered, 0..1. */
 export function typedFraction(typing: TypingState): number {

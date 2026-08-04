@@ -21,12 +21,18 @@ async function startRun(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('button', { name: 'Start' }).click();
   await page.getByRole('button', { name: /Map 1: Neighborhood Dash/ }).click();
-  // Twice, and deliberately: the briefing's Start run opens the game screen, and
-  // the game screen's own Start run is the click that unlocks audio and begins
-  // the simulation. Autoplay policy is why that second gesture exists.
+  /*
+   * Once. It used to be twice: the briefing's Start run opened the game screen
+   * and the game screen carried its own, on the theory that autoplay policy
+   * needed a second gesture there.
+   *
+   * It does not. The briefing click gives the document sticky user activation,
+   * which is what `AudioContext.resume()` actually requires — so the second
+   * button was asking the player to confirm a decision they had already made,
+   * on a screen that looked exactly like the game.
+   */
   await page.getByRole('button', { name: 'Start run' }).click();
   await page.getByRole('img', { name: STAGE }).waitFor();
-  await page.getByRole('button', { name: 'Start run' }).click();
   await expect(page.getByRole('button', { name: 'Pause' })).toBeEnabled();
 }
 

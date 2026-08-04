@@ -91,6 +91,15 @@ export function Hud({
   const speedRatio =
     topSpeedMetersPerSecond > 0 ? stats.speedMetersPerSecond / topSpeedMetersPerSecond : 0;
 
+  const pressure = stats.pursuitPressure;
+  const chaserWord = pressure >= 0.75 ? 'On you' : pressure >= 0.4 ? 'Closing' : 'Behind';
+  const chaserFill =
+    pressure >= 0.75
+      ? styles.chaserFillCritical
+      : pressure >= 0.4
+        ? styles.chaserFillClose
+        : styles.chaserFill;
+
   return (
     <div className={styles.hud}>
       <dl className={styles.stats}>
@@ -130,6 +139,19 @@ export function Hud({
           valueText={`${String(Math.round(stats.progress * 100))}%`}
           ratio={stats.progress}
           fillClass={styles.progressFill}
+        />
+        {/*
+          The chaser, as how much trouble you are in rather than as metres.
+          The word carries the meaning on its own, so the danger is never
+          colour-only (spec §12) — and it is a word rather than a percentage
+          because "68% caught" is not a thing a player can act on.
+        */}
+        <Meter
+          label="Chaser"
+          valueText={chaserWord}
+          ratio={stats.pursuitPressure}
+          fillClass={chaserFill}
+          emphasise={stats.pursuitPressure >= 0.75}
         />
         <Meter
           label="Speed"

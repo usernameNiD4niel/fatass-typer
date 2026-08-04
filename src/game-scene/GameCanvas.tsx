@@ -16,6 +16,7 @@ import {
   DRAW_DISTANCE_METERS,
   scenePalette,
 } from './scene-config';
+import { Pursuer } from './Pursuer';
 import { ScorePopups } from './ScorePopups';
 import { WorldPrompt } from './WorldPrompt';
 
@@ -95,6 +96,7 @@ export function GameCanvas({
       <Powerups snapshot={snapshot} reducedMotion={reducedMotion} />
       <Hazards snapshot={snapshot} palette={palette} />
       <Player snapshot={snapshot} reducedMotion={reducedMotion} />
+      <Pursuer snapshot={snapshot} reducedMotion={reducedMotion} />
       <WorldPrompt snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
       <ScorePopups snapshot={snapshot} reducedMotion={reducedMotion} />
     </Canvas>

@@ -242,6 +242,31 @@ export function GameScreen({
   }, [finished, send, announce]);
 
   /**
+   * The run begins as soon as the scene can draw it.
+   *
+   * The player already pressed "Start run" on the briefing; asking a second time
+   * on a screen that looks exactly like the game is a click that answers a
+   * question nobody asked. The button stays for the cases where the run is
+   * genuinely stopped — after a crash, or after finishing — because those are
+   * moments the player has to choose to leave.
+   *
+   * Once per mount, guarded by a ref rather than by `state`: a run that ends
+   * returns the machine to a stopped state, and keying off that would restart
+   * the run under a player reading their own results.
+   *
+   * Audio still unlocks, because the briefing click gave the document sticky
+   * user activation — `resume()` from here is allowed on the strength of it.
+   */
+  const autoStarted = useRef(false);
+
+  useEffect(() => {
+    if (!ready || autoStarted.current) return;
+
+    autoStarted.current = true;
+    start();
+  }, [ready, start]);
+
+  /**
    * Restart, from the keyboard, from anywhere on the screen (spec §12).
    *
    * Ctrl or Cmd with Enter rather than a bare letter: every printable key is a

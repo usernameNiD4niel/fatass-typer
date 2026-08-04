@@ -121,6 +121,22 @@
   background: var(--threat-safe);
 }
 
+/*
+ * The chaser. Three bands rather than a gradient, because the player has to be
+ * able to tell at a glance which one they are in without comparing shades.
+ */
+.chaserFill {
+  background: var(--threat-safe);
+}
+
+.chaserFillClose {
+  background: var(--threat-close);
+}
+
+.chaserFillCritical {
+  background: var(--threat-critical);
+}
+
 /* The threat word, so the danger is never colour-only (spec §12). */
 .threatWord {
   font-weight: var(--font-weight-semibold);

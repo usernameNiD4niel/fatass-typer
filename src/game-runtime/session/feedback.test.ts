@@ -3,13 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { attachGame, MAX_SNAPSHOT_POPUPS, type AttachedGame } from '../../game-bridge';
 
 /**
- * Feedback the player can actually see (plan 1.4).
+ * Feedback the player can actually see (plan 1.3, 1.4).
  *
  * The rules already knew what every word was worth and what every mistake cost,
  * and said none of it: score was a number in a corner that changed by an
- * unexplained amount. These assert the two channels that now carry it — a
- * floating label per event, and a camera kick sized by how decisively a hazard
- * was cleared.
+ * unexplained amount, and the only pressure was a deadline nobody can see.
+ * These assert the channels that now carry it — a floating label per event, a
+ * camera kick sized by how decisively a hazard was cleared, and something
+ * behind you that closes when you are sloppy.
  */
 
 function start(seed: string): AttachedGame {
@@ -147,6 +148,60 @@ describe('camera punch', () => {
     // It is a hit, not a state: it is gone within a second.
     for (let elapsed = 0; elapsed < 3_000; elapsed += 16) game.advance(16);
     expect(game.snapshot.impulse.punch).toBe(0);
+
+    game.destroy();
+  });
+});
+
+describe('the chaser', () => {
+  it('is behind the player at the start and reported to the HUD', () => {
+    const game = start('pursuit-start');
+    game.advance(16);
+
+    expect(game.snapshot.pursuit.gapMeters).toBeGreaterThan(0);
+    expect(game.snapshot.pursuit.pressure).toBe(0);
+
+    game.destroy();
+  });
+
+  it('closes when a character is mistyped', () => {
+    const game = start('pursuit-mistake');
+    const word = untilWord(game);
+    expect(word).not.toBe('');
+
+    const before = game.snapshot.pursuit.gapMeters;
+    game.bridge.send({
+      type: 'submitInput',
+      value: word.startsWith('q') ? 'z' : 'q',
+      timestampMs: 0,
+    });
+    game.advance(16);
+
+    expect(game.snapshot.pursuit.gapMeters).toBeLessThan(before);
+    expect(game.snapshot.pursuit.pressure).toBeGreaterThan(0);
+
+    game.destroy();
+  });
+
+  it('ends the run once it arrives, after an impact beat', () => {
+    const game = start('pursuit-caught');
+    const word = untilWord(game);
+    expect(word).not.toBe('');
+
+    // Enough wrong characters to close the whole gap. Each one is a fresh
+    // miss rather than the same buffer resubmitted.
+    for (let index = 0; index < 400; index += 1) {
+      game.bridge.send({ type: 'submitInput', value: index % 2 === 0 ? 'q' : 'z', timestampMs: 0 });
+      game.advance(16);
+      if (game.snapshot.phase !== 'running') break;
+    }
+
+    expect(game.snapshot.pursuit.gapMeters).toBe(0);
+    // The beat first, then the end — the same courtesy a collision gets.
+    expect(game.snapshot.phase).toBe('playerHit');
+
+    for (let elapsed = 0; elapsed < 3_000; elapsed += 16) game.advance(16);
+    expect(game.snapshot.phase).toBe('gameOver');
 
     game.destroy();
   });

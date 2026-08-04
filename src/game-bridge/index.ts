@@ -33,6 +33,7 @@ export type {
   ImpulseSnapshot,
   PopupKind,
   PopupSnapshot,
+  PursuitSnapshot,
   WorldSnapshot,
 } from './snapshot';
 export { isGameCommand, parseGameCommand } from './validate';

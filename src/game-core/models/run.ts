@@ -80,6 +80,13 @@ export interface LiveRunStats {
   /** Words of the map secret typed, and how many there are. */
   readonly secretWordsTyped: number;
   readonly secretWordCount: number;
+  /**
+   * How close the chaser is, 0..1, where 1 is on top of the player.
+   *
+   * A ratio rather than the raw gap: the HUD says how much trouble the player
+   * is in, and metres behind is a number they would have to learn to read.
+   */
+  readonly pursuitPressure: number;
 }
 
 export const EMPTY_LIVE_STATS: LiveRunStats = {
@@ -95,6 +102,7 @@ export const EMPTY_LIVE_STATS: LiveRunStats = {
   shields: 0,
   secretWordsTyped: 0,
   secretWordCount: 0,
+  pursuitPressure: 0,
   flightRemainingMs: 0,
   magnetRemainingMs: 0,
   elapsedMs: 0,

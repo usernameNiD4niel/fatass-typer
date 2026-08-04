@@ -80,6 +80,15 @@ import {
   startMove,
   type SpawnerState,
 } from '../../game-core/obstacles';
+import {
+  applyClear as pursuitClear,
+  applyFlowMiss as pursuitFlowMiss,
+  applyMistake as pursuitMistake,
+  createPursuit,
+  isCaught,
+  pursuitPressure,
+  type PursuitState,
+} from '../../game-core/pursuit';
 import { createRngFromString, type Rng } from '../../game-core/random';
 import {
   awardCoins,
@@ -213,6 +222,13 @@ export interface RunSession {
    * not.
    */
   readonly boostMultiplier: number;
+  /**
+   * The chaser (plan 1.3).
+   *
+   * A gap in metres. It responds to margin, mistakes and lapsed gap words, and
+   * at zero the run ends — see `game-core/pursuit`.
+   */
+  readonly pursuit: PursuitState;
   /** Time left on the impact beat before the run ends. */
   readonly impactRemainingMs: number;
   /** Why the run ended, or `null` while it has not. */
@@ -397,6 +413,7 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     elapsedMs: 0,
     boostRemainingMs: 0,
     boostMultiplier: 1,
+    pursuit: createPursuit(),
     impactRemainingMs: 0,
     failureReason: null,
     motion: createPlayerMotion(CENTRE_LANE),
@@ -1377,6 +1394,24 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
   // rescue a player who has already hit something.
   if (current.phase !== 'running') return { session: current, events: allEvents };
 
+  /*
+   * Caught — checked before the finish line, and after everything that could
+   * have moved the gap this step.
+   *
+   * Before the finish line because a player the chaser has already reached has
+   * lost, and crossing on the same step should not launder that into a win. It
+   * takes the same impact beat a collision does: the run ending needs a moment
+   * the player can see, whichever way it ended.
+   */
+  if (isCaught(current.pursuit)) {
+    const caught = toPhase(
+      { ...current, failureReason: 'caught', impactRemainingMs: IMPACT_BEAT_MS },
+      'impact',
+    );
+
+    return { session: caught.session, events: [...allEvents, ...caught.events] };
+  }
+
   if (current.playerMeters >= current.map.distanceMeters) {
     const finished = toPhase(
       { ...current, playerMeters: current.map.distanceMeters },
@@ -1416,7 +1451,13 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
     // one slip cannot measure it.
     if (!mistyped) return { session: typed, events: [] };
 
-    const penalised: RunSession = { ...typed, score: breakCombo(typed.score) };
+    const penalised: RunSession = {
+      ...typed,
+      score: breakCombo(typed.score),
+      // The chaser closes on the keystroke, not at the end of the word. That is
+      // the point of having something visible back there.
+      pursuit: pursuitMistake(typed.pursuit),
+    };
     const mistake: SessionEvent = {
       type: 'mistyped',
       penalty: DEFAULT_SCORING_CONFIG.incorrectCharacterPenalty,
@@ -1531,6 +1572,9 @@ function commitToAvoidance(session: RunSession, instanceId: string): RunSessionR
       session.boostRemainingMs > 0
         ? Math.max(session.boostMultiplier, boostMultiplierFor(session.map, marginFraction))
         : boostMultiplierFor(session.map, marginFraction),
+    // Ground won or lost by how decisively this was cleared — the same margin
+    // that pays the score and the boost, so there is one thing to get good at.
+    pursuit: pursuitClear(session.pursuit, marginFraction),
   };
 
   const move = moveForOutcome('avoided', obstacle.definition.action);
@@ -1853,6 +1897,9 @@ function advanceFlowLifecycle(session: RunSession): RunSessionResult {
       flow: null,
       flowWordsMissed: current.flowWordsMissed + 1,
       score: breakCombo(current.score),
+      // The first real cost a lapsed gap word has ever had. Declining a coin
+      // line is still free; letting the road go quiet is not.
+      pursuit: pursuitFlowMiss(current.pursuit),
     };
 
     events.push({ type: 'flowWordMissed', word: missed });
@@ -2160,6 +2207,7 @@ export function liveStats(session: RunSession): LiveRunStats {
     elapsedMs: session.elapsedMs,
     secretWordsTyped: session.secretIndex,
     secretWordCount: session.secretWords.length,
+    pursuitPressure: pursuitPressure(session.pursuit),
   };
 }
 
