@@ -1,4 +1,4 @@
-import { MAP_1, OBSTACLES, ALL_PROMPTS } from '../content';
+import { MAP_1, OBSTACLES, ALL_PROMPTS, findSecret, secretPrompts } from '../content';
 import type { MapConfig, ObstacleDefinition, PromptEntry } from '../game-core/models';
 import { liveStats, RuntimeHost } from '../game-runtime/session';
 import { GameBridge } from './bridge';
@@ -42,11 +42,17 @@ export interface AttachedGame {
 
 export function attachGame(options: AttachGameOptions = {}): AttachedGame {
   const bridge = new GameBridge();
+  const map = options.map ?? MAP_1;
+  // Every prompt of a run is the next word of the map's secret. A map without
+  // one simply falls back to its own vocabulary, which is what the sentence
+  // does anyway once it is finished.
+  const secret = findSecret(map.id);
 
   const host = new RuntimeHost({
-    map: options.map ?? MAP_1,
+    map,
     prompts: options.prompts ?? ALL_PROMPTS,
     obstacles: options.obstacles ?? OBSTACLES,
+    secretWords: secret === undefined ? [] : secretPrompts(secret),
     seed: options.seed ?? 'typing-chase',
     emit: (event) => {
       bridge.emit(event);

@@ -6,7 +6,7 @@ import styles from './Tutorial.module.css';
 /**
  * First-run tutorial (spec §9).
  *
- * Five things, once, before the first run — how to get past what is in the way,
+ * Six things, once, before the first run — how to get past what is in the way,
  * what the deadline means, which encounters are optional, and how to stop.
  * Everything else the game teaches by being played.
  *
@@ -43,6 +43,10 @@ const STEPS: readonly Step[] = [
     body: 'A wrong character breaks your combo, not your run. Fix it and keep going — but the hazard is still coming.',
   },
   {
+    title: 'Powerups need a clean sentence',
+    body: 'Once a minute a crate appears with a whole sentence on it. Type it perfectly and you get flight, extra lives, or a magnet. One wrong character and it is gone.',
+  },
+  {
     title: 'Escape pauses',
     body: (
       <>
@@ -59,7 +63,7 @@ export function Tutorial({ open, onDismiss }: TutorialProps): JSX.Element {
       open={open}
       onClose={onDismiss}
       title="How Typing Chase works"
-      description="Five things, then you are on your own."
+      description="Six things, then you are on your own."
       closeLabel="Skip the tutorial"
       footer={
         <Button variant="primary" onClick={onDismiss}>

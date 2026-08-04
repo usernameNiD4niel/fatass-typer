@@ -36,10 +36,31 @@ describe('Hud', () => {
     expect(screen.getByText('1241')).toBeInTheDocument();
   });
 
-  it('shows a dash rather than a zero combo', () => {
-    setup(statsWith({ combo: 0 }));
+  it('shows a dash rather than a zero combo, or zero lives', () => {
+    setup(statsWith({ combo: 0, shields: 0 }));
 
-    expect(screen.getByText('—')).toBeInTheDocument();
+    // Combo and Lives both read as a dash when there is nothing to report; a
+    // zero would look like a value the player had.
+    expect(screen.getAllByText('—')).toHaveLength(2);
+  });
+
+  it('counts lives while a shield is carried', () => {
+    setup(statsWith({ shields: 2 }));
+
+    expect(screen.getByText('+2')).toBeInTheDocument();
+  });
+
+  it('shows what is running, with a countdown', () => {
+    setup(statsWith({ flightRemainingMs: 12_400, magnetRemainingMs: 3_100 }));
+
+    expect(screen.getByText('Flying 13s')).toBeInTheDocument();
+    expect(screen.getByText('Magnet 4s')).toBeInTheDocument();
+  });
+
+  it('says nothing about powerups when none are running', () => {
+    setup(statsWith());
+
+    expect(screen.queryByLabelText('Active powerups')).not.toBeInTheDocument();
   });
 
   it('meters progress to the finish', () => {

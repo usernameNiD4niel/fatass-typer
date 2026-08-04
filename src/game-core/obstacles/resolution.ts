@@ -110,6 +110,14 @@ export interface ImpactInput {
   readonly map: MapConfig;
   readonly typing: TypingState;
   readonly elapsedMs: number;
+  /**
+   * The player is flying, so nothing on the road applies.
+   *
+   * Checked before anything else, because that is what flight *is*: not a
+   * bigger jump or a faster lane change, but a suspension of the rules the
+   * player earned by typing a sentence without a single mistake.
+   */
+  readonly flying?: boolean;
 }
 
 /**
@@ -123,7 +131,7 @@ export function resolveAtImpact(input: ImpactInput): ResolutionResult {
   if (!isResolvable(obstacle)) return { obstacle, resolved: null };
 
   const committed = obstacle.status === 'committed';
-  const cleared = clearsHazard(obstacle, input.motion, input.map);
+  const cleared = input.flying === true || clearsHazard(obstacle, input.motion, input.map);
 
   if (cleared) {
     const resolvedObstacle: ActiveObstacle = { ...obstacle, status: 'resolved' };

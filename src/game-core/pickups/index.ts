@@ -1,7 +1,11 @@
 export {
   advanceCoin,
   COIN_LEAD_FACTOR,
+  COIN_UNIT_SPACING_METERS,
+  COINS_PER_LINE,
   coinRemainingMs,
+  coinsDropped,
+  coinsTaken,
   collectsCoins,
   commitCoin,
   distanceToCoins,
@@ -16,6 +20,7 @@ export type {
   CoinEvent,
   CoinResolution,
   CoinStatus,
+  CoinUnit,
   PlaceCoinInput,
   PlaceCoinResult,
 } from './coin';

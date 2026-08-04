@@ -156,7 +156,7 @@ describe systems that no longer exist.
 
 | | |
 |---|---|
-| **Last completed** | coins, and a difficulty pass — denser hazards, faster road |
+| **Last completed** | **the map secret** — every prompt is the next word of one sentence, no word is ever swapped out, and coins are collected one at a time |
 | **Next up** | nothing scheduled — awaiting direction |
 | **In progress** | none |
 | **Blocked** | none |
@@ -168,14 +168,39 @@ lane and a word appears on the genuinely-open side; completing it starts an ease
 change. A **jump hazard** blocks the lane and the word sits above it; completing it starts
 a jump, *timed to the obstacle* rather than to the keystroke.
 
-In the gap that follows, a **line of coins** appears one lane over with a word of its own.
+**Every prompt in a run is the next word of one sentence** — the map's secret. Hazards,
+coins, crates and gap words all draw from it, in order, so a run assembles something
+readable instead of a word list. Finish it and the map gives up a short piece of writing,
+shown on the results screen. A word the player never finishes comes back on the next
+encounter, so declining a coin never costs the secret. See `content/secrets.ts`.
+
+Short words are *generous*, not hard — the flat reaction allowance means "the" on Map 1
+demands about 15 WPM on a map advertising 20 — so a prompt takes sentence words until it
+is worth asking for: "of our", then "street has", rather than three free words.
+
+**A word on screen is never swapped out.** Nothing preempts anything: the spawner waits for
+the field the way it already waited for coins. That is what makes the sentence typeable
+rather than a series of interruptions.
+
+The word a hazard asks for comes off the screen the moment it is **answered**, not at the
+collision plane — and a **gap word** takes its place for the stretch where the body is
+still travelling. A gap word has no body: no lane change, no jump, nothing to reach. Type
+it for points and combo; let it lapse and you lose the combo and nothing else. It is bound
+to a committed hazard or coin line, so every word on screen belongs to something on the
+road. See `game-core/flow/README.md`.
+
+In the gap that follows a hazard, a **line of coins** appears one lane over with a word of its own.
 Type it and you swerve across and take them; ignore it and you drive past. Coins cost
 nothing to miss — no score, no combo, no run — and that is what makes them the only
-optional thing in the game. They exist because the gap between hazards used to be several
+optional thing in the game. They are collected **one at a time**, each decided at its own
+plane, so a swerve that lands halfway down the row takes the half it reached; the scene
+flies each collected coin up out of the road towards the counter. They exist because the gap between hazards used to be several
 seconds of empty road, and dead time was what made the game feel slow.
 
 Hazards and coins alternate: neither spawns while the other is unanswered, so there is
-only ever one word on screen, and it is always the one that can end the run.
+only ever one word on screen. When one of them wants the field it takes it from whatever
+flow word is holding it, so the word in front of the player is always the most consequential
+thing available — and only a hazard's is ever fatal.
 
 Typing is forgiving within a word — a wrong character costs the combo, not the run, and can
 be corrected — because accuracy is the statistic the unlock gates read. What is not
@@ -197,6 +222,9 @@ confusing a player.
 | **Input** | no typing field; global `keydown`, word drawn beside its hazard |
 | **Boost** | no longer a prompt cycle — it is the reward for clearing a hazard |
 | **Coins** | optional pickups one lane over, collected only by typing their word |
+| **Gap words** | the word on screen during a committed hazard's tail. Typing occupancy is 70–82% |
+| **Prompts** | every one is the next word of the map's **secret sentence**; finishing it reveals the map's writing |
+| **Powerups** | a crate a minute; a whole sentence, typed clean, buys flight / lives / magnet |
 | **WPM** | measured over `activeTypingMs`, not wall-clock run time |
 | **Kept** | six maps, unlock gates, progression, results, settings, statistics, storage |
 
@@ -211,8 +239,12 @@ confusing a player.
   typing budget. Deadline and animation read the same `MotionProfile`, so they cannot
   disagree.
 - `src/game-core/obstacles/lane-assignment.ts` — the guarantee that a route always exists.
+- `src/game-core/flow/` — flow words. The gap-filler, and the only thing in the game with
+  a word but no body. Its README says why nothing else could have filled the gap.
 - `src/game-core/pickups/` — coins. Read its README before changing anything about them:
   every absent penalty in there is deliberate.
+- `src/game-core/powerups/` — the crates, and the three things they grant. The one place
+  in the game that demands a mistake-free sentence.
 - `src/game-bridge/snapshot.ts` — `WorldSnapshot`, the per-frame half of the bridge
   contract. Mutated in place; React never sees it.
 - `src/game-scene/` — the road, the runner, the hazards, the word, the camera.
@@ -224,13 +256,73 @@ confusing a player.
 `map-progression.test.ts` states each map as three assertions, over 24 seeds each:
 
 - a perfect typist at the advertised speed finishes **100%** of runs;
-- a realistic one (200ms to notice, one character in twenty wrong) finishes **≥ 80%**;
-- one at **60%** of the advertised speed finishes **< 25%**.
+- one at **85%** of it finishes **100%** — the tolerance band;
+- one at **75%** of it finishes **0%**. Below the band the map turns you away.
 
-All six pass. Runs are 70–80 seconds with **7–13 hazards and 6–9 coin lines** — roughly
-double the encounters of the first pass, which had 7–11 hazards and nothing between them.
+All six pass. Runs are **150–165 seconds** with **7–18 hazards, 3–6 coin lines, two
+powerups and 10–27 gap words**, a word in front of the player **70–82%** of the time, and
+the map's sentence finished.
 
-Density is capped by how long an encounter *lasts*, not by the interval between them: a
+**That occupancy figure used to read 1.00 and it was an artefact.** A hazard's word stayed
+attached from the moment it was answered until the collision plane, so seconds spent
+looking at a word already typed counted as typing. The word now comes off at commit, so
+70–82% is the honest number — and the missing fifth is mostly the road between the last
+coin of a line and the next hazard.
+
+**Volume is the number that matters.** A run used to ask for **63 characters on Map 1 and
+132 on Map 6** — thirteen words in eighty seconds, about 9 WPM of actual output on a map
+labelled 20. It now asks for **192 and 450**. Reaction buffers were *not* tightened to get
+there; with twice as many hazards per run they could not be. Difficulty came from volume,
+word length, and endurance.
+
+Hazard counts are lower on the slow maps and that is arithmetic, not a bug: a word at 20
+WPM takes three times as long to type as the same word at 60, so Map 1 fits seven
+encounters where Map 6 fits eighteen.
+
+The old "realistic typist finishes ≥80%" bar is **gone**, deliberately. `available` is
+`typing_at_target × buffer`, so the buffer is simultaneously the hesitation allowance and
+the slowness allowance — there is no dial that separates them, and slack big enough to
+absorb hesitation is exactly what let a 15 WPM run clear a 20 WPM map. With 10–20
+encounters a run and one mistake fatal, a player who hesitates on every word will often
+not finish; **shields, earned from powerups, are the intended way to survive that.**
+
+### Two density experiments, both reverted
+
+Both of these predate flow words and are what ruled out the obvious approaches. Occupancy
+was ~60%; the missing 40% was the tolerance band a target-speed typist does not spend, and
+neither of these could reach it:
+
+1. **Overlapping hazards** — letting the next word attach while the previous hazard is
+   still travelling. Ends every run: committing to the second word preempts a move the
+   player already earned. Adding a queue (words queue, bodies do not) fixed the
+   preemption but produced `late-move` failures on hazards typed perfectly, and inverted
+   the difficulty curve so a *slower* typist survived better.
+2. **Coin words in a hazard's tail** — coins were typed but then uncollectable, because
+   the swerve cannot start until the hazard's plane is behind the player. That breaks the
+   one promise coins make.
+
+**Both failed on the same thing: two bodies cannot be in two places.** That is what pointed
+at gap words — a word with *no* body, which can therefore run in the tail after a commit.
+Density did not come from shortening an encounter after all; it came from filling the tail
+with something that does not need road.
+
+**Overlapping hazards was tried a third time**, once the queueing machinery
+(`predictedLane`, `leadingHazard`, `withClearRoad`) was all in place, by letting the
+spawner ignore *committed* hazards. It ends every run inside fifteen seconds, exactly as
+recorded above. Do not try it a fourth time.
+
+Two smaller things were found and fixed while chasing that density, both of which only
+showed up once hazards came close together:
+
+- **A lane change is refused while a jump is in the air**, and the hazard was still marked
+  as moved — a `late-move` on a word the player answered instantly. The move is now only
+  recorded as begun if the body actually moved, and retried after the jump lands.
+- **A hazard's word used to attach when time-to-impact fell to the budget.** Placement is
+  measured against a boosted player, so an unboosted one watched the car approach for half
+  again as long as the budget with nothing to type: 10–16% of a whole run. The word now
+  goes up when the hazard does, and the deadline is still exactly `availableMs` long.
+
+Hazard density is still capped by how long an encounter *lasts*, not by the interval: a
 hazard is visible for roughly its whole budget, and the spawner will not overlap two.
 Overlapping them was tried and it ends every run — the second word attaches while the
 first move is still in flight, and committing to it preempts a move the player had already
@@ -249,9 +341,16 @@ advertises, and the road covers the move. A playtest samples; that table proves.
 
 - **Progress does not survive a reload.** `StorageAdapter` is the seam; the only
   implementation is in memory.
-- **Adaptive assistance is effectively off.** It eases after three consecutive misses, and
-  one miss now ends the run. `game-core/assistance/README.md` explains what changing it
-  would mean.
+- **Adaptive assistance is effectively off, and now inert by design.** It eases after three
+  consecutive misses, and one miss ends the run. Its floor is now `1` rather than `0.9`, so
+  it can hand time back but never take the map below its label: with 11–21 hazards a run a
+  clean player crossed the eight-success tightening threshold twice, the Map 1 buffer went
+  1.14 → 1.026, and a typist at exactly 20 WPM started timing out. `game-core/assistance/README.md`
+  explains what changing it would mean.
+- **Flight waives whatever hazard was in its window.** While flying no word is shown, so no
+  hazard may arm a deadline (`ObstacleAdvanceInput.suspended`), and one whose window passed
+  during flight is `waived` and never arms afterwards. Without the second half, flight
+  ending was a death sentence: the hazard armed with a full budget and no road left.
 - **`mistakeBehavior` and `caseSensitive`** are stored and displayed but not read by the
   typing engine.
 - **The prompt is HTML, not 3D text.** drei's `<Text>` fetches a font from a CDN and this
@@ -262,7 +361,7 @@ advertises, and the road covers the move. A playtest samples; that table proves.
 All green, verified by running them:
 
 ```bash
-npm run test          # 850 passed, 52 files
+npm run test          # 918 passed, 55 files
 npm run test:e2e      # 15 passed, Chromium against the production build
 npm run lint          # clean
 npm run typecheck     # clean

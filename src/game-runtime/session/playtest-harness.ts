@@ -1,3 +1,4 @@
+import { findSecret, secretPrompts } from '../../content';
 import type {
   AdaptiveAssistanceConfig,
   MapConfig,
@@ -36,6 +37,8 @@ export interface PlaytestInput {
   readonly map: MapConfig;
   readonly prompts: readonly PromptEntry[];
   readonly obstacles: readonly ObstacleDefinition[];
+  /** Defaults to the map's own secret. Pass `[]` to run without a sentence. */
+  readonly secretWords?: readonly PromptEntry[];
   readonly wpm: number;
   readonly seed: string;
   /** Adaptive assistance. Defaults to the game's own configuration. */
@@ -81,11 +84,17 @@ export function playtest(input: PlaytestInput): PlaytestResult {
   const interval = msPerCharacter(input.wpm);
   const errorRate = input.errorRate ?? 0;
 
+  // The map's own secret, unless the caller supplied one. Tuning has to be
+  // measured against the words the player will actually meet, and since the
+  // sentence supplies every prompt those are the words.
+  const secret = findSecret(input.map.id);
+
   let session = startRun(
     createRunSession({
       map: input.map,
       pool: input.prompts,
       obstacles: input.obstacles,
+      secretWords: input.secretWords ?? (secret === undefined ? [] : secretPrompts(secret)),
       seed: input.seed,
       ...(input.assistance === undefined ? {} : { assistance: input.assistance }),
     }),

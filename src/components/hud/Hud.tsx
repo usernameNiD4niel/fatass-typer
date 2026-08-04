@@ -29,6 +29,11 @@ export interface HudProps {
   readonly canPause: boolean;
 }
 
+/** Whole seconds, rounded up — a countdown that shows 0 while still running lies. */
+function formatSeconds(ms: number): string {
+  return `${String(Math.ceil(ms / 1000))}s`;
+}
+
 function Stat({ label, value }: { label: string; value: string }): JSX.Element {
   return (
     <div className={styles.stat}>
@@ -93,8 +98,31 @@ export function Hud({
         <Stat label="Accuracy" value={`${String(Math.round(stats.accuracy * 100))}%`} />
         <Stat label="Combo" value={stats.combo > 0 ? `${String(stats.combo)}×` : '—'} />
         <Stat label="Coins" value={String(stats.coins)} />
+        <Stat label="Lives" value={stats.shields > 0 ? `+${String(stats.shields)}` : '—'} />
+        {/*
+          The sentence, as a count. Every word typed in a run is the next word
+          of the map's secret, and a player who cannot see how much is left has
+          no reason to care that there is a sentence at all.
+        */}
+        {stats.secretWordCount > 0 && (
+          <Stat
+            label="Secret"
+            value={`${String(stats.secretWordsTyped)}/${String(stats.secretWordCount)}`}
+          />
+        )}
         <Stat label="Score" value={String(Math.round(stats.score))} />
       </dl>
+
+      {(stats.flightRemainingMs > 0 || stats.magnetRemainingMs > 0) && (
+        <ul className={styles.effects} aria-label="Active powerups">
+          {stats.flightRemainingMs > 0 && (
+            <li className={styles.effect}>Flying {formatSeconds(stats.flightRemainingMs)}</li>
+          )}
+          {stats.magnetRemainingMs > 0 && (
+            <li className={styles.effect}>Magnet {formatSeconds(stats.magnetRemainingMs)}</li>
+          )}
+        </ul>
+      )}
 
       <div className={styles.meters}>
         <Meter

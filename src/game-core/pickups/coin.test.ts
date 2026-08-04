@@ -8,7 +8,10 @@ import { createRngFromString } from '../random';
 import {
   type ActiveCoin,
   advanceCoin,
+  COIN_UNIT_SPACING_METERS,
   coinRemainingMs,
+  coinsDropped,
+  coinsTaken,
   collectsCoins,
   commitCoin,
   distanceToCoins,
@@ -74,16 +77,19 @@ describe('placing coins', () => {
     expect(coin.timing.availableMs).toBeGreaterThan(0);
   });
 
-  it('asks for more speed than a hazard does', () => {
-    // Missing coins costs nothing, so they can ask for the map's advertised
-    // speed and very little more. That is what makes collecting them an
-    // achievement rather than a gift.
+  it('is no more generous than a hazard, and reachable at the map’s speed', () => {
+    // Coins ask for about what a hazard asks for. They used to ask for more,
+    // but the hazards have since been tightened to demand the advertised speed
+    // outright and there is no honest room below that.
     const coin = place();
     const hazardBudget =
       (PROMPT.normalizedText.length / 5 / MAP_1.targetWpm) * 60_000 * MAP_1.timing.reactionBuffer +
-      MAP_1.timing.fixedVisualLeadTimeMs;
+      MAP_1.timing.fixedVisualLeadTimeMs +
+      400;
 
-    expect(coin.timing.availableMs).toBeLessThan(hazardBudget);
+    expect(coin.timing.availableMs).toBeLessThanOrEqual(hazardBudget);
+    // Reachable, though: a coin nobody can take is not a reward, it is a taunt.
+    expect(coin.timing.spareMs).toBeGreaterThan(0);
   });
 
   it('is deterministic from its seed', () => {
@@ -170,23 +176,61 @@ describe('collecting', () => {
     expect(lost.coin.status).toBe('missed');
   });
 
-  it('reports the collect plane once', () => {
+  it('reports each coin once, as the player reaches it', () => {
+    // One plane per coin now, not one for the line. A swerve that lands halfway
+    // down the row takes the half it reached, which is what the player can see
+    // happening and what the old all-or-nothing plane could not express.
     const coin = commitCoin(attached(place()), 1_100);
     const first = advanceCoin(coin, {
       playerMeters: coin.collectMeters + 1,
       speedMetersPerSecond: MAP_1.baseSpeedMetersPerSecond,
       elapsedMs: 1_200,
+      playerLane: coin.lane,
+      settled: true,
     });
 
-    expect(first.events.map((event) => event.type)).toContain('coinReached');
+    expect(first.events.map((event) => event.type)).toContain('coinUnitReached');
+    expect(first.coin.units.filter((unit) => unit.collected)).toHaveLength(1);
 
+    // Standing still: the same coin is not reported a second time.
     const second = advanceCoin(first.coin, {
-      playerMeters: coin.collectMeters + 10,
+      playerMeters: coin.collectMeters + 1,
       speedMetersPerSecond: MAP_1.baseSpeedMetersPerSecond,
       elapsedMs: 1_300,
+      playerLane: coin.lane,
+      settled: true,
     });
 
     expect(second.events).toEqual([]);
+  });
+
+  it('takes only the coins the player actually reached', () => {
+    const coin = commitCoin(attached(place()), 1_100);
+
+    // Level with the third coin, in the lane.
+    const partial = advanceCoin(coin, {
+      playerMeters: coin.collectMeters + COIN_UNIT_SPACING_METERS * 2,
+      speedMetersPerSecond: MAP_1.baseSpeedMetersPerSecond,
+      elapsedMs: 1_200,
+      playerLane: coin.lane,
+      settled: true,
+    });
+
+    expect(coinsTaken(partial.coin)).toBe(3);
+    expect(coinsDropped(partial.coin)).toBe(0);
+
+    // Then out of the lane for the rest of the row.
+    const rest = advanceCoin(partial.coin, {
+      playerMeters: coin.collectMeters + 1_000,
+      speedMetersPerSecond: MAP_1.baseSpeedMetersPerSecond,
+      elapsedMs: 1_400,
+      playerLane: coin.lane === 0 ? 1 : 0,
+      settled: true,
+    });
+
+    expect(coinsTaken(rest.coin)).toBe(3);
+    expect(coinsDropped(rest.coin)).toBeGreaterThan(0);
+    expect(rest.events.map((event) => event.type)).toContain('coinLineFinished');
   });
 
   it('cannot be committed before its word has appeared', () => {

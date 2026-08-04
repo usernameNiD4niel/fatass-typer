@@ -1,4 +1,5 @@
 import type { LaneIndex, LaneSide, ObstacleAction } from '../game-core/models';
+import type { PowerupKind } from '../game-core/powerups';
 import type { GameState } from './messages';
 
 /**
@@ -48,20 +49,68 @@ export interface HazardSnapshot {
   resolved: boolean;
 }
 
+/** Coins one line can describe. Matches `game-core/pickups`. */
+export const MAX_SNAPSHOT_COIN_UNITS = 8;
+
+/**
+ * One coin of a line.
+ *
+ * Per coin rather than per line, because they are now collected one at a time
+ * and the scene flies each one to the counter as it goes. A line-level
+ * "collected" flag could not say *which* coins, and a swerve that lands halfway
+ * down the row takes half of them.
+ */
+export interface CoinUnitSnapshot {
+  /** Metres past the line's first coin. */
+  offsetMeters: number;
+  collected: boolean;
+  /** The player is level with this coin, taken or not. */
+  passed: boolean;
+}
+
 export interface CoinSnapshot {
   instanceId: string;
-  /** Distance from the player, in metres. Negative once behind them. */
+  /** Distance from the player to the line's first coin, in metres. */
   distanceMeters: number;
   lane: LaneIndex;
-  /** How many coins are in the line, so the scene can draw that many. */
+  /** Points each coin is worth. */
   value: number;
   /** True once the player has typed the word and is on their way. */
   committed: boolean;
-  /** True once collected — the scene plays the pickup and stops drawing them. */
+  /** True once every coin in the line has been decided. */
   collected: boolean;
+  unitCount: number;
+  units: CoinUnitSnapshot[];
 }
 
+export interface PowerupSnapshot {
+  instanceId: string;
+  kind: PowerupKind;
+  distanceMeters: number;
+  lane: LaneIndex;
+  /** True once claimed — the scene plays the pickup and stops drawing it. */
+  claimed: boolean;
+}
+
+/** What the player is carrying. Drives the HUD and the runner's look. */
+export interface EffectsSnapshot {
+  flying: boolean;
+  flightRemainingMs: number;
+  magnet: boolean;
+  magnetRemainingMs: number;
+  shields: number;
+}
+
+/**
+ * What kind of encounter the word belongs to.
+ *
+ * `flow` is the odd one: it has no body anywhere in the world, so the scene
+ * places it rather than tracking something. See `game-core/flow`.
+ */
+export type ChallengeKind = 'hazard' | 'coin' | 'powerup' | 'flow';
+
 export interface ChallengeSnapshot {
+  kind: ChallengeKind;
   /** The word being typed. */
   word: string;
   /** Characters accepted as correct so far. */
@@ -82,6 +131,13 @@ export interface ChallengeSnapshot {
    * which one they are looking at.
    */
   optional: boolean;
+  /**
+   * One mistake forfeits it. True only for a powerup sentence.
+   *
+   * The scene says so on the label, because a rule that severe has to be
+   * visible before the player finds out about it the hard way.
+   */
+  perfect: boolean;
   /** 0..1, rising as the deadline approaches. Drives the urgency pulse. */
   urgency: number;
 }
@@ -108,8 +164,18 @@ export interface WorldSnapshot {
   hazards: HazardSnapshot[];
   coinCount: number;
   coins: CoinSnapshot[];
+  powerupCount: number;
+  powerups: PowerupSnapshot[];
+  effects: EffectsSnapshot;
   challenge: ChallengeSnapshot | null;
   impulse: ImpulseSnapshot;
+}
+
+/** Maximum powerup crates the pool can describe at once. */
+export const MAX_SNAPSHOT_POWERUPS = 2;
+
+function emptyPowerup(): PowerupSnapshot {
+  return { instanceId: '', kind: 'shield', distanceMeters: 0, lane: 1, claimed: false };
 }
 
 function emptyCoin(): CoinSnapshot {
@@ -120,6 +186,12 @@ function emptyCoin(): CoinSnapshot {
     value: 0,
     committed: false,
     collected: false,
+    unitCount: 0,
+    units: Array.from({ length: MAX_SNAPSHOT_COIN_UNITS }, () => ({
+      offsetMeters: 0,
+      collected: false,
+      passed: false,
+    })),
   };
 }
 
@@ -149,6 +221,15 @@ export function createWorldSnapshot(): WorldSnapshot {
     hazards: Array.from({ length: MAX_SNAPSHOT_HAZARDS }, emptyHazard),
     coinCount: 0,
     coins: Array.from({ length: MAX_SNAPSHOT_COINS }, emptyCoin),
+    powerupCount: 0,
+    powerups: Array.from({ length: MAX_SNAPSHOT_POWERUPS }, emptyPowerup),
+    effects: {
+      flying: false,
+      flightRemainingMs: 0,
+      magnet: false,
+      magnetRemainingMs: 0,
+      shields: 0,
+    },
     challenge: null,
     impulse: { shake: 0, fovBias: 0 },
   };

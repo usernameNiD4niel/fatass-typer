@@ -36,6 +36,28 @@ import {
 
 export type CoinStatus = 'approaching' | 'active' | 'committed' | 'collected' | 'missed';
 
+/**
+ * One coin of a line.
+ *
+ * A line used to be a single thing that was collected or not, decided at one
+ * plane. It is now a row of individual coins, each decided as the player reaches
+ * it — which is what makes a swerve that arrives halfway down the row collect
+ * the half it reached, and what gives the scene a moment to animate.
+ */
+export interface CoinUnit {
+  /** Metres past the line's first coin. */
+  readonly offsetMeters: number;
+  readonly collected: boolean;
+  /** The player has reached this coin's plane, whether they took it or not. */
+  readonly passed: boolean;
+}
+
+/** Metres between two coins in a line. Matches what the scene draws. */
+export const COIN_UNIT_SPACING_METERS = 2.6;
+
+/** Coins in a line. */
+export const COINS_PER_LINE = 8;
+
 export interface ActiveCoin {
   readonly instanceId: string;
   readonly prompt: PromptEntry;
@@ -43,9 +65,11 @@ export interface ActiveCoin {
   readonly lane: LaneIndex;
   /** Which way that lane lies, for the world cue. */
   readonly side: LaneSide;
-  /** World position of the coin line, in metres. */
+  /** World position of the line's first coin, in metres. */
   readonly collectMeters: number;
-  /** How many coins are in the line. */
+  /** The coins themselves, in order. */
+  readonly units: readonly CoinUnit[];
+  /** Points each coin in the line is worth. */
   readonly value: number;
   readonly timing: PromptTiming;
   readonly status: CoinStatus;
@@ -63,10 +87,21 @@ export interface ActiveCoin {
  * Shorter than a hazard's lead. A hazard has to be read early enough to be
  * feared; coins only have to be noticed in time to decide.
  */
-export const COIN_LEAD_FACTOR = 1.2;
+export const COIN_LEAD_FACTOR = 1.05;
 
-/** Slack over the map's advertised speed. Far less than a hazard gets. */
-const COIN_BUFFER = 1.15;
+/**
+ * Slack over the map's advertised speed.
+ *
+ * It used to be markedly less than a hazard's, because missing coins costs
+ * nothing and a tighter ask made taking them mean more. The hazards have since
+ * been tightened to the point where they demand the advertised speed outright,
+ * and there is no longer meaningful room below that: a coin budget tight enough
+ * to be *harder* than a hazard is one a target-speed typist simply cannot make.
+ *
+ * So coins now ask for roughly what a hazard asks for. What still distinguishes
+ * them is that they are shorter, and that missing one costs nothing.
+ */
+const COIN_BUFFER = 1.12;
 
 /** Flat allowance for noticing the coins at all. */
 const COIN_LEAD_MS = 200;
@@ -127,6 +162,11 @@ export function placeCoin(input: PlaceCoinInput): PlaceCoinResult {
       lane,
       side: sideBetween(input.playerLane, lane) ?? 'right',
       collectMeters: input.playerMeters + leadMeters,
+      units: Array.from({ length: COINS_PER_LINE }, (_, index) => ({
+        offsetMeters: index * COIN_UNIT_SPACING_METERS,
+        collected: false,
+        passed: false,
+      })),
       value: input.map.content.coinValue,
       timing,
       status: 'approaching',
@@ -141,13 +181,32 @@ export function placeCoin(input: PlaceCoinInput): PlaceCoinResult {
 export type CoinEvent =
   | { readonly type: 'coinWordAttached'; readonly coin: ActiveCoin }
   | { readonly type: 'coinExpired'; readonly coin: ActiveCoin }
-  /** The player has reached the coins. Either they are in the lane or they are not. */
-  | { readonly type: 'coinReached'; readonly coin: ActiveCoin };
+  /** One coin of the line has been reached. Taken, or driven past. */
+  | {
+      readonly type: 'coinUnitReached';
+      readonly coin: ActiveCoin;
+      readonly index: number;
+      readonly collected: boolean;
+    }
+  /** Every coin in the line has been decided. */
+  | { readonly type: 'coinLineFinished'; readonly coin: ActiveCoin };
 
 export interface CoinAdvanceInput {
   readonly playerMeters: number;
   readonly speedMetersPerSecond: number;
   readonly elapsedMs: number;
+  /** Which lane the player is in right now. */
+  readonly playerLane?: LaneIndex;
+  /** Whether they are settled in it rather than halfway across the road. */
+  readonly settled?: boolean;
+  /**
+   * A magnet is running, so the word is beside the point.
+   *
+   * Without this the deadline still expires and the coins are marked missed
+   * before the player reaches them — a magnet that fails to attract anything is
+   * not a magnet.
+   */
+  readonly magnet?: boolean;
 }
 
 export interface CoinAdvanceResult {
@@ -172,7 +231,10 @@ export function advanceCoin(coin: ActiveCoin, input: CoinAdvanceInput): CoinAdva
   );
   const reserveHint = current.timing.availableMs;
 
-  if (current.status === 'approaching' && untilMs <= reserveHint * COIN_LEAD_FACTOR) {
+  // Same as a hazard: the word goes up when the coins do. Placement is measured
+  // against a boosted player, so waiting for time-to-collect to fall to the
+  // budget left the line visible and unanswerable for a second or more.
+  if (current.status === 'approaching' && untilMs <= reserveHint * COIN_LEAD_FACTOR * 3) {
     current = {
       ...current,
       status: 'active',
@@ -185,19 +247,65 @@ export function advanceCoin(coin: ActiveCoin, input: CoinAdvanceInput): CoinAdva
   // Running out of time on a coin costs nothing but the coins. It is not a
   // failure, so it does not go through `resolution.ts` and it never ends a run.
   if (
+    input.magnet !== true &&
     current.status === 'active' &&
     current.deadlineAtMs !== null &&
     input.elapsedMs >= current.deadlineAtMs
   ) {
-    current = { ...current, status: 'missed' };
+    // The word was never finished, so every coin in the line is a coin the
+    // player drove past. Marking them settles the line's arithmetic here rather
+    // than leaving units that are neither taken nor passed.
+    current = {
+      ...current,
+      status: 'missed',
+      units: current.units.map((unit) => ({ ...unit, passed: true, collected: false })),
+    };
     events.push({ type: 'coinExpired', coin: current });
 
     return { coin: current, events };
   }
 
-  if (!current.passed && input.playerMeters >= current.collectMeters) {
-    current = { ...current, passed: true };
-    events.push({ type: 'coinReached', coin: current });
+  /*
+   * The coins themselves, one at a time.
+   *
+   * Each is decided as its own plane goes by: taken if the player is settled in
+   * the line's lane at that moment, driven past if not. That is what makes a
+   * swerve that lands halfway down the row collect the half it reached — the
+   * line used to be all-or-nothing at a single plane, which meant arriving one
+   * metre late lost coins the player was visibly on top of.
+   *
+   * A magnet takes them wherever the player is. It is the one thing in the game
+   * that collects without going there, and it was bought with a clean sentence.
+   */
+  const magnet = input.magnet === true;
+  const inLane =
+    magnet ||
+    (input.settled === true && input.playerLane !== undefined && input.playerLane === current.lane);
+
+  const units = [...current.units];
+  let changed = false;
+
+  for (let index = 0; index < units.length; index += 1) {
+    const unit = units[index];
+    if (unit === undefined || unit.passed) continue;
+    if (input.playerMeters < current.collectMeters + unit.offsetMeters) continue;
+
+    // Only a committed line pays out: typing the word is what sends the player
+    // across, and coins collected without it would make the word decoration.
+    const taken = inLane && (magnet || current.status === 'committed');
+    units[index] = { ...unit, passed: true, collected: taken };
+    changed = true;
+    events.push({ type: 'coinUnitReached', coin: { ...current, units }, index, collected: taken });
+  }
+
+  if (changed) {
+    current = { ...current, units };
+
+    if (units.every((unit) => unit.passed)) {
+      const anyTaken = units.some((unit) => unit.collected);
+      current = { ...current, units, status: anyTaken ? 'collected' : 'missed', passed: true };
+      events.push({ type: 'coinLineFinished', coin: current });
+    }
   }
 
   return { coin: current, events };
@@ -236,6 +344,16 @@ export function resolveCoin(coin: ActiveCoin, lane: LaneIndex, settled: boolean)
     collected,
     value: collected ? coin.value : 0,
   };
+}
+
+/** Coins of this line the player actually took. */
+export function coinsTaken(coin: ActiveCoin): number {
+  return coin.units.filter((unit) => unit.collected).length;
+}
+
+/** Coins of this line that went by uncollected. */
+export function coinsDropped(coin: ActiveCoin): number {
+  return coin.units.filter((unit) => unit.passed && !unit.collected).length;
 }
 
 /** Milliseconds left on the coin word, or `null` before it appears. */

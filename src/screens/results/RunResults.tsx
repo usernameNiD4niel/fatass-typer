@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 
 import { Button, Card, classes } from '../../components/ui';
+import { findSecret } from '../../content';
 import type { MapConfig, PlayerProfile, RunResult } from '../../game-core/models';
 import styles from './RunResults.module.css';
 import { missedUnlockReason, newRecords, unlockedMap } from './run-summary';
@@ -66,6 +67,7 @@ export function RunResults({
   const unlocked = unlockedMap(result, profile, maps);
   const missed = unlocked === null ? missedUnlockReason(result, profile, maps) : null;
   const mistakes = result.incorrectCharacters;
+  const secret = findSecret(result.mapId);
 
   return (
     <section className={styles.screen} aria-label="Run results">
@@ -114,6 +116,11 @@ export function RunResults({
             note={result.coinsCollected > 0 ? 'optional, and taken' : 'none taken'}
           />
           <Stat
+            label="Powerups"
+            value={String(result.powerupsClaimed)}
+            note={result.powerupsClaimed > 0 ? 'sentences typed clean' : 'none claimed'}
+          />
+          <Stat
             label="Mistakes"
             value={String(mistakes)}
             // Corrections are shown separately because they are not counted
@@ -126,6 +133,28 @@ export function RunResults({
           <Stat label="Prompts" value={String(result.completedPrompts)} />
         </dl>
       </Card>
+
+      {/*
+        The secret.
+
+        The run's sentence, assembled a word at a time by every hazard, coin and
+        gap word in it. Finishing it is the only way to read what the map was
+        about, and it is deliberately not tied to reaching the finish line: a
+        player caught on the last hazard still typed every word.
+      */}
+      {secret !== undefined && result.secretUnlocked && (
+        <Card title={secret.title} titleLevel={2}>
+          <p className={styles.secretLore}>{secret.lore}</p>
+        </Card>
+      )}
+
+      {secret !== undefined && !result.secretUnlocked && result.secretWordCount > 0 && (
+        <Card title="The secret of this map" titleLevel={2}>
+          <p className={styles.secretProgress}>
+            {`${String(result.secretWordsTyped)} of ${String(result.secretWordCount)} words typed. Finish the sentence to read it.`}
+          </p>
+        </Card>
+      )}
 
       {records.length > 0 && (
         <Card title="New records" titleLevel={2}>

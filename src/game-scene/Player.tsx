@@ -30,6 +30,9 @@ const COLORS = {
 /** Strides per second at the map's base speed. Scaled by actual speed. */
 const STRIDE_RATE = 1.6;
 
+/** How high flight holds the runner. Above a box truck, and visibly so. */
+const FLIGHT_HEIGHT_METERS = 4.2;
+
 export interface PlayerProps {
   readonly snapshot: WorldSnapshot;
   readonly reducedMotion: boolean;
@@ -45,6 +48,7 @@ export function Player({ snapshot, reducedMotion }: PlayerProps): JSX.Element {
 
   const phase = useRef(0);
   const lastLaneX = useRef(0);
+  const flight = useRef(0);
 
   useFrame((_, delta) => {
     const root = rootRef.current;
@@ -54,7 +58,11 @@ export function Player({ snapshot, reducedMotion }: PlayerProps): JSX.Element {
     const laneX = laneCenterX(snapshot.lanePosition);
 
     root.position.x = laneX;
-    root.position.y = snapshot.jumpHeightMeters;
+    // Flight is a *held* altitude, not a jump: the jump arc still applies on top
+    // of it, so a jump while flying reads as a hop rather than a teleport.
+    const flightLift = snapshot.effects.flying ? FLIGHT_HEIGHT_METERS : 0;
+    flight.current += (flightLift - flight.current) * Math.min(1, delta * 3);
+    root.position.y = snapshot.jumpHeightMeters + flight.current;
 
     // Lean into the move. Derived from how fast the body is crossing lanes, so
     // it is right for a one-lane hop and a two-lane dive without being told
@@ -69,7 +77,8 @@ export function Player({ snapshot, reducedMotion }: PlayerProps): JSX.Element {
     body.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
 
     // The run cycle runs on distance, not on time: the legs match the road.
-    const airborne = snapshot.jumpHeightMeters > 0.05;
+    // Flying counts as airborne — there is nothing to run on up there.
+    const airborne = snapshot.jumpHeightMeters > 0.05 || snapshot.effects.flying;
     phase.current += delta * STRIDE_RATE * Math.max(0.4, snapshot.speedMetersPerSecond / 6);
 
     const swing = airborne ? 0.5 : Math.sin(phase.current * Math.PI * 2) * 0.7;

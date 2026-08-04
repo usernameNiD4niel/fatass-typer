@@ -96,6 +96,16 @@ export interface ActiveObstacle {
    * is a status nobody owns. The flag is what keeps the report once-only.
    */
   readonly expired: boolean;
+  /**
+   * The hazard let the player past without ever asking them anything.
+   *
+   * Set when its attachment window passed while the player was flying. A waived
+   * hazard never arms afterwards, and that "afterwards" is the point: without it
+   * a hazard that spent its whole window suspended would arm the instant flight
+   * ended, with a full typing budget and almost no road left, and take the run
+   * with a word that appeared a second before the bumper.
+   */
+  readonly waived: boolean;
 }
 
 /**
@@ -110,7 +120,7 @@ export interface ActiveObstacle {
  * seconds watching a hazard approach with nothing to do, and that dead time —
  * not the difficulty — was what made the game feel slow.
  */
-export const WARNING_LEAD_FACTOR = 1.15;
+export const WARNING_LEAD_FACTOR = 1.04;
 
 export interface PlaceObstacleInput {
   readonly instanceId: string;
@@ -175,6 +185,7 @@ export function placeObstacle(input: PlaceObstacleInput): ActiveObstacle {
     reserveMs,
     moveStarted: false,
     expired: false,
+    waived: false,
   };
 }
 
@@ -293,6 +304,20 @@ export interface ObstacleAdvanceInput {
   readonly playerMeters: number;
   readonly speedMetersPerSecond: number;
   readonly elapsedMs: number;
+  /**
+   * The hazard cannot be answered, so it must not arm.
+   *
+   * True while the player is flying. Flight means nothing on the road applies,
+   * and the run used to honour that only at the collision plane: the hazard
+   * still went `active` and still started a deadline, with no word ever shown
+   * because there was nothing to avoid. If flight then ended before the plane
+   * arrived, the deadline expired on a word the player had never seen and the
+   * run was over. It read as the game killing you for taking a powerup.
+   *
+   * Suspended, a hazard stays `approaching`, which `isResolvable` refuses — so
+   * it passes underneath harmlessly and is neither cleared nor hit.
+   */
+  readonly suspended?: boolean;
 }
 
 export interface ObstacleAdvanceResult {
@@ -329,9 +354,34 @@ export function advanceObstacle(
 
   // Attached a reserve early, so the deadline lands a move's worth of road in
   // front of the collision plane rather than on top of it.
+  /*
+   * The word goes up the moment the hazard does.
+   *
+   * It used to wait until time-to-impact fell to the budget, which sounds right
+   * and measured badly: placement is done against the *fastest* the player could
+   * be travelling — ramped speed plus a boost — so an unboosted player watched
+   * the hazard approach for half again as long as the budget before the word
+   * appeared. That was ten to sixteen percent of a whole run spent looking at a
+   * car with nothing to type.
+   *
+   * Attaching at spawn costs nothing the player was owed. The deadline is still
+   * `availableMs` long and still lands a reserve in front of the collision
+   * plane in the worst case; every case slower than that simply arrives later
+   * than the deadline, which was already true of any hazard resolved early.
+   */
+  const inAttachWindow = untilImpactMs <= (current.timing.availableMs + current.reserveMs) * 2;
+
+  // The window opened while the player could not be asked. It does not reopen:
+  // arming late would hand them a full budget with no road to spend it on.
+  if (input.suspended === true && current.status === 'approaching' && inAttachWindow) {
+    current = { ...current, waived: true };
+  }
+
   if (
     current.status === 'approaching' &&
-    untilImpactMs <= current.timing.availableMs + current.reserveMs
+    !current.waived &&
+    input.suspended !== true &&
+    inAttachWindow
   ) {
     current = {
       ...current,
@@ -346,6 +396,7 @@ export function advanceObstacle(
 
   if (
     current.status === 'active' &&
+    input.suspended !== true &&
     !current.expired &&
     current.deadlineAtMs !== null &&
     input.elapsedMs >= current.deadlineAtMs

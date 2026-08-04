@@ -7,7 +7,10 @@ type it and you jump. Miss either and the run is over.
 
 In the gaps, a line of coins appears one lane over with a word of its own. Type
 that and you swerve across and take them; ignore it and you simply drive past.
-Coins are the only thing in the game you are allowed to decline.
+
+About once a minute a **powerup crate** appears with a whole sentence over it.
+Type the sentence without a single mistake and you get flight, extra lives, or a
+magnet. Make one mistake and it is gone.
 
 Six maps, from a 20 WPM neighbourhood jog to a 50 WPM sprint.
 
@@ -35,9 +38,13 @@ Typing is forgiving _within_ a word: a wrong character breaks your combo, not
 your run, and you can correct it. What is not forgiving is the hazard. Finish the
 word before the deadline or you hit the thing — and one hit ends the run.
 
-Coins work the same way but cost nothing to miss. Their words are shorter and
-their deadlines tighter — they ask for the map's advertised speed with very
-little slack, which is what makes taking them mean something.
+Coins work the same way but cost nothing to miss. Their words are shorter, and
+they ask for about what a hazard asks for.
+
+**The maps mean their numbers.** A 20 WPM map is finishable at 20 WPM and at
+about 17; below roughly 15 it will turn you away. There is not much slack, and
+what there is has to cover hesitation as well as speed — which is why extra
+lives, earned from a powerup, are the way a run survives a bad moment.
 
 Finishing a word does not save you by itself; it _starts_ the move. The lane
 change or the jump still has to complete before you reach the hazard. The game

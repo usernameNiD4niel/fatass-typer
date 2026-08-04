@@ -42,6 +42,15 @@ export interface WorldPromptProps {
 /** Height the word floats at, in metres. Above a car, clear of the runner. */
 const PROMPT_HEIGHT_METERS = 2.9;
 
+/**
+ * How far ahead a flow word floats, in metres.
+ *
+ * Far enough to sit in the same band of the screen a hazard word occupies while
+ * it is being read, so the eye does not have to move between the two kinds. It
+ * does not approach — it holds station, because there is nothing arriving.
+ */
+const FLOW_PROMPT_DISTANCE_METERS = 22;
+
 export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptProps): JSX.Element {
   const rootRef = useRef<Group>(null);
   const cueRef = useRef<Mesh>(null);
@@ -103,6 +112,11 @@ export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptPro
       const urgent = !challenge.optional && challenge.urgency > 0.6;
       word.dataset['urgent'] = urgent ? 'true' : 'false';
       word.dataset['optional'] = challenge.optional ? 'true' : 'false';
+      word.dataset['perfect'] = challenge.perfect ? 'true' : 'false';
+      // A flow word is optional too, but it is not a coin: the amber styling
+      // means "there is something over there to go and get", and a word that
+      // points nowhere must not borrow it.
+      word.dataset['flow'] = challenge.kind === 'flow' ? 'true' : 'false';
       const beat =
         reducedMotion || !urgent ? 1 : 1 + Math.abs(Math.sin(clock.elapsedTime * 6)) * 0.06;
       word.style.transform = `scale(${String(beat)})`;
@@ -150,6 +164,8 @@ export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptPro
           className={styles.word}
           data-urgent="false"
           data-optional="false"
+          data-perfect="false"
+          data-flow="false"
           aria-hidden="true"
         >
           {challenge === null
@@ -192,6 +208,15 @@ interface PromptAnchor {
  * to cover both.
  */
 function findAnchor(snapshot: WorldSnapshot, id: string): PromptAnchor | null {
+  const challenge = snapshot.challenge;
+
+  // A flow word has no body to track — there is nothing on the road that it
+  // refers to. It sits a fixed distance ahead, in the lane the player is
+  // actually in, so it reads as part of the run rather than as HUD text.
+  if (challenge !== null && challenge.kind === 'flow') {
+    return { distanceMeters: FLOW_PROMPT_DISTANCE_METERS, lane: snapshot.lanePosition };
+  }
+
   for (let index = 0; index < snapshot.hazardCount; index += 1) {
     const hazard = snapshot.hazards[index];
     if (hazard?.instanceId === id) {

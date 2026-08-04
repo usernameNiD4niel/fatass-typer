@@ -36,6 +36,20 @@ export interface RunResult extends Versioned {
   readonly longestCombo: number;
   /** Coins collected. Optional pickups, so this is a flourish, not a grade. */
   readonly coinsCollected: number;
+  /** Powerups taken — sentences typed without a single mistake. */
+  readonly powerupsClaimed: number;
+  /**
+   * The map's secret sentence was finished, so its writing is revealed.
+   *
+   * Optional on the type and defaulted when absent, like the two fields above
+   * it: an older saved run has no opinion about a feature that did not exist,
+   * and `coercePlayerProfile` repairs field-by-field rather than discarding a
+   * record it does not fully recognise (spec §17).
+   */
+  readonly secretUnlocked: boolean;
+  /** Sentence words typed, and how many there were. For the progress readout. */
+  readonly secretWordsTyped: number;
+  readonly secretWordCount: number;
 }
 
 /**
@@ -58,7 +72,14 @@ export interface LiveRunStats {
   readonly lanePosition: number;
   /** Coins collected so far this run. */
   readonly coins: number;
+  /** Crashes still absorbable. Shown as lives. */
+  readonly shields: number;
+  readonly flightRemainingMs: number;
+  readonly magnetRemainingMs: number;
   readonly elapsedMs: number;
+  /** Words of the map secret typed, and how many there are. */
+  readonly secretWordsTyped: number;
+  readonly secretWordCount: number;
 }
 
 export const EMPTY_LIVE_STATS: LiveRunStats = {
@@ -71,6 +92,11 @@ export const EMPTY_LIVE_STATS: LiveRunStats = {
   speedMetersPerSecond: 0,
   lanePosition: 1,
   coins: 0,
+  shields: 0,
+  secretWordsTyped: 0,
+  secretWordCount: 0,
+  flightRemainingMs: 0,
+  magnetRemainingMs: 0,
   elapsedMs: 0,
 };
 
@@ -98,7 +124,11 @@ export function isRunResult(value: unknown): value is RunResult {
     isCount(value['longestCombo']) &&
     // Added after the first release: an older stored run has no coins, and is
     // repaired rather than rejected.
-    (value['coinsCollected'] === undefined || isCount(value['coinsCollected']))
+    (value['coinsCollected'] === undefined || isCount(value['coinsCollected'])) &&
+    (value['powerupsClaimed'] === undefined || isCount(value['powerupsClaimed'])) &&
+    (value['secretUnlocked'] === undefined || typeof value['secretUnlocked'] === 'boolean') &&
+    (value['secretWordsTyped'] === undefined || isCount(value['secretWordsTyped'])) &&
+    (value['secretWordCount'] === undefined || isCount(value['secretWordCount']))
   );
 }
 
@@ -127,5 +157,9 @@ export function emptyRunResult(runId: RunId, mapId: MapId, startedAt: IsoTimesta
     obstacleSuccessRate: 0,
     longestCombo: 0,
     coinsCollected: 0,
+    powerupsClaimed: 0,
+    secretUnlocked: false,
+    secretWordsTyped: 0,
+    secretWordCount: 0,
   };
 }

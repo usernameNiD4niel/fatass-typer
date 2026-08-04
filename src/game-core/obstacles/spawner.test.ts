@@ -51,6 +51,7 @@ const CONTENT: ContentProfile = {
   doubleBlockChance: 0,
   coinIntervalSeconds: 6,
   coinValue: 5,
+  powerupIntervalSeconds: 60,
   themeTags: [],
 };
 

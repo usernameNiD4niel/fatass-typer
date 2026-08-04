@@ -180,14 +180,21 @@ describe('approaching', () => {
 
     expect(current.status).toBe('active');
     expect(attachedAt).toBe(current.attachedAtMs);
-    // The prompt attaches a reserve *before* the budget would put it, so the
-    // deadline lands a move's worth of road in front of the collision plane
-    // rather than on top of it. The player's own budget is unchanged.
-    const attachedWith = current.timing.availableMs + current.reserveMs;
+    /*
+     * The word goes up early — as soon as the hazard is within twice its own
+     * budget-plus-reserve, which in practice is the moment it is placed.
+     *
+     * It used to wait for time-to-impact to fall to exactly the budget, and that
+     * measured badly: placement is done against the fastest the player could be
+     * travelling (ramped speed *and* a boost), so an unboosted player watched
+     * the hazard approach for half again as long as the budget with nothing to
+     * type. That was a tenth to a sixth of a whole run of silence.
+     *
+     * What the player is owed is unchanged, and it is the line below: the
+     * deadline is still exactly `availableMs` from whenever the word appeared.
+     */
+    const attachedWith = (current.timing.availableMs + current.reserveMs) * 2;
     expect(timeToImpact(current, meters, BASE_SPEED)).toBeLessThanOrEqual(attachedWith);
-    expect(timeToImpact(current, meters, BASE_SPEED)).toBeGreaterThan(
-      attachedWith - BASE_SPEED * 0.1 * 200,
-    );
     expect(current.deadlineAtMs).toBe((current.attachedAtMs ?? 0) + current.timing.availableMs);
   });
 

@@ -53,6 +53,9 @@ consumers, no drift.
 
 - `Coins.tsx` — the lines of coins, from a fixed pool that is shown and hidden
   rather than mounted.
+- `Powerups.tsx` — the crates. Rare enough to be allowed to look like an event:
+  they hover, they turn, and their colour says which of the three is inside
+  before the sentence is read.
 - `Hazards.tsx` — cars and jump barriers, from a fixed pool of groups holding
   both silhouettes. Hazards are never mounted mid-run: a hazard that pops into
   existence is a hazard that was not readable early.

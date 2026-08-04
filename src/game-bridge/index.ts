@@ -16,12 +16,18 @@ export {
   createWorldSnapshot,
   liveCoins,
   liveHazards,
+  MAX_SNAPSHOT_COIN_UNITS,
   MAX_SNAPSHOT_COINS,
   MAX_SNAPSHOT_HAZARDS,
+  MAX_SNAPSHOT_POWERUPS,
 } from './snapshot';
 export type {
+  ChallengeKind,
   ChallengeSnapshot,
   CoinSnapshot,
+  CoinUnitSnapshot,
+  EffectsSnapshot,
+  PowerupSnapshot,
   HazardSnapshot,
   ImpulseSnapshot,
   WorldSnapshot,

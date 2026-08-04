@@ -45,7 +45,10 @@ describe('LevelBriefing', () => {
     setup();
 
     expect(screen.getByText('20 WPM')).toBeInTheDocument();
-    expect(screen.getByText('740 m')).toBeInTheDocument();
+    // Read from the map rather than written down here: the distance is tuning,
+    // and a test that hard-codes it fails every time the map is retuned without
+    // telling anyone anything useful.
+    expect(screen.getByText(`${String(MAP_1.distanceMeters)} m`)).toBeInTheDocument();
     // A length, not a mystery.
     expect(screen.getByText(/^\d+ s$/)).toBeInTheDocument();
   });

@@ -24,4 +24,10 @@ this folder makes that swap impossible and makes the rules untestable in isolati
 ## Contents
 
 Populated by phase B: types, typing comparison, WPM and accuracy, sustainable peak WPM,
-prompt timing, lane and jump motion, coins, scoring, seeded prompt selection.
+prompt timing, lane and jump motion, coins, powerups, scoring, seeded prompt
+selection.
+
+`flow/` came later and is the odd one: a word with a deadline and no body at all. It is
+what keeps a word in front of the player during the stretches the road cannot fill —
+above all the tail after committing to a hazard, where the body is still travelling and
+nothing that _moves_ the player can be asked of them. Read its README before changing it.

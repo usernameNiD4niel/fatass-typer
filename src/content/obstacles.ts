@@ -29,7 +29,10 @@ export const OBSTACLES: readonly ObstacleDefinition[] = [
     // On every map: a boulder in the road is the one obstacle that needs no
     // explaining, which makes it the right thing to meet first.
     minimumMap: 1,
-    promptCategory: 'short-word',
+    // Medium rather than short, on every jump hazard on every map. A hazard is
+    // the only thing in the run with stakes, and a three-letter word was over
+    // before the pressure registered — the encounter was mostly waiting.
+    promptCategory: 'medium-word',
     baseReactionTimeMs: 340,
   },
   {
@@ -38,7 +41,7 @@ export const OBSTACLES: readonly ObstacleDefinition[] = [
     action: 'jump',
     difficultyWeight: 0.2,
     minimumMap: 1,
-    promptCategory: 'short-word',
+    promptCategory: 'medium-word',
     baseReactionTimeMs: 320,
   },
   {
@@ -47,7 +50,7 @@ export const OBSTACLES: readonly ObstacleDefinition[] = [
     action: 'jump',
     difficultyWeight: 0.25,
     minimumMap: 1,
-    promptCategory: 'short-word',
+    promptCategory: 'medium-word',
     baseReactionTimeMs: 320,
   },
   {
@@ -67,7 +70,8 @@ export const OBSTACLES: readonly ObstacleDefinition[] = [
     action: 'jump',
     difficultyWeight: 0.55,
     minimumMap: 3,
-    promptCategory: 'medium-word',
+    // Long words start on Map 3, which is exactly where this hazard starts.
+    promptCategory: 'long-word',
     baseReactionTimeMs: 360,
   },
 
@@ -80,7 +84,7 @@ export const OBSTACLES: readonly ObstacleDefinition[] = [
     // Map 1 ships both verbs. With only two mechanics in the game, holding one
     // back for a whole tutorial map makes that map monotonous rather than gentle.
     minimumMap: 1,
-    promptCategory: 'short-word',
+    promptCategory: 'medium-word',
     baseReactionTimeMs: 380,
   },
   {
@@ -100,7 +104,9 @@ export const OBSTACLES: readonly ObstacleDefinition[] = [
     // Tall enough to hide what is behind it until late, which is what the extra
     // allowance pays for — not the typing, the seeing.
     minimumMap: 4,
-    promptCategory: 'medium-word',
+    // The heaviest word in the game, on the heaviest hazard. Long words exist
+    // from Map 3 and this truck arrives on Map 4, so the pool is always there.
+    promptCategory: 'long-word',
     baseReactionTimeMs: 480,
   },
 ];

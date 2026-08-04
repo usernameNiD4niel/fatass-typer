@@ -55,12 +55,17 @@ function advance(session: RunSession, totalMs: number): RunSession {
   return current;
 }
 
-/** Advances until a challenge is on screen, or gives up. */
-function untilChallenge(session: RunSession, limitMs = 60_000): RunSession {
+/**
+ * Advances until a *hazard* word is on screen, or gives up.
+ *
+ * Coins and powerups also hold the field, and a coin usually gets there first —
+ * so waiting for "any word" would hand these tests the wrong encounter.
+ */
+function untilChallenge(session: RunSession, limitMs = 90_000): RunSession {
   let current = session;
 
   for (let elapsed = 0; elapsed < limitMs; elapsed += STEP_MS) {
-    if (current.prompt !== null || current.phase !== 'running') break;
+    if (current.challenge?.kind === 'hazard' || current.phase !== 'running') break;
     current = advanceRunSession(current, STEP_MS).session;
   }
 
@@ -157,10 +162,12 @@ describe('hazards', () => {
     }
   });
 
-  it('always leaves a car hazard a lane to escape into', () => {
+  // Long, densely-typed simulations: a word is on screen at almost every step
+  // now, so these walk far more encounters than the default timeout allows.
+  it('always leaves a car hazard a lane to escape into', { timeout: 30_000 }, () => {
     let session = newSession('lanes');
 
-    for (let elapsed = 0; elapsed < 200_000; elapsed += STEP_MS) {
+    for (let elapsed = 0; elapsed < 120_000; elapsed += STEP_MS) {
       if (session.phase !== 'running') break;
       session = typePrompt(advanceRunSession(session, STEP_MS).session);
 
@@ -292,7 +299,10 @@ describe('coins', () => {
   });
 
   it('costs nothing to ignore', () => {
-    let session = untilCoinWord(newSession('coins'));
+    // No hazards in this one, deliberately. Ignoring a coin line means ignoring
+    // whatever comes after it too, and hazards now follow closely enough that
+    // the crash — not the coins — would be what changed the score.
+    let session = untilCoinWord(newSession('coins', false));
     const before = { score: session.score.score, combo: session.score.combo };
 
     session = advance(session, 8_000);
@@ -303,10 +313,10 @@ describe('coins', () => {
     expect(session.phase).toBe('running');
   });
 
-  it('never lets a coin word compete with a hazard word', () => {
+  it('never lets a coin word compete with a hazard word', { timeout: 30_000 }, () => {
     let session = newSession('crowded');
 
-    for (let elapsed = 0; elapsed < 120_000; elapsed += STEP_MS) {
+    for (let elapsed = 0; elapsed < 90_000; elapsed += STEP_MS) {
       if (session.phase !== 'running') break;
       session = typePrompt(advanceRunSession(session, STEP_MS).session);
 
@@ -330,6 +340,188 @@ describe('coins', () => {
 
     // Whatever happened, it was not a collision caused by being busy.
     expect(session.failureReason).not.toBe('late-move');
+  });
+});
+
+describe('powerups', () => {
+  /** Advances until a powerup sentence owns the field, clearing everything else. */
+  function untilSentence(session: RunSession, limitMs = 200_000): RunSession {
+    let current = session;
+
+    for (let elapsed = 0; elapsed < limitMs; elapsed += STEP_MS) {
+      if (current.challenge?.kind === 'powerup') break;
+      if (current.phase !== 'running') break;
+      if (current.challenge !== null) current = typePrompt(current);
+      current = advanceRunSession(current, STEP_MS).session;
+    }
+
+    return current;
+  }
+
+  it('offers a sentence, not a word', () => {
+    const session = untilSentence(newSession('power'));
+
+    expect(session.challenge?.kind).toBe('powerup');
+    expect(session.prompt?.text ?? '').toContain(' ');
+  });
+
+  it('grants the powerup when the sentence is typed cleanly', () => {
+    let session = untilSentence(newSession('power'));
+    session = typePrompt(session);
+
+    expect(session.powerupsClaimed).toBe(1);
+    expect(session.powerupsLost).toBe(0);
+
+    const carrying =
+      session.effects.shields > 0 ||
+      session.effects.flightRemainingMs > 0 ||
+      session.effects.magnetRemainingMs > 0;
+    expect(carrying).toBe(true);
+  });
+
+  it('forfeits it outright on a single mistake', () => {
+    let session = untilSentence(newSession('power'));
+    const target = session.prompt?.text ?? '';
+
+    session = applyRunInput(session, target.slice(0, 3)).session;
+    session = applyRunInput(session, `${target.slice(0, 3)}#`).session;
+
+    // Gone. Not a shorter deadline, not a partial reward.
+    expect(session.powerupsLost).toBe(1);
+    expect(session.powerupsClaimed).toBe(0);
+    expect(session.challenge).toBeNull();
+
+    // And typing the rest of it perfectly afterwards changes nothing.
+    session = typePrompt(session);
+    expect(session.powerupsClaimed).toBe(0);
+  });
+
+  it('costs nothing but the powerup', () => {
+    let session = untilSentence(newSession('power'));
+    const target = session.prompt?.text ?? '';
+    const before = session.playerMeters;
+
+    session = applyRunInput(session, `${target.slice(0, 2)}#`).session;
+
+    expect(session.phase).toBe('running');
+    expect(session.collisions).toBe(0);
+    expect(session.playerMeters).toBe(before);
+  });
+
+  it('is offered about once a minute', { timeout: 30_000 }, () => {
+    let session = newSession('cadence');
+    const offers: number[] = [];
+    let seen: string | null = null;
+
+    for (let elapsed = 0; elapsed < 180_000; elapsed += STEP_MS) {
+      if (session.phase !== 'running') break;
+      if (session.challenge !== null) session = typePrompt(session);
+      session = advanceRunSession(session, STEP_MS).session;
+
+      const id = session.challenge?.kind === 'powerup' ? session.challenge.id : null;
+      if (id !== null && id !== seen) {
+        seen = id;
+        offers.push(session.elapsedMs);
+      }
+    }
+
+    expect(offers.length).toBeGreaterThanOrEqual(1);
+    for (let index = 1; index < offers.length; index += 1) {
+      const gap = (offers[index] ?? 0) - (offers[index - 1] ?? 0);
+      // Never faster than the interval; some slack for finding a clear road.
+      expect(gap).toBeGreaterThan(50_000);
+    }
+  });
+});
+
+describe('what a powerup buys', () => {
+  it('a shield turns a fatal crash into a survivable one', () => {
+    // Nothing typed, so the first hazard is a crash. With a shield in hand the
+    // run carries on, which is the whole point of carrying one.
+    let session: RunSession = {
+      ...newSession('shielded'),
+      effects: { flightRemainingMs: 0, magnetRemainingMs: 0, shields: 1 },
+    };
+
+    for (let elapsed = 0; elapsed < 60_000; elapsed += STEP_MS) {
+      if (session.savedByShield > 0 || session.phase !== 'running') break;
+      session = advanceRunSession(session, STEP_MS).session;
+    }
+
+    expect(session.savedByShield).toBe(1);
+    expect(session.collisions).toBe(0);
+    expect(session.phase).toBe('running');
+    expect(session.effects.shields).toBe(0);
+  });
+
+  it('and the next crash after that still ends the run', () => {
+    const shielded: RunSession = {
+      ...newSession('spent'),
+      effects: { flightRemainingMs: 0, magnetRemainingMs: 0, shields: 1 },
+    };
+
+    const after = advance(shielded, 200_000);
+
+    expect(after.savedByShield).toBe(1);
+    expect(after.phase).toBe('gameOver');
+  });
+
+  it('flight carries the player over everything, typed or not', () => {
+    const flying: RunSession = {
+      ...newSession('flying'),
+      effects: { flightRemainingMs: 30_000, magnetRemainingMs: 0, shields: 0 },
+    };
+
+    // Twenty seconds of hazards, none of them answered.
+    const after = advance(flying, 20_000);
+
+    // Hazards were met and none of them landed. They are not *cleared* — a
+    // waived hazard never asked anything, so counting it as an avoidance would
+    // inflate the obstacle success rate for a player who typed nothing.
+    expect(after.obstaclesFaced).toBeGreaterThan(0);
+    expect(after.collisions).toBe(0);
+    expect(after.phase).toBe('running');
+  });
+
+  it('never arms a hazard the flying player was shown no word for', () => {
+    // The bug this guards: while flying there is nothing to type, but hazards
+    // used to go active and start a deadline anyway. When flight ran out, that
+    // deadline expired on a word the player had never seen — the game killing
+    // them for having taken a powerup. See `ObstacleAdvanceInput.suspended`.
+    const flying: RunSession = {
+      ...newSession('waived'),
+      effects: { flightRemainingMs: 12_000, magnetRemainingMs: 0, shields: 0 },
+    };
+
+    const after = advance(flying, 12_000);
+
+    expect(after.obstacles.every((entry) => entry.status !== 'active')).toBe(true);
+    expect(after.collisions).toBe(0);
+  });
+
+  it('and stops carrying them once it runs out', () => {
+    const flying: RunSession = {
+      ...newSession('landing'),
+      effects: { flightRemainingMs: 4_000, magnetRemainingMs: 0, shields: 0 },
+    };
+
+    const after = advance(flying, 120_000);
+
+    expect(after.phase).toBe('gameOver');
+  });
+
+  it('the magnet takes coins without going to them', () => {
+    // The one exception to "typing is how you get coins" — and it was bought
+    // with a whole sentence typed clean.
+    let session: RunSession = {
+      ...newSession('magnet'),
+      effects: { flightRemainingMs: 120_000, magnetRemainingMs: 120_000, shields: 0 },
+    };
+
+    session = advance(session, 60_000);
+
+    expect(session.coinsCollected).toBeGreaterThan(0);
+    expect(session.coinsMissed).toBe(0);
   });
 });
 

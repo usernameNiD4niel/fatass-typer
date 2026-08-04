@@ -101,6 +101,11 @@ export interface ContentProfile {
   readonly coinIntervalSeconds: number;
   /** How many coins are in one line. Score, and a number on the HUD. */
   readonly coinValue: number;
+  /**
+   * Seconds between powerup crates. Roughly a minute: rare enough that one is
+   * an event, often enough that a long run sees several.
+   */
+  readonly powerupIntervalSeconds: number;
   /** Tags preferred when selecting themed vocabulary for this map. */
   readonly themeTags: readonly string[];
 }
@@ -152,7 +157,23 @@ export const DEFAULT_ADAPTIVE_ASSISTANCE: AdaptiveAssistanceConfig = {
   failuresBeforeEasing: 3,
   successesBeforeTightening: 8,
   bufferStep: 0.05,
-  minimumBufferMultiplier: 0.9,
+  /*
+   * One, not 0.9: assistance may hand time back, never take the map below what
+   * it advertises.
+   *
+   * It used to go to 0.9, and that was survivable only because a run was short.
+   * A run is now two and a half minutes with eleven to twenty-two hazards, so a
+   * clean player crosses the eight-success threshold twice and the buffer landed
+   * at 0.9 — a Map 1 buffer of 1.14 became 1.026, and a typist at exactly 20 WPM
+   * started timing out an hour into the map's own advertised speed. A map that
+   * gets harder than its label because you are doing well is the one thing the
+   * whole timing model exists to prevent.
+   *
+   * Tightening therefore now un-does easing and stops. That makes assistance a
+   * one-way ratchet in the player's favour, which is what `assistance/README.md`
+   * already said it was for.
+   */
+  minimumBufferMultiplier: 1,
   maximumBufferMultiplier: 1.25,
 };
 
@@ -200,6 +221,7 @@ export function isMapConfig(value: unknown): value is MapConfig {
   if (!isRatio(content['doubleBlockChance'])) return false;
   if (!isPositiveNumber(content['coinIntervalSeconds'])) return false;
   if (!isIntegerAtLeast(content['coinValue'], 1)) return false;
+  if (!isPositiveNumber(content['powerupIntervalSeconds'])) return false;
 
   const unlock = value['unlock'];
   if (!isRecord(unlock)) return false;

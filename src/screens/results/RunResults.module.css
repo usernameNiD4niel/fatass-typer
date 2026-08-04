@@ -135,3 +135,22 @@
   flex-wrap: wrap;
   gap: var(--space-3);
 }
+
+/*
+ * The secret.
+ *
+ * Set as prose rather than as a statistic: it is the one thing on this screen
+ * that is read rather than scanned, and the run's numbers are right above it.
+ */
+.secretLore {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  line-height: 1.65;
+}
+
+.secretProgress {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}

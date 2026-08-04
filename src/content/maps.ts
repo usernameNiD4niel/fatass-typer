@@ -26,13 +26,15 @@ export const MAP_1: MapConfig = {
   name: 'Neighborhood Dash',
   theme: 'neighborhood',
   targetWpm: 20,
-  // ~50 seconds at base speed, less when boosting well.
-  distanceMeters: 740,
+  // ~2.5 minutes at base speed, less when boosting well. A run is an endurance
+  // test now: with a word on screen at all times, a 75-second map asked for
+  // about a hundred characters and that is not practice.
+  distanceMeters: 1550,
   baseSpeedMetersPerSecond: 7.4,
   timing: {
-    // The most generous buffer in the game. Map 6 runs at 1.08.
-    reactionBuffer: 1.38,
-    fixedVisualLeadTimeMs: 120,
+    // The most generous buffer in the game. Map 6 runs at 1.07.
+    reactionBuffer: 1.14,
+    fixedVisualLeadTimeMs: 70,
   },
   // The road is the road: lane width and jump timing are shared by every
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
@@ -52,12 +54,13 @@ export const MAP_1: MapConfig = {
     // The three gentlest obstacles, all avoided by jumping. Nothing overhead and
     // nothing needing a phrase — those start on later maps.
     obstacleIds: ['rock', 'crate', 'low-barrier', 'sedan'],
-    obstacleIntervalSeconds: 3.0,
+    obstacleIntervalSeconds: 0.2,
     obstacleIntervalJitter: 0.25,
-    recoverySeconds: 0.35,
+    recoverySeconds: 0.1,
     doubleBlockChance: 0,
-    coinIntervalSeconds: 6.5,
+    coinIntervalSeconds: 18,
     coinValue: 5,
+    powerupIntervalSeconds: 60,
     themeTags: ['street', 'chase'],
   },
   unlock: {
@@ -80,11 +83,11 @@ export const MAP_2: MapConfig = {
   name: 'Downtown Sprint',
   theme: 'downtown',
   targetWpm: 25,
-  distanceMeters: 800,
+  distanceMeters: 1680,
   baseSpeedMetersPerSecond: 7.9,
   timing: {
-    reactionBuffer: 1.32,
-    fixedVisualLeadTimeMs: 115,
+    reactionBuffer: 1.13,
+    fixedVisualLeadTimeMs: 68,
   },
   // The road is the road: lane width and jump timing are shared by every
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
@@ -100,12 +103,13 @@ export const MAP_2: MapConfig = {
   content: {
     promptCategories: ['short-word', 'medium-word', 'short-phrase', 'themed', 'punctuation'],
     obstacleIds: ['rock', 'crate', 'low-barrier', 'cone-beam', 'sedan', 'van'],
-    obstacleIntervalSeconds: 2.8,
+    obstacleIntervalSeconds: 0.18,
     obstacleIntervalJitter: 0.25,
-    recoverySeconds: 0.32,
+    recoverySeconds: 0.09,
     doubleBlockChance: 0,
-    coinIntervalSeconds: 6.0,
+    coinIntervalSeconds: 17,
     coinValue: 5,
+    powerupIntervalSeconds: 60,
     themeTags: ['downtown', 'street', 'chase'],
   },
   unlock: {
@@ -127,11 +131,11 @@ export const MAP_3: MapConfig = {
   name: 'Market District',
   theme: 'market-district',
   targetWpm: 30,
-  distanceMeters: 860,
+  distanceMeters: 1800,
   baseSpeedMetersPerSecond: 8.4,
   timing: {
-    reactionBuffer: 1.28,
-    fixedVisualLeadTimeMs: 110,
+    reactionBuffer: 1.1,
+    fixedVisualLeadTimeMs: 65,
   },
   // The road is the road: lane width and jump timing are shared by every
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
@@ -155,12 +159,13 @@ export const MAP_3: MapConfig = {
       'number',
     ],
     obstacleIds: ['rock', 'crate', 'low-barrier', 'cone-beam', 'roadwork-barrier', 'sedan', 'van'],
-    obstacleIntervalSeconds: 2.6,
+    obstacleIntervalSeconds: 0.16,
     obstacleIntervalJitter: 0.3,
-    recoverySeconds: 0.3,
+    recoverySeconds: 0.08,
     doubleBlockChance: 0.15,
-    coinIntervalSeconds: 5.5,
+    coinIntervalSeconds: 16,
     coinValue: 6,
+    powerupIntervalSeconds: 60,
     themeTags: ['market-district', 'street', 'chase'],
   },
   unlock: {
@@ -182,11 +187,11 @@ export const MAP_4: MapConfig = {
   name: 'Industrial Zone',
   theme: 'industrial-zone',
   targetWpm: 35,
-  distanceMeters: 920,
+  distanceMeters: 1930,
   baseSpeedMetersPerSecond: 8.9,
   timing: {
-    reactionBuffer: 1.24,
-    fixedVisualLeadTimeMs: 105,
+    reactionBuffer: 1.09,
+    fixedVisualLeadTimeMs: 62,
   },
   // The road is the road: lane width and jump timing are shared by every
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
@@ -218,12 +223,13 @@ export const MAP_4: MapConfig = {
       'van',
       'box-truck',
     ],
-    obstacleIntervalSeconds: 2.4,
+    obstacleIntervalSeconds: 0.14,
     obstacleIntervalJitter: 0.3,
-    recoverySeconds: 0.28,
+    recoverySeconds: 0.07,
     doubleBlockChance: 0.25,
-    coinIntervalSeconds: 5.0,
+    coinIntervalSeconds: 15,
     coinValue: 6,
+    powerupIntervalSeconds: 60,
     themeTags: ['industrial-zone', 'chase'],
   },
   unlock: {
@@ -244,11 +250,11 @@ export const MAP_5: MapConfig = {
   name: 'Night Highway',
   theme: 'night-highway',
   targetWpm: 40,
-  distanceMeters: 980,
+  distanceMeters: 2060,
   baseSpeedMetersPerSecond: 9.4,
   timing: {
-    reactionBuffer: 1.22,
-    fixedVisualLeadTimeMs: 100,
+    reactionBuffer: 1.08,
+    fixedVisualLeadTimeMs: 60,
   },
   // The road is the road: lane width and jump timing are shared by every
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
@@ -272,12 +278,13 @@ export const MAP_5: MapConfig = {
       'number',
     ],
     obstacleIds: ['rock', 'low-barrier', 'cone-beam', 'roadwork-barrier', 'van', 'box-truck'],
-    obstacleIntervalSeconds: 2.3,
+    obstacleIntervalSeconds: 0.12,
     obstacleIntervalJitter: 0.3,
-    recoverySeconds: 0.25,
+    recoverySeconds: 0.06,
     doubleBlockChance: 0.35,
-    coinIntervalSeconds: 4.5,
+    coinIntervalSeconds: 14,
     coinValue: 7,
+    powerupIntervalSeconds: 60,
     themeTags: ['night-highway', 'chase'],
   },
   unlock: {
@@ -300,11 +307,11 @@ export const MAP_6: MapConfig = {
   name: 'Final Pursuit',
   theme: 'final-pursuit',
   targetWpm: 50,
-  distanceMeters: 1060,
+  distanceMeters: 2220,
   baseSpeedMetersPerSecond: 10,
   timing: {
-    reactionBuffer: 1.2,
-    fixedVisualLeadTimeMs: 95,
+    reactionBuffer: 1.07,
+    fixedVisualLeadTimeMs: 58,
   },
   // The road is the road: lane width and jump timing are shared by every
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
@@ -337,12 +344,13 @@ export const MAP_6: MapConfig = {
       'van',
       'box-truck',
     ],
-    obstacleIntervalSeconds: 2.2,
+    obstacleIntervalSeconds: 0.1,
     obstacleIntervalJitter: 0.3,
-    recoverySeconds: 0.22,
+    recoverySeconds: 0.05,
     doubleBlockChance: 0.45,
-    coinIntervalSeconds: 4.0,
+    coinIntervalSeconds: 13,
     coinValue: 8,
+    powerupIntervalSeconds: 60,
     themeTags: ['final-pursuit', 'chase'],
   },
   unlock: {

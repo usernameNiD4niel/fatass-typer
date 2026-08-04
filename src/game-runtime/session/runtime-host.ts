@@ -1,5 +1,11 @@
 import type { GameCommand, GameEvent, GameHost, WorldSnapshot } from '../../game-bridge';
-import { createWorldSnapshot, MAX_SNAPSHOT_COINS, MAX_SNAPSHOT_HAZARDS } from '../../game-bridge';
+import {
+  createWorldSnapshot,
+  MAX_SNAPSHOT_COIN_UNITS,
+  MAX_SNAPSHOT_COINS,
+  MAX_SNAPSHOT_HAZARDS,
+  MAX_SNAPSHOT_POWERUPS,
+} from '../../game-bridge';
 import type {
   AdaptiveAssistanceConfig,
   MapConfig,
@@ -22,9 +28,13 @@ import { DEFAULT_TYPING_OPTIONS, firstErrorIndex } from '../../game-core/typing'
 import type { DeadlinePressure } from '../../game-core/timing';
 import { FixedStepDriver } from '../loop';
 import { distanceToCoins } from '../../game-core/pickups';
+import { distanceToPowerup, hasMagnet, isFlying } from '../../game-core/powerups';
+import { flowUrgency } from '../../game-core/flow';
 import {
   activeCoin,
+  activeFlowWord,
   activeObstacle,
+  activePowerup,
   advanceRunSession,
   applyRunInput,
   createRunSession,
@@ -36,6 +46,7 @@ import {
   type RunSession,
   resumeRun,
   runProgress,
+  secretComplete,
   type SessionEvent,
   startRun,
 } from './run-session';
@@ -58,6 +69,8 @@ export interface RuntimeHostOptions {
   readonly map: MapConfig;
   readonly prompts: readonly PromptEntry[];
   readonly obstacles?: readonly ObstacleDefinition[];
+  /** The map's secret, as words in order. Every prompt comes from here first. */
+  readonly secretWords?: readonly PromptEntry[];
   readonly seed: string;
   readonly emit: (event: GameEvent) => void;
   /** Offers a stats sample; the bridge decides whether it leaves. */
@@ -101,6 +114,7 @@ export class RuntimeHost implements GameHost {
       map: options.map,
       pool: options.prompts,
       obstacles: options.obstacles ?? [],
+      secretWords: options.secretWords ?? [],
       seed: options.seed,
     });
 
@@ -205,6 +219,7 @@ export class RuntimeHost implements GameHost {
       map: this.options.map,
       pool: this.options.prompts,
       obstacles: this.options.obstacles ?? [],
+      secretWords: this.options.secretWords ?? [],
       assistance: this.assistanceConfig,
       // A restart is a fresh run, not a replay: a new seed means new prompts.
       seed: `${this.options.seed}:${String(Math.round(this.now()))}`,
@@ -286,6 +301,8 @@ export class RuntimeHost implements GameHost {
           break;
 
         case 'promptCompleted':
+        case 'flowWordCompleted':
+        case 'flowWordMissed':
         case 'obstacleCommitted':
         case 'obstacleSpawned':
         case 'obstacleAttached':
@@ -349,6 +366,12 @@ export class RuntimeHost implements GameHost {
       obstacleSuccessRate: obstacleSuccessRate(this.session),
       longestCombo: this.session.score.longestCombo,
       coinsCollected: this.session.coinsCollected,
+      powerupsClaimed: this.session.powerupsClaimed,
+      // Unlocked by finishing the sentence, not by finishing the map: a player
+      // caught on the last hazard still typed every word of it.
+      secretUnlocked: secretComplete(this.session),
+      secretWordsTyped: this.session.secretIndex,
+      secretWordCount: this.session.secretWords.length,
     };
   }
 
@@ -430,9 +453,47 @@ export class RuntimeHost implements GameHost {
       slot.committed = coin.status === 'committed';
       slot.collected = coin.status === 'collected';
 
+      let unitCount = 0;
+      for (const unit of coin.units) {
+        if (unitCount >= MAX_SNAPSHOT_COIN_UNITS) break;
+
+        const unitSlot = slot.units[unitCount];
+        if (unitSlot === undefined) break;
+
+        unitSlot.offsetMeters = unit.offsetMeters;
+        unitSlot.collected = unit.collected;
+        unitSlot.passed = unit.passed;
+
+        unitCount += 1;
+      }
+      slot.unitCount = unitCount;
+
       coinCount += 1;
     }
     world.coinCount = coinCount;
+
+    let powerupCount = 0;
+    for (const powerup of session.powerups) {
+      if (powerupCount >= MAX_SNAPSHOT_POWERUPS) break;
+
+      const slot = world.powerups[powerupCount];
+      if (slot === undefined) break;
+
+      slot.instanceId = powerup.instanceId;
+      slot.kind = powerup.kind;
+      slot.distanceMeters = distanceToPowerup(powerup, world.playerMeters);
+      slot.lane = powerup.lane;
+      slot.claimed = powerup.status === 'claimed';
+
+      powerupCount += 1;
+    }
+    world.powerupCount = powerupCount;
+
+    world.effects.flying = isFlying(session.effects);
+    world.effects.flightRemainingMs = session.effects.flightRemainingMs;
+    world.effects.magnet = hasMagnet(session.effects);
+    world.effects.magnetRemainingMs = session.effects.magnetRemainingMs;
+    world.effects.shields = session.effects.shields;
 
     world.challenge = this.buildChallenge();
 
@@ -463,12 +524,47 @@ export class RuntimeHost implements GameHost {
     if (obstacle !== null) {
       return {
         ...typed,
+        kind: 'hazard',
         action: obstacle.definition.action,
         safeSide: obstacle.safeSide,
         safeLane: obstacle.safeLane,
         hazardId: obstacle.instanceId,
         optional: false,
+        perfect: false,
         urgency: challengeUrgency(obstacle, session.elapsedMs),
+      };
+    }
+
+    const flow = activeFlowWord(session);
+    if (flow !== null) {
+      return {
+        ...typed,
+        kind: 'flow',
+        // A flow word points nowhere: there is nothing to avoid and nowhere to
+        // be. The scene places it ahead of the player rather than tracking a
+        // body, because it has none.
+        action: 'lane-change',
+        safeSide: null,
+        safeLane: null,
+        hazardId: flow.instanceId,
+        optional: true,
+        perfect: false,
+        urgency: flowUrgency(flow, session.elapsedMs),
+      };
+    }
+
+    const powerup = activePowerup(session);
+    if (powerup !== null) {
+      return {
+        ...typed,
+        kind: 'powerup',
+        action: 'lane-change',
+        safeSide: powerup.side,
+        safeLane: powerup.lane,
+        hazardId: powerup.instanceId,
+        optional: true,
+        perfect: true,
+        urgency: spanUrgency(powerup.attachedAtMs, powerup.deadlineAtMs, session.elapsedMs),
       };
     }
 
@@ -477,6 +573,7 @@ export class RuntimeHost implements GameHost {
 
     return {
       ...typed,
+      kind: 'coin',
       // A coin word always points somewhere: it is only ever worth typing
       // because there is a lane to be in.
       action: 'lane-change',
@@ -484,16 +581,8 @@ export class RuntimeHost implements GameHost {
       safeLane: coin.lane,
       hazardId: coin.instanceId,
       optional: true,
-      urgency:
-        coin.deadlineAtMs === null || coin.attachedAtMs === null
-          ? 0
-          : Math.min(
-              1,
-              Math.max(
-                0,
-                (session.elapsedMs - coin.attachedAtMs) / (coin.deadlineAtMs - coin.attachedAtMs),
-              ),
-            ),
+      perfect: false,
+      urgency: spanUrgency(coin.attachedAtMs, coin.deadlineAtMs, session.elapsedMs),
     };
   }
 
@@ -505,6 +594,13 @@ export class RuntimeHost implements GameHost {
       hazards: this.session.obstacles.length,
     };
   }
+}
+
+/** How far through a deadline, 0..1, for anything that has one. */
+function spanUrgency(startedAtMs: number | null, endsAtMs: number | null, nowMs: number): number {
+  if (startedAtMs === null || endsAtMs === null || endsAtMs <= startedAtMs) return 0;
+
+  return Math.min(1, Math.max(0, (nowMs - startedAtMs) / (endsAtMs - startedAtMs)));
 }
 
 /** Deadline pressure as a smooth 0..1, for the prompt's urgency pulse. */

@@ -44,6 +44,43 @@
 }
 
 /*
+ * A flow word: the word that is there when nothing on the road wants one.
+ *
+ * Optional like a coin word, but it points nowhere and there is nothing to
+ * collect, so it must not borrow the amber that means "go and get that". Cool,
+ * quiet, and slightly smaller — present without competing with the thing that
+ * can actually end the run.
+ */
+.word[data-flow='true'] {
+  background: rgb(18 24 34 / 70%);
+  box-shadow: 0 0.25em 1em rgb(0 0 0 / 28%);
+  font-size: 1.5rem;
+}
+
+.word[data-flow='true'] .untyped {
+  color: rgb(206 220 238 / 86%);
+}
+
+/*
+ * A powerup sentence. Longer, calmer, and ringed — one mistake forfeits it, and
+ * a rule that severe has to look different before the player discovers it.
+ */
+.word[data-perfect='true'] {
+  background: rgb(14 30 46 / 84%);
+  box-shadow:
+    0 0 0 0.12em rgb(106 212 255 / 70%),
+    0 0.3em 1.4em rgb(0 0 0 / 40%);
+  font-size: 1.35rem;
+  white-space: normal;
+  max-width: 22ch;
+  text-align: center;
+}
+
+.word[data-perfect='true'] .untyped {
+  color: rgb(203 233 255 / 90%);
+}
+
+/*
  * State is never colour alone (spec §21): typed characters are dimmed *and*
  * underlined, the cursor is boxed, and an error is struck through.
  */

@@ -81,6 +81,7 @@ const MAP: MapConfig = {
     doubleBlockChance: 0,
     coinIntervalSeconds: 6,
     coinValue: 5,
+    powerupIntervalSeconds: 60,
     themeTags: ['neighborhood'],
   },
   unlock: { requiresMapId: null, minimumAccuracy: 0 },

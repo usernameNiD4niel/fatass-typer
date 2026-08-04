@@ -7,6 +7,7 @@ import { ChaseCamera } from './ChaseCamera';
 import { Coins } from './Coins';
 import { Hazards } from './Hazards';
 import { Player } from './Player';
+import { Powerups } from './Powerups';
 import { Road } from './Road';
 import {
   BASE_FOV_DEGREES,
@@ -90,6 +91,7 @@ export function GameCanvas({
 
       <Road snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
       <Coins snapshot={snapshot} reducedMotion={reducedMotion} />
+      <Powerups snapshot={snapshot} reducedMotion={reducedMotion} />
       <Hazards snapshot={snapshot} palette={palette} />
       <Player snapshot={snapshot} reducedMotion={reducedMotion} />
       <WorldPrompt snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
