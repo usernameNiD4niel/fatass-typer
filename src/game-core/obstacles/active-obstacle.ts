@@ -105,8 +105,12 @@ export interface ActiveObstacle {
  * The warning is a look-ahead, not extra typing time: the prompt still attaches
  * at exactly the budget, so the required WPM is unchanged. All this buys is the
  * chance to see the thing coming (spec §5 "early warning").
+ *
+ * Lowered from 1.6 after playtesting. At 1.6 the player spent well over two
+ * seconds watching a hazard approach with nothing to do, and that dead time —
+ * not the difficulty — was what made the game feel slow.
  */
-export const WARNING_LEAD_FACTOR = 1.6;
+export const WARNING_LEAD_FACTOR = 1.15;
 
 export interface PlaceObstacleInput {
   readonly instanceId: string;

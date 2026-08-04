@@ -1,4 +1,3 @@
-import { LANE_COUNT } from '../models/lane';
 import { timeToClearanceMs } from '../models/motion';
 import type { MotionProfile } from '../models/motion';
 import type { ObstacleAction } from '../models/obstacle';
@@ -43,15 +42,14 @@ export function bareReserveMs(action: ObstacleAction, profile: MotionProfile): n
   switch (action) {
     case 'lane-change':
       /*
-       * The widest move the spawner can ask for, not the average one.
+       * One lane, because one lane is the widest move that can be asked for.
        *
-       * A car in the centre lane can send the player one lane over; a car at the
-       * edge with the neighbouring lane also blocked can send them two. Reserving
-       * for the single-lane case would leave the double-lane case landing late,
-       * and "late" here means a collision the player had already typed their way
-       * out of.
+       * `assignLanes` always nominates a lane *adjacent* to the player — a car
+       * can block both neighbours, but the safe lane it points at is never two
+       * moves away. This used to reserve for two, which bought road no move ever
+       * needed and made every car encounter a second longer than it had to be.
        */
-      return profile.laneChangeMs * (LANE_COUNT - 1);
+      return profile.laneChangeMs;
 
     case 'jump':
       // Crouch, then rise — only up to clearance height. The rest of the arc

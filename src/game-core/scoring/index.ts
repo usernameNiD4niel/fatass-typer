@@ -2,6 +2,7 @@ export { DEFAULT_SCORING_CONFIG } from './config';
 export type { ScoringConfig } from './config';
 
 export {
+  awardCoins,
   breakCombo,
   comboMultiplier,
   createScoreState,

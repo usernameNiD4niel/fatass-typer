@@ -1,3 +1,4 @@
+export { Coins } from './Coins';
 export { GameCanvas } from './GameCanvas';
 export type { GameCanvasProps } from './GameCanvas';
 export {

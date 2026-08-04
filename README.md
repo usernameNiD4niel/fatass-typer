@@ -3,8 +3,13 @@
 A desktop typing game. You run down a three-lane road and the road puts things
 in your way. A car blocks your lane and a word appears on the open side — type
 it and you pull into that lane. A barrier blocks it and the word sits above —
-type it and you jump. Miss either and the run is over. Six maps, from a 20 WPM
-neighbourhood jog to a 50 WPM sprint.
+type it and you jump. Miss either and the run is over.
+
+In the gaps, a line of coins appears one lane over with a word of its own. Type
+that and you swerve across and take them; ignore it and you simply drive past.
+Coins are the only thing in the game you are allowed to decline.
+
+Six maps, from a 20 WPM neighbourhood jog to a 50 WPM sprint.
 
 Web app, keyboard required, minimum width 1024px. Mobile is out of scope.
 
@@ -29,6 +34,10 @@ word lives out in the world, beside the hazard it applies to.
 Typing is forgiving _within_ a word: a wrong character breaks your combo, not
 your run, and you can correct it. What is not forgiving is the hazard. Finish the
 word before the deadline or you hit the thing — and one hit ends the run.
+
+Coins work the same way but cost nothing to miss. Their words are shorter and
+their deadlines tighter — they ask for the map's advertised speed with very
+little slack, which is what makes taking them mean something.
 
 Finishing a word does not save you by itself; it _starts_ the move. The lane
 change or the jump still has to complete before you reach the hazard. The game

@@ -34,6 +34,8 @@ export interface RunResult extends Versioned {
   /** 0..1. Obstacles avoided divided by obstacles faced. */
   readonly obstacleSuccessRate: number;
   readonly longestCombo: number;
+  /** Coins collected. Optional pickups, so this is a flourish, not a grade. */
+  readonly coinsCollected: number;
 }
 
 /**
@@ -54,6 +56,8 @@ export interface LiveRunStats {
   readonly speedMetersPerSecond: number;
   /** Continuous lane position, 0..2. Whole numbers mean settled in a lane. */
   readonly lanePosition: number;
+  /** Coins collected so far this run. */
+  readonly coins: number;
   readonly elapsedMs: number;
 }
 
@@ -66,6 +70,7 @@ export const EMPTY_LIVE_STATS: LiveRunStats = {
   progress: 0,
   speedMetersPerSecond: 0,
   lanePosition: 1,
+  coins: 0,
   elapsedMs: 0,
 };
 
@@ -90,7 +95,10 @@ export function isRunResult(value: unknown): value is RunResult {
     isCount(value['completedPrompts']) &&
     isCount(value['missedPrompts']) &&
     isRatio(value['obstacleSuccessRate']) &&
-    isCount(value['longestCombo'])
+    isCount(value['longestCombo']) &&
+    // Added after the first release: an older stored run has no coins, and is
+    // repaired rather than rejected.
+    (value['coinsCollected'] === undefined || isCount(value['coinsCollected']))
   );
 }
 
@@ -118,5 +126,6 @@ export function emptyRunResult(runId: RunId, mapId: MapId, startedAt: IsoTimesta
     missedPrompts: 0,
     obstacleSuccessRate: 0,
     longestCombo: 0,
+    coinsCollected: 0,
   };
 }

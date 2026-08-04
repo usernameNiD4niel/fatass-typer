@@ -59,8 +59,8 @@ export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptPro
       return;
     }
 
-    const hazard = findHazard(snapshot, challenge.hazardId);
-    if (hazard === undefined) {
+    const anchor = findAnchor(snapshot, challenge.hazardId);
+    if (anchor === null) {
       root.visible = false;
 
       return;
@@ -68,9 +68,9 @@ export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptPro
 
     root.visible = true;
 
-    // Cars point at the safe lane; jumps point at themselves.
-    const lane = challenge.safeLane ?? hazard.blockedLanes[0] ?? 1;
-    root.position.set(laneCenterX(lane), PROMPT_HEIGHT_METERS, -hazard.distanceMeters);
+    // Cars and coins point at the lane to be in; jumps point at themselves.
+    const lane = challenge.safeLane ?? anchor.lane;
+    root.position.set(laneCenterX(lane), PROMPT_HEIGHT_METERS, -anchor.distanceMeters);
 
     // The lane cue lies on the road *between* the player and the safe lane, so
     // the eye is led there rather than merely told (spec §6). It is scaled and
@@ -80,7 +80,7 @@ export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptPro
     if (cue) {
       cue.visible = challenge.safeLane !== null;
       if (cue.visible) {
-        const length = Math.max(4, hazard.distanceMeters);
+        const length = Math.max(4, anchor.distanceMeters);
         cue.scale.set(1, length, 1);
         cue.position.set(0, -PROMPT_HEIGHT_METERS + 0.03, length / 2);
       }
@@ -98,8 +98,11 @@ export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptPro
     // Urgency: a restrained pulse as the deadline closes, never a flash.
     const word = wordRef.current;
     if (word) {
-      const urgent = challenge.urgency > 0.6;
+      // An optional word never turns urgent: nothing is going to happen to you
+      // if you ignore it, and dressing it up as a threat would be a lie.
+      const urgent = !challenge.optional && challenge.urgency > 0.6;
       word.dataset['urgent'] = urgent ? 'true' : 'false';
+      word.dataset['optional'] = challenge.optional ? 'true' : 'false';
       const beat =
         reducedMotion || !urgent ? 1 : 1 + Math.abs(Math.sin(clock.elapsedTime * 6)) * 0.06;
       word.style.transform = `scale(${String(beat)})`;
@@ -116,7 +119,11 @@ export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptPro
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, -PROMPT_HEIGHT_METERS + 0.03, 6]}
       >
-        <planeGeometry args={[LANE_WIDTH_METERS * 0.86, 16]} />
+        {/*
+          One metre long, and scaled to the distance every frame. It used to be
+          sixteen metres *and* scaled, which laid a carpet down the whole lane.
+        */}
+        <planeGeometry args={[LANE_WIDTH_METERS * 0.34, 1]} />
         <meshBasicMaterial color={palette.accent} transparent opacity={0.4} />
       </mesh>
 
@@ -129,12 +136,22 @@ export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptPro
       </group>
 
       {/*
-        `distanceFactor` scales the word with distance so it belongs to the
-        world. Too small a factor and a hazard forty metres out is unreadable —
-        which is exactly when the player needs to read it.
+        No `distanceFactor`, deliberately.
+
+        Scaling the word with distance is the obvious thing and it is wrong: a
+        word forty metres out is unreadable exactly when the player most needs to
+        read it, and the same word at two metres fills half the screen. A label
+        of constant size that *tracks* its hazard keeps the association without
+        either failure.
       */}
-      <Html center distanceFactor={26} zIndexRange={[20, 0]} pointerEvents="none">
-        <p ref={wordRef} className={styles.word} data-urgent="false" aria-hidden="true">
+      <Html center zIndexRange={[20, 0]} pointerEvents="none">
+        <p
+          ref={wordRef}
+          className={styles.word}
+          data-urgent="false"
+          data-optional="false"
+          aria-hidden="true"
+        >
           {challenge === null
             ? null
             : // Per code point, which is what the typing engine compares against.
@@ -160,14 +177,34 @@ export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptPro
   );
 }
 
-function findHazard(
-  snapshot: WorldSnapshot,
-  hazardId: string,
-): WorldSnapshot['hazards'][number] | undefined {
+/** Where in the world a word belongs. */
+interface PromptAnchor {
+  readonly distanceMeters: number;
+  readonly lane: number;
+}
+
+/**
+ * Finds whatever the word is attached to — a hazard *or* a coin line.
+ *
+ * Searching only the hazards was a real bug and an invisible one: a coin word
+ * would find nothing, hide itself, and leave the player typing a word they
+ * could not see. The word exists for both kinds of encounter, so the lookup has
+ * to cover both.
+ */
+function findAnchor(snapshot: WorldSnapshot, id: string): PromptAnchor | null {
   for (let index = 0; index < snapshot.hazardCount; index += 1) {
     const hazard = snapshot.hazards[index];
-    if (hazard?.instanceId === hazardId) return hazard;
+    if (hazard?.instanceId === id) {
+      return { distanceMeters: hazard.distanceMeters, lane: hazard.blockedLanes[0] ?? 1 };
+    }
   }
 
-  return undefined;
+  for (let index = 0; index < snapshot.coinCount; index += 1) {
+    const coin = snapshot.coins[index];
+    if (coin?.instanceId === id) {
+      return { distanceMeters: coin.distanceMeters, lane: coin.lane };
+    }
+  }
+
+  return null;
 }

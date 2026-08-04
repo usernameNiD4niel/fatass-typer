@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { LANE_COUNT } from '../models/lane';
 import { jumpDurationMs, timeToClearanceMs } from '../models/motion';
 import type { MotionProfile } from '../models/motion';
 import {
@@ -24,10 +23,10 @@ const PROFILE: MotionProfile = {
 };
 
 describe('motion reserve', () => {
-  it('reserves for the widest lane change the road allows, not the average one', () => {
-    // A car at the edge with the neighbouring lane also blocked sends the player
-    // two lanes over. Reserving for one would land that move late.
-    expect(bareReserveMs('lane-change', PROFILE)).toBe(PROFILE.laneChangeMs * (LANE_COUNT - 1));
+  it('reserves one lane, because one lane is the widest move ever asked for', () => {
+    // `assignLanes` only ever nominates an adjacent lane. Reserving for two was
+    // road no move used, and it made every car encounter a second longer.
+    expect(bareReserveMs('lane-change', PROFILE)).toBe(PROFILE.laneChangeMs);
   });
 
   it('reserves only as far as clearance height for a jump, not the whole arc', () => {
@@ -54,7 +53,7 @@ describe('motion reserve', () => {
   it('is enough for the lane change to actually finish', () => {
     // The promise the reserve makes, checked against the curve that has to keep
     // it: after `reserve` milliseconds the widest move has landed.
-    let motion = beginLaneChange(createPlayerMotion(0), 2, PROFILE);
+    let motion = beginLaneChange(createPlayerMotion(1), 2, PROFILE);
     motion = advanceMotion(motion, motionReserveMs('lane-change', PROFILE));
 
     expect(isSettled(motion)).toBe(true);

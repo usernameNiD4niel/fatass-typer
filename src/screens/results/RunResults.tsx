@@ -109,6 +109,11 @@ export function RunResults({
             }
           />
           <Stat
+            label="Coins"
+            value={String(result.coinsCollected)}
+            note={result.coinsCollected > 0 ? 'optional, and taken' : 'none taken'}
+          />
+          <Stat
             label="Mistakes"
             value={String(mistakes)}
             // Corrections are shown separately because they are not counted

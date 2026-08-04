@@ -50,7 +50,7 @@ export interface SpawnerState {
  * A run that opens with a hazard gives the player no time to understand what
  * they are looking at.
  */
-const FIRST_SPAWN_FACTOR = 1.5;
+const FIRST_SPAWN_FACTOR = 0.8;
 
 /** Shortest gap the jitter may produce, as a fraction of the interval. */
 const MINIMUM_INTERVAL_FACTOR = 0.4;
@@ -135,6 +135,15 @@ export interface SpawnerInput {
    * fairness guarantees structural rather than statistical.
    */
   readonly hazardsLive: boolean;
+  /**
+   * Whether the player is currently going for a line of coins.
+   *
+   * Hazards wait for coins as well as for each other, which is what makes the
+   * two alternate instead of competing. A car arriving mid-collection would
+   * force the player to abandon a word they had already started — the one thing
+   * an optional encounter must never do.
+   */
+  readonly coinsLive?: boolean;
 }
 
 export interface SpawnResult {
@@ -156,6 +165,7 @@ export function advanceSpawner(
   if (candidates.length === 0) return { state, spawned: null };
 
   if (input.hazardsLive) return { state, spawned: null };
+  if (input.coinsLive === true) return { state, spawned: null };
   if (elapsedMs < state.nextSpawnAtMs) return { state, spawned: null };
   if (elapsedMs < state.recoveryUntilMs) return { state, spawned: null };
 

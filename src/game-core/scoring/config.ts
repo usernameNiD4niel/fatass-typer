@@ -31,6 +31,8 @@ export interface ScoringConfig {
   /* Penalties. */
   readonly collisionPenalty: number;
   readonly missedPromptPenalty: number;
+  /** Points per coin. Deliberately small: coins are a bonus, not the game. */
+  readonly coinPoints: number;
   /** Charged once each time the dogs first reach the danger threshold. */
   readonly dangerZonePenalty: number;
 
@@ -58,6 +60,7 @@ export const DEFAULT_SCORING_CONFIG: ScoringConfig = {
 
   collisionPenalty: 150,
   missedPromptPenalty: 75,
+  coinPoints: 12,
   dangerZonePenalty: 100,
 
   levelCompletionPoints: 1_000,

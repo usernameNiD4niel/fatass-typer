@@ -64,7 +64,25 @@ describe.each(MAPS.map((map) => [map.id, map] as const))('%s', (_id, map) => {
     expect(result.hazardsFaced).toBeGreaterThanOrEqual(6);
     // Density is capped by how long an encounter lasts: a hazard is visible for
     // roughly its whole budget, so they cannot overlap and still be fair.
-    expect(result.hazardsFaced).toBeLessThanOrEqual(20);
+    expect(result.hazardsFaced).toBeLessThanOrEqual(24);
+  });
+
+  it('fills the gaps with coins, so there is almost always something to type', () => {
+    const result = playtest({ ...base(map), wpm: map.targetWpm, seed: 'coins' });
+    const { coinsCollected, coinsMissed } = result.session;
+
+    // The gap between hazards used to be several seconds of empty road. Coins
+    // are what is in it now, and a run should offer a real number of them.
+    expect(coinsCollected + coinsMissed).toBeGreaterThanOrEqual(4);
+  });
+
+  it('lets a typist at its advertised speed take every coin offered', () => {
+    // Coins ask for the map's speed with very little slack. Someone who has
+    // earned the map should still get them all.
+    const result = playtest({ ...base(map), wpm: map.targetWpm, seed: 'coins' });
+
+    expect(result.session.coinsMissed).toBe(0);
+    expect(result.session.coinsCollected).toBeGreaterThan(0);
   });
 
   it('is a run, not a marathon or a sprint', () => {

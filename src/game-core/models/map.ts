@@ -94,6 +94,13 @@ export interface ContentProfile {
    * go, which `lane-assignment.ts` refuses to construct.
    */
   readonly doubleBlockChance: number;
+  /**
+   * Average seconds between coin lines, measured from the moment the road is
+   * clear. Coins only ever appear in the gaps between hazards.
+   */
+  readonly coinIntervalSeconds: number;
+  /** How many coins are in one line. Score, and a number on the HUD. */
+  readonly coinValue: number;
   /** Tags preferred when selecting themed vocabulary for this map. */
   readonly themeTags: readonly string[];
 }
@@ -191,6 +198,8 @@ export function isMapConfig(value: unknown): value is MapConfig {
   if (!isRatio(content['obstacleIntervalJitter'])) return false;
   if (!isCount(content['recoverySeconds'])) return false;
   if (!isRatio(content['doubleBlockChance'])) return false;
+  if (!isPositiveNumber(content['coinIntervalSeconds'])) return false;
+  if (!isIntegerAtLeast(content['coinValue'], 1)) return false;
 
   const unlock = value['unlock'];
   if (!isRecord(unlock)) return false;

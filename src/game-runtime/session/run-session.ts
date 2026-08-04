@@ -24,7 +24,17 @@ import {
   lanePosition,
   type PlayerMotion,
   rampedSpeed,
+  targetLane,
 } from '../../game-core/motion';
+import {
+  type ActiveCoin,
+  advanceCoin,
+  commitCoin,
+  distanceToCoins,
+  isCoinLive,
+  placeCoin,
+  resolveCoin,
+} from '../../game-core/pickups';
 import {
   type ActiveObstacle,
   advanceObstacles,
@@ -47,6 +57,7 @@ import {
 } from '../../game-core/obstacles';
 import { createRngFromString, type Rng } from '../../game-core/random';
 import {
+  awardCoins,
   breakCombo,
   createScoreState,
   registerCollision as scoreCollision,
@@ -94,6 +105,12 @@ import { applyInput, createTypingState, type TypingState } from '../../game-core
  * the progression gates on, and a game that ends on one slip cannot measure it.
  */
 
+/** Which encounter owns the word currently on screen. */
+export interface ChallengeRef {
+  readonly kind: 'hazard' | 'coin';
+  readonly id: string;
+}
+
 export type RunPhase =
   | 'ready'
   | 'running'
@@ -110,6 +127,18 @@ export type RunPhase =
  * never feels like being made to wait for a result you already know.
  */
 export const IMPACT_BEAT_MS = 650;
+
+/**
+ * What a coin word is drawn from.
+ *
+ * Deliberately not the map's own categories. A coin line sits between two
+ * hazards, and a detour that takes longer than the hazards around it stops
+ * being a detour.
+ */
+const COIN_CATEGORIES = ['short-word'] as const;
+
+/** How far behind the player a spent coin line is forgotten, in metres. */
+const COIN_DESPAWN_METERS = 20;
 
 export interface RunSession {
   readonly map: MapConfig;
@@ -135,8 +164,15 @@ export interface RunSession {
   readonly typing: TypingState;
   /** When the current prompt was first shown, in run time. */
   readonly promptStartedMs: number;
-  /** Which hazard the current prompt belongs to, or `null` when there is none. */
-  readonly promptObstacleId: string | null;
+  /**
+   * What the current word belongs to, or `null` when there is nothing to type.
+   *
+   * One slot, two kinds. A hazard word is mandatory and a coin word is optional,
+   * but they are typed identically and only one is ever on screen — a second
+   * word would be a second thing to read at the moment the player can least
+   * afford it.
+   */
+  readonly challenge: ChallengeRef | null;
   /**
    * Milliseconds spent with a challenge on screen.
    *
@@ -160,11 +196,18 @@ export interface RunSession {
   readonly assistanceConfig: AdaptiveAssistanceConfig;
   /** Hazards currently in the world. At most one unresolved, by construction. */
   readonly obstacles: readonly ActiveObstacle[];
+  /** Coin lines currently in the world. At most one unresolved. */
+  readonly coins: readonly ActiveCoin[];
+  /** Run time the next coin line may appear. */
+  readonly nextCoinAtMs: number;
+  readonly coinRng: Rng;
 
   readonly completedPrompts: number;
   readonly obstaclesFaced: number;
   readonly obstaclesAvoided: number;
   readonly collisions: number;
+  readonly coinsCollected: number;
+  readonly coinsMissed: number;
 }
 
 export type SessionEvent =
@@ -188,6 +231,14 @@ export type SessionEvent =
       readonly outcome: ObstacleOutcome;
       readonly move: AvoidanceMove;
       readonly failureReason: FailureReason | null;
+    }
+  | { readonly type: 'coinSpawned'; readonly coin: ActiveCoin }
+  | { readonly type: 'coinAttached'; readonly coin: ActiveCoin }
+  | {
+      readonly type: 'coinResolved';
+      readonly coin: ActiveCoin;
+      readonly collected: boolean;
+      readonly value: number;
     }
   | { readonly type: 'phaseChanged'; readonly phase: RunPhase };
 
@@ -224,7 +275,7 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     prompt: null,
     typing: createTypingState(''),
     promptStartedMs: 0,
-    promptObstacleId: null,
+    challenge: null,
     activeTypingMs: 0,
     selector: createPromptSelector(createRngFromString(`${input.seed}:prompts`)),
     stats: createRunStats(),
@@ -232,6 +283,9 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     obstaclePool: input.obstacles ?? [],
     spawner: createSpawner(createRngFromString(`${input.seed}:obstacles`), input.map.content),
     laneRng: createRngFromString(`${input.seed}:lanes`),
+    coinRng: createRngFromString(`${input.seed}:coins`),
+    coins: [],
+    nextCoinAtMs: input.map.content.coinIntervalSeconds * 1_000,
     assistance: createAssistance(),
     assistanceConfig: input.assistance ?? DEFAULT_ADAPTIVE_ASSISTANCE,
     obstacles: [],
@@ -239,6 +293,8 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     obstaclesFaced: 0,
     obstaclesAvoided: 0,
     collisions: 0,
+    coinsCollected: 0,
+    coinsMissed: 0,
   };
 }
 
@@ -314,7 +370,17 @@ export function resumeRun(session: RunSession): RunSessionResult {
 /* Hazards                                                                    */
 /* -------------------------------------------------------------------------- */
 
-/** True while a hazard is still owed an answer. Gates the spawner. */
+/**
+ * True while a hazard is unresolved. Gates the spawner.
+ *
+ * `committed` counts. Letting the next hazard approach during the travel after
+ * a commitment looks like free density, and it was tried: it ends every run,
+ * because the second word can attach while the first move is still in flight
+ * and committing to it preempts a move the player had already earned.
+ *
+ * Density has to come from making an encounter shorter, not from overlapping
+ * two of them.
+ */
 function hasLiveHazard(session: RunSession): boolean {
   return session.obstacles.some(
     (entry) =>
@@ -331,6 +397,7 @@ function spawnDueObstacle(session: RunSession): RunSessionResult {
     mapNumber: session.map.mapNumber,
     pool: session.obstaclePool,
     hazardsLive: hasLiveHazard(session),
+    coinsLive: session.coins.some(isCoinLive),
   });
 
   const definition = due.spawned;
@@ -351,7 +418,10 @@ function spawnDueObstacle(session: RunSession): RunSessionResult {
 
   const assigned = assignLanes(session.laneRng, {
     action: definition.action,
-    playerLane: session.motion.lane,
+    // The lane they will be in, not the one they are leaving: a coin swerve may
+    // be in flight, and a car assigned around a lane nobody ends up in is a car
+    // assigned around nothing.
+    playerLane: targetLane(session.motion),
     doubleBlockChance: session.map.content.doubleBlockChance,
   });
 
@@ -383,15 +453,22 @@ function spawnDueObstacle(session: RunSession): RunSessionResult {
   };
 }
 
-/** Hands the typing field to a hazard. Its prompt is mandatory. */
+/**
+ * Hands the typing field to a hazard. Its word is mandatory.
+ *
+ * A coin word on screen is abandoned here, and deliberately: the player has one
+ * word to read and it had better be the one that can end their run.
+ */
 function attachObstaclePrompt(session: RunSession, obstacle: ActiveObstacle): RunSessionResult {
+  const abandoned = abandonUncommittedCoins(session);
+
   return {
     session: {
-      ...session,
+      ...abandoned,
       prompt: obstacle.prompt,
       typing: createTypingState(obstacle.prompt.text),
       promptStartedMs: session.elapsedMs,
-      promptObstacleId: obstacle.instanceId,
+      challenge: { kind: 'hazard', id: obstacle.instanceId },
     },
     events: [
       { type: 'obstacleAttached', obstacle },
@@ -400,19 +477,48 @@ function attachObstaclePrompt(session: RunSession, obstacle: ActiveObstacle): Ru
   };
 }
 
-/** Clears the typing field. Nothing to type until the next hazard arrives. */
-function clearPrompt(session: RunSession): RunSessionResult {
-  if (session.prompt === null && session.promptObstacleId === null) {
-    return { session, events: [] };
-  }
+/** Hands the typing field to a coin line. Its word is optional. */
+function attachCoinPrompt(session: RunSession, coin: ActiveCoin): RunSessionResult {
+  // A hazard already owns the field. Coins never interrupt one.
+  if (session.challenge?.kind === 'hazard') return { session, events: [] };
 
   return {
     session: {
       ...session,
-      prompt: null,
-      typing: createTypingState(''),
-      promptObstacleId: null,
+      prompt: coin.prompt,
+      typing: createTypingState(coin.prompt.text),
+      promptStartedMs: session.elapsedMs,
+      challenge: { kind: 'coin', id: coin.instanceId },
     },
+    events: [
+      { type: 'coinAttached', coin },
+      { type: 'promptChanged', prompt: coin.prompt },
+    ],
+  };
+}
+
+/** Gives up on any coin line the player has not already committed to. */
+function abandonUncommittedCoins(session: RunSession): RunSession {
+  if (!session.coins.some((coin) => coin.status === 'approaching' || coin.status === 'active')) {
+    return session;
+  }
+
+  return {
+    ...session,
+    coins: session.coins.map((coin) =>
+      coin.status === 'approaching' || coin.status === 'active'
+        ? { ...coin, status: 'missed' as const }
+        : coin,
+    ),
+  };
+}
+
+/** Clears the typing field. Nothing to type until the next hazard arrives. */
+function clearPrompt(session: RunSession): RunSessionResult {
+  if (session.prompt === null && session.challenge === null) return { session, events: [] };
+
+  return {
+    session: { ...session, prompt: null, typing: createTypingState(''), challenge: null },
     events: [{ type: 'promptChanged', prompt: null }],
   };
 }
@@ -618,7 +724,7 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
     motion: advanceMotion(session.motion, deltaMs),
     // Only time spent with a word on screen counts toward WPM.
     activeTypingMs:
-      session.promptObstacleId === null ? session.activeTypingMs : session.activeTypingMs + deltaMs,
+      session.challenge === null ? session.activeTypingMs : session.activeTypingMs + deltaMs,
   };
 
   // Hazards run after movement, so time-to-impact is measured against where the
@@ -626,8 +732,18 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
   const spawned = spawnDueObstacle(advanced);
   const lifecycle = advanceObstacleLifecycle(spawned.session);
 
-  const current = lifecycle.session;
-  const allEvents = [...events, ...spawned.events, ...lifecycle.events];
+  // Coins run after hazards, and only ever in the space hazards leave.
+  const coinsSpawned = spawnDueCoins(lifecycle.session);
+  const coinLifecycle = advanceCoinLifecycle(coinsSpawned.session);
+
+  const current = coinLifecycle.session;
+  const allEvents = [
+    ...events,
+    ...spawned.events,
+    ...lifecycle.events,
+    ...coinsSpawned.events,
+    ...coinLifecycle.events,
+  ];
 
   // A hazard resolved into an impact beat this step; the finish line does not
   // rescue a player who has already hit something.
@@ -673,9 +789,12 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
     return { session: mistyped ? { ...typed, score: breakCombo(typed.score) } : typed, events: [] };
   }
 
-  return typed.promptObstacleId === null
-    ? { session: typed, events: [] }
-    : commitToAvoidance(typed, typed.promptObstacleId);
+  const challenge = typed.challenge;
+  if (challenge === null) return { session: typed, events: [] };
+
+  return challenge.kind === 'hazard'
+    ? commitToAvoidance(typed, challenge.id)
+    : commitToCoins(typed, challenge.id);
 }
 
 /**
@@ -745,7 +864,164 @@ function commitToAvoidance(session: RunSession, instanceId: string): RunSessionR
 function startAvoidanceMove(session: RunSession, obstacle: ActiveObstacle): PlayerMotion {
   if (obstacle.safeLane === null) return session.motion;
 
-  return beginLaneChange(session.motion, obstacle.safeLane, session.map.motion);
+  // Preempt: a coin swerve may be in flight, and a player who typed their way
+  // out of a car must never be refused because they were collecting.
+  return beginLaneChange(session.motion, obstacle.safeLane, session.map.motion, { preempt: true });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Coins                                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Puts a line of coins in the gap, if the road is quiet enough for one.
+ *
+ * Three conditions, all of them about not competing with a hazard: nothing
+ * unresolved on the road, nothing already collecting, and the next hazard far
+ * enough away that the swerve is over before it matters.
+ */
+function spawnDueCoins(session: RunSession): RunSessionResult {
+  if (session.elapsedMs < session.nextCoinAtMs) return { session, events: [] };
+  if (hasLiveHazard(session)) return { session, events: [] };
+  if (session.coins.some(isCoinLive)) return { session, events: [] };
+
+  const drawn = nextPrompt(session.selector, session.pool, {
+    mapNumber: session.map.mapNumber,
+    // Short words only, whatever the map draws on elsewhere. A coin line is a
+    // detour, and a detour that takes longer than the hazard it sits between is
+    // not a detour, it is the road.
+    categories: COIN_CATEGORIES,
+    usage: 'boost',
+    preferredTags: session.map.content.themeTags,
+  });
+
+  if (drawn.prompt === null) {
+    return { session: { ...session, selector: drawn.selector }, events: [] };
+  }
+
+  const placed = placeCoin({
+    instanceId: `coin-${String(session.coins.length + 1)}`,
+    prompt: drawn.prompt,
+    map: session.map,
+    playerLane: targetLane(session.motion),
+    playerMeters: session.playerMeters,
+    elapsedMs: session.elapsedMs,
+    speedMetersPerSecond: placementSpeed(session),
+    rng: session.coinRng,
+  });
+
+  return {
+    session: {
+      ...session,
+      selector: drawn.selector,
+      coinRng: placed.rng,
+      coins: [...session.coins, placed.coin],
+      nextCoinAtMs: session.elapsedMs + session.map.content.coinIntervalSeconds * 1_000,
+    },
+    events: [{ type: 'coinSpawned', coin: placed.coin }],
+  };
+}
+
+/** Runs every live coin line's clock. Nothing here can end a run. */
+function advanceCoinLifecycle(session: RunSession): RunSessionResult {
+  if (session.coins.length === 0) return { session, events: [] };
+
+  const speed = currentSpeed(session);
+  const events: SessionEvent[] = [];
+  let current = session;
+  const kept: ActiveCoin[] = [];
+
+  for (const coin of session.coins) {
+    const result = advanceCoin(coin, {
+      playerMeters: session.playerMeters,
+      speedMetersPerSecond: speed,
+      elapsedMs: session.elapsedMs,
+    });
+
+    let latest = result.coin;
+
+    for (const event of result.events) {
+      if (event.type === 'coinWordAttached') {
+        const attached = attachCoinPrompt(current, latest);
+        current = attached.session;
+        events.push(...attached.events);
+        continue;
+      }
+
+      if (event.type === 'coinExpired') {
+        current = {
+          ...current,
+          coinsMissed: current.coinsMissed + 1,
+          nextCoinAtMs: current.elapsedMs + current.map.content.coinIntervalSeconds * 1_000,
+        };
+        current = releaseCoinField(current, latest.instanceId, events);
+        continue;
+      }
+
+      // Reached the coins. Either the player is in the lane or they are not.
+      const resolution = resolveCoin(latest, session.motion.lane, isSettled(session.motion));
+      latest = resolution.coin;
+
+      current = {
+        ...current,
+        coinsCollected: current.coinsCollected + (resolution.collected ? 1 : 0),
+        coinsMissed: current.coinsMissed + (resolution.collected ? 0 : 1),
+        score: resolution.collected ? awardCoins(current.score, resolution.value) : current.score,
+        // The next line is measured from this one ending, so the rhythm is
+        // hazard, gap, coins, gap — rather than a coin clock that drifts.
+        nextCoinAtMs: current.elapsedMs + current.map.content.coinIntervalSeconds * 1_000,
+      };
+      current = releaseCoinField(current, latest.instanceId, events);
+
+      events.push({
+        type: 'coinResolved',
+        coin: latest,
+        collected: resolution.collected,
+        value: resolution.value,
+      });
+    }
+
+    // Forget coins well behind the player rather than growing the list forever.
+    const behind = distanceToCoins(latest, session.playerMeters) < -COIN_DESPAWN_METERS;
+    if (isCoinLive(latest) || !behind) kept.push(latest);
+  }
+
+  return { session: { ...current, coins: kept }, events };
+}
+
+/** Hands the typing field back, if this coin line was holding it. */
+function releaseCoinField(
+  session: RunSession,
+  instanceId: string,
+  events: SessionEvent[],
+): RunSession {
+  if (session.challenge?.kind !== 'coin' || session.challenge.id !== instanceId) return session;
+
+  const cleared = clearPrompt(session);
+  events.push(...cleared.events);
+
+  return cleared.session;
+}
+
+/** The word on a coin line was finished. Start the swerve. */
+function commitToCoins(session: RunSession, instanceId: string): RunSessionResult {
+  const coin = session.coins.find((entry) => entry.instanceId === instanceId);
+  if (coin === undefined || coin.status !== 'active') return { session, events: [] };
+
+  const committed = commitCoin(coin, session.elapsedMs);
+  // No preempt. Coins never interrupt a hazard's move, which is the whole
+  // reason they are safe to have on the road at all.
+  const motion = beginLaneChange(session.motion, committed.lane, session.map.motion);
+
+  return {
+    session: {
+      ...session,
+      coins: session.coins.map((entry) => (entry.instanceId === instanceId ? committed : entry)),
+      motion,
+      completedPrompts: session.completedPrompts + 1,
+    },
+    events: [{ type: 'promptCompleted', prompt: coin.prompt, points: 0 }],
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -764,15 +1040,25 @@ export function liveStats(session: RunSession): LiveRunStats {
     progress: runProgress(session),
     speedMetersPerSecond: currentSpeed(session),
     lanePosition: lanePosition(session.motion),
+    coins: session.coinsCollected,
     elapsedMs: session.elapsedMs,
   };
 }
 
 /** The hazard currently holding the typing field, if any. */
 export function activeObstacle(session: RunSession): ActiveObstacle | null {
-  if (session.promptObstacleId === null) return null;
+  if (session.challenge?.kind !== 'hazard') return null;
+  const id = session.challenge.id;
 
-  return session.obstacles.find((entry) => entry.instanceId === session.promptObstacleId) ?? null;
+  return session.obstacles.find((entry) => entry.instanceId === id) ?? null;
+}
+
+/** The coin line currently holding the typing field, if any. */
+export function activeCoin(session: RunSession): ActiveCoin | null {
+  if (session.challenge?.kind !== 'coin') return null;
+  const id = session.challenge.id;
+
+  return session.coins.find((entry) => entry.instanceId === id) ?? null;
 }
 
 /** Hazards cleared as a fraction of hazards resolved. 1 when none were. */

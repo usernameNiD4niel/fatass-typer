@@ -1,5 +1,5 @@
 import type { GameCommand, GameEvent, GameHost, WorldSnapshot } from '../../game-bridge';
-import { createWorldSnapshot, MAX_SNAPSHOT_HAZARDS } from '../../game-bridge';
+import { createWorldSnapshot, MAX_SNAPSHOT_COINS, MAX_SNAPSHOT_HAZARDS } from '../../game-bridge';
 import type {
   AdaptiveAssistanceConfig,
   MapConfig,
@@ -21,7 +21,9 @@ import { sustainablePeakWpm } from '../../game-core/stats';
 import { DEFAULT_TYPING_OPTIONS, firstErrorIndex } from '../../game-core/typing';
 import type { DeadlinePressure } from '../../game-core/timing';
 import { FixedStepDriver } from '../loop';
+import { distanceToCoins } from '../../game-core/pickups';
 import {
+  activeCoin,
   activeObstacle,
   advanceRunSession,
   applyRunInput,
@@ -346,6 +348,7 @@ export class RuntimeHost implements GameHost {
       missedPrompts: this.session.collisions,
       obstacleSuccessRate: obstacleSuccessRate(this.session),
       longestCombo: this.session.score.longestCombo,
+      coinsCollected: this.session.coinsCollected,
     };
   }
 
@@ -413,6 +416,24 @@ export class RuntimeHost implements GameHost {
     }
     world.hazardCount = count;
 
+    let coinCount = 0;
+    for (const coin of session.coins) {
+      if (coinCount >= MAX_SNAPSHOT_COINS) break;
+
+      const slot = world.coins[coinCount];
+      if (slot === undefined) break;
+
+      slot.instanceId = coin.instanceId;
+      slot.distanceMeters = distanceToCoins(coin, world.playerMeters);
+      slot.lane = coin.lane;
+      slot.value = coin.value;
+      slot.committed = coin.status === 'committed';
+      slot.collected = coin.status === 'collected';
+
+      coinCount += 1;
+    }
+    world.coinCount = coinCount;
+
     world.challenge = this.buildChallenge();
 
     // Shake decays on wall-clock time, not simulation time, so the impact beat
@@ -426,10 +447,9 @@ export class RuntimeHost implements GameHost {
 
   private buildChallenge(): WorldSnapshot['challenge'] {
     const session = this.session;
-    const obstacle = activeObstacle(session);
-    if (obstacle === null || session.prompt === null) return null;
+    if (session.prompt === null) return null;
 
-    return {
+    const typed = {
       word: session.prompt.text,
       typedLength: session.typing.typed.length,
       firstErrorIndex: firstErrorIndex(
@@ -437,11 +457,43 @@ export class RuntimeHost implements GameHost {
         session.typing.typed,
         DEFAULT_TYPING_OPTIONS,
       ),
-      action: obstacle.definition.action,
-      safeSide: obstacle.safeSide,
-      safeLane: obstacle.safeLane,
-      hazardId: obstacle.instanceId,
-      urgency: challengeUrgency(obstacle, session.elapsedMs),
+    };
+
+    const obstacle = activeObstacle(session);
+    if (obstacle !== null) {
+      return {
+        ...typed,
+        action: obstacle.definition.action,
+        safeSide: obstacle.safeSide,
+        safeLane: obstacle.safeLane,
+        hazardId: obstacle.instanceId,
+        optional: false,
+        urgency: challengeUrgency(obstacle, session.elapsedMs),
+      };
+    }
+
+    const coin = activeCoin(session);
+    if (coin === null) return null;
+
+    return {
+      ...typed,
+      // A coin word always points somewhere: it is only ever worth typing
+      // because there is a lane to be in.
+      action: 'lane-change',
+      safeSide: coin.side,
+      safeLane: coin.lane,
+      hazardId: coin.instanceId,
+      optional: true,
+      urgency:
+        coin.deadlineAtMs === null || coin.attachedAtMs === null
+          ? 0
+          : Math.min(
+              1,
+              Math.max(
+                0,
+                (session.elapsedMs - coin.attachedAtMs) / (coin.deadlineAtMs - coin.attachedAtMs),
+              ),
+            ),
     };
   }
 

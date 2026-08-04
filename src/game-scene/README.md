@@ -51,6 +51,8 @@ consumers, no drift.
   achieve nothing except eventually sliding it out of view; the dashes are what
   carry the sense of speed.
 
+- `Coins.tsx` — the lines of coins, from a fixed pool that is shown and hidden
+  rather than mounted.
 - `Hazards.tsx` — cars and jump barriers, from a fixed pool of groups holding
   both silhouettes. Hazards are never mounted mid-run: a hazard that pops into
   existence is a hazard that was not readable early.
@@ -78,3 +80,9 @@ eyes.
 The usual objection — that projecting a DOM node jitters — is handled the way it
 has to be: drei's `<Html>` writes transforms directly in the render loop, so
 nothing here goes through React state per frame.
+
+The label is a **constant size**, not scaled with distance. Scaling is the
+obvious choice and it is wrong in both directions: a word forty metres out
+becomes unreadable exactly when the player most needs to read it, and the same
+word at two metres fills half the screen. A fixed-size label that _tracks_ its
+encounter keeps the association without either failure.

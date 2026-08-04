@@ -113,11 +113,33 @@ describe('lane changes', () => {
 
   it('refuses a second move while one is in flight', () => {
     const moving = beginLaneChange(createPlayerMotion(), 2, PROFILE);
-    const ignored = beginLaneChange(moving, 0, PROFILE);
-    expect(ignored).toBe(moving);
 
-    const alsoIgnored = beginJump(moving, PROFILE);
-    expect(alsoIgnored).toBe(moving);
+    expect(beginLaneChange(moving, 0, PROFILE)).toBe(moving);
+  });
+
+  it('lets a hazard preempt a move already in flight, from where the body is', () => {
+    // A coin swerve interrupted by a car. The redirect starts from the player's
+    // actual position, not from the lane they left, so there is no visible jump.
+    const swerving = advanceMotion(
+      beginLaneChange(createPlayerMotion(), 2, PROFILE),
+      PROFILE.laneChangeMs / 2,
+    );
+    const midway = lanePosition(swerving);
+
+    const redirected = beginLaneChange(swerving, 0, PROFILE, { preempt: true });
+
+    expect(redirected).not.toBe(swerving);
+    expect(lanePosition(redirected)).toBeCloseTo(midway, 9);
+    expect(redirected.transition?.toLane).toBe(0);
+    // Proportional to the ground left to cover, so a redirect is not a restart.
+    expect(redirected.transition?.durationMs).toBeCloseTo(PROFILE.laneChangeMs * midway, 6);
+  });
+
+  it('cannot be steered out of a jump, whoever is asking', () => {
+    const jumping = beginJump(createPlayerMotion(), PROFILE);
+
+    expect(beginLaneChange(jumping, 0, PROFILE, { preempt: true })).toBe(jumping);
+    expect(beginJump(jumping, PROFILE)).toBe(jumping);
   });
 
   it('ignores a move to the lane it is already in', () => {

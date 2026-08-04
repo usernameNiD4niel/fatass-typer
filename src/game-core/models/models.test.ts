@@ -79,6 +79,8 @@ const MAP: MapConfig = {
     obstacleIntervalJitter: 0.2,
     recoverySeconds: 1.5,
     doubleBlockChance: 0,
+    coinIntervalSeconds: 6,
+    coinValue: 5,
     themeTags: ['neighborhood'],
   },
   unlock: { requiresMapId: null, minimumAccuracy: 0 },

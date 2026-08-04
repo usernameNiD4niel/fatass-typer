@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ALL_PROMPTS, MAP_1, OBSTACLES } from '../../content';
 import { isSettled, lanePosition } from '../../game-core/motion';
 import {
+  activeCoin,
   activeObstacle,
   advanceRunSession,
   applyRunInput,
@@ -207,14 +208,15 @@ describe('hazards', () => {
     expect(session.collisions).toBe(0);
   });
 
-  it('clears the word from the field once the hazard is done', () => {
+  it('hands the field back once the hazard is done', () => {
     let session = untilChallenge(newSession('clear'));
+    const hazardId = session.challenge?.id;
     session = typePrompt(session);
     session = advance(session, 6_000);
 
-    // Between hazards there is nothing to type. The old game always had a boost
-    // prompt on screen; this one is quiet until the next car appears.
-    expect(session.promptObstacleId).toBeNull();
+    // The hazard no longer owns the word. What comes next is either quiet road
+    // or a line of coins, but it is not this hazard.
+    expect(session.challenge?.id).not.toBe(hazardId);
   });
 
   it('earns a boost for clearing a hazard', () => {
@@ -233,6 +235,101 @@ describe('hazards', () => {
 
     const quiet = session.obstacles.filter((entry) => entry.status === 'approaching');
     expect(quiet).toHaveLength(0);
+  });
+});
+
+describe('coins', () => {
+  /**
+   * Advances until a coin line owns the word, clearing hazards on the way.
+   *
+   * Hazards have to be typed or the run ends before any coins appear — which is
+   * itself the point: coins live in the gaps a competent player creates.
+   */
+  function untilCoinWord(session: RunSession, limitMs = 90_000): RunSession {
+    let current = session;
+
+    for (let elapsed = 0; elapsed < limitMs; elapsed += STEP_MS) {
+      if (current.challenge?.kind === 'coin') break;
+      if (current.phase !== 'running') break;
+      if (current.challenge?.kind === 'hazard') current = typePrompt(current);
+      current = advanceRunSession(current, STEP_MS).session;
+    }
+
+    return current;
+  }
+
+  it('offers coins in the gaps, in a lane the player has to move to', () => {
+    const session = untilCoinWord(newSession('coins'));
+
+    expect(session.challenge?.kind).toBe('coin');
+    const coin = activeCoin(session);
+    expect(coin).not.toBeNull();
+    expect(coin?.lane).not.toBe(session.motion.lane);
+  });
+
+  it('collects them when the word is typed', () => {
+    let session = untilCoinWord(newSession('coins'));
+    const before = session.score.score;
+
+    session = advance(typePrompt(session), 8_000);
+
+    expect(session.coinsCollected).toBeGreaterThan(0);
+    expect(session.score.score).toBeGreaterThan(before);
+  });
+
+  it('does not collect them when the word is ignored', () => {
+    // The rule the whole feature turns on: driving past coins is not collecting
+    // them. The player has to type.
+    let session = untilCoinWord(newSession('coins'));
+    const lane = session.motion.lane;
+
+    session = advance(session, 8_000);
+
+    expect(session.coinsCollected).toBe(0);
+    expect(session.coinsMissed).toBeGreaterThan(0);
+    // And they were not nudged into the lane for free either.
+    expect(session.motion.lane).toBe(lane);
+  });
+
+  it('costs nothing to ignore', () => {
+    let session = untilCoinWord(newSession('coins'));
+    const before = { score: session.score.score, combo: session.score.combo };
+
+    session = advance(session, 8_000);
+
+    expect(session.score.score).toBe(before.score);
+    // Not even the combo. Declining is free, or it is not optional.
+    expect(session.score.combo).toBe(before.combo);
+    expect(session.phase).toBe('running');
+  });
+
+  it('never lets a coin word compete with a hazard word', () => {
+    let session = newSession('crowded');
+
+    for (let elapsed = 0; elapsed < 120_000; elapsed += STEP_MS) {
+      if (session.phase !== 'running') break;
+      session = typePrompt(advanceRunSession(session, STEP_MS).session);
+
+      // One word, whatever is on the road. The hazard always wins the field.
+      const unanswered = session.coins.filter(
+        (coin) => coin.status === 'approaching' || coin.status === 'active',
+      );
+      const hazardOwnsField = session.challenge?.kind === 'hazard';
+      if (hazardOwnsField) expect(unanswered).toHaveLength(0);
+    }
+  });
+
+  it('gives a hazard right of way over a coin swerve already under way', () => {
+    // A player mid-collection who types their way out of a car must actually
+    // get out of the way. The hazard preempts the swerve.
+    let session = untilCoinWord(newSession('coins'));
+    session = typePrompt(session);
+    expect(isSettled(session.motion)).toBe(false);
+
+    session = advance(session, 90_000);
+
+    // Whatever happened, it was not a collision caused by being busy.
+    expect(session.failureReason).not.toBe('late-move');
   });
 });
 

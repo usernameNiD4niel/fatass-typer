@@ -12,7 +12,14 @@ import { clamp01, easeInOutCubic, parabolicArc } from './easing';
  */
 
 export interface LaneTransition {
-  readonly fromLane: LaneIndex;
+  /**
+   * Where the move started, as a continuous lane position.
+   *
+   * Not a `LaneIndex`, because a move can begin halfway across the road: a coin
+   * swerve that gets interrupted by a car has to be redirected from wherever the
+   * body actually is, not from the lane it left.
+   */
+  readonly fromPosition: number;
   readonly toLane: LaneIndex;
   readonly elapsedMs: number;
   readonly durationMs: number;
@@ -46,31 +53,51 @@ export function isSettled(motion: PlayerMotion): boolean {
   return motion.transition === null && motion.jump === null;
 }
 
+/** Smallest move worth starting, in lanes. Below this the player is already there. */
+const MINIMUM_MOVE = 1e-6;
+
+export interface LaneChangeOptions {
+  /**
+   * Redirect a move already in flight instead of refusing.
+   *
+   * Reserved for hazards. A coin swerve is optional and interruptible; a car is
+   * not, and a player who typed their way out of one must never be told "no,
+   * you were busy collecting coins".
+   */
+  readonly preempt?: boolean;
+}
+
 export function beginLaneChange(
   motion: PlayerMotion,
   toLane: LaneIndex,
   profile: MotionProfile,
+  options: LaneChangeOptions = {},
 ): PlayerMotion {
-  // Refuse rather than queue. An unresolved lane change means the previous
-  // hazard is still being avoided, and stacking moves is how a player ends up
-  // somewhere neither the rules nor the animation expected.
-  if (!isSettled(motion) || toLane === motion.lane) return motion;
+  // A jump cannot be steered out of, whoever is asking.
+  if (motion.jump !== null) return motion;
+
+  // Refuse rather than queue, unless this is a hazard preempting a coin.
+  if (motion.transition !== null && options.preempt !== true) return motion;
+
+  const fromPosition = lanePosition(motion);
+  const distance = Math.abs(toLane - fromPosition);
+  if (distance < MINIMUM_MOVE) return motion;
 
   return {
     ...motion,
     transition: {
-      fromLane: motion.lane,
+      fromPosition,
       toLane,
       elapsedMs: 0,
-      // Crossing two lanes takes twice as long — the player covers twice the
-      // ground. The reserve in `motionReserveMs` allows for the widest move.
-      durationMs: profile.laneChangeMs * Math.abs(toLane - motion.lane),
+      // Proportional to the ground actually left to cover, so a redirect from
+      // halfway across takes half as long rather than starting over.
+      durationMs: profile.laneChangeMs * distance,
     },
   };
 }
 
 export function beginJump(motion: PlayerMotion, profile: MotionProfile): PlayerMotion {
-  if (!isSettled(motion)) return motion;
+  if (motion.jump !== null) return motion;
 
   return {
     ...motion,
@@ -141,7 +168,19 @@ export function lanePosition(motion: PlayerMotion): number {
   if (transition === null) return motion.lane;
 
   const eased = easeInOutCubic(transitionProgress(motion));
-  return transition.fromLane + (transition.toLane - transition.fromLane) * eased;
+
+  return transition.fromPosition + (transition.toLane - transition.fromPosition) * eased;
+}
+
+/**
+ * The lane the player will be in when everything settles.
+ *
+ * Not the same as `motion.lane`, which is where they *were*. Hazard placement
+ * asks this one: a car assigned around the lane a player is currently leaving
+ * would be a car assigned around nothing.
+ */
+export function targetLane(motion: PlayerMotion): LaneIndex {
+  return motion.transition?.toLane ?? motion.lane;
 }
 
 /** Lateral offset from the road centre, in lane widths. */

@@ -20,7 +20,7 @@ export const DEFAULT_MOTION: MotionProfile = {
    * Long enough to read as a deliberate, eased move rather than a snap, short
    * enough that the reserve it demands does not push cars out to the horizon.
    */
-  laneChangeMs: 480,
+  laneChangeMs: 400,
   /** A visible crouch. Below ~70ms it reads as a hitch rather than intent. */
   jumpAnticipationMs: 90,
   jumpAirborneMs: 700,

@@ -45,7 +45,7 @@ describe('LevelBriefing', () => {
     setup();
 
     expect(screen.getByText('20 WPM')).toBeInTheDocument();
-    expect(screen.getByText('600 m')).toBeInTheDocument();
+    expect(screen.getByText('740 m')).toBeInTheDocument();
     // A length, not a mystery.
     expect(screen.getByText(/^\d+ s$/)).toBeInTheDocument();
   });

@@ -13,8 +13,15 @@ export {
   lanePosition,
   lateralOffset,
   plannedJumpMs,
+  targetLane,
   transitionProgress,
 } from './player-motion';
-export type { JumpPhase, JumpState, LaneTransition, PlayerMotion } from './player-motion';
+export type {
+  JumpPhase,
+  JumpState,
+  LaneChangeOptions,
+  LaneTransition,
+  PlayerMotion,
+} from './player-motion';
 
 export { rampedSpeed } from './speed';

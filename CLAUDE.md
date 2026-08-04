@@ -156,7 +156,7 @@ describe systems that no longer exist.
 
 | | |
 |---|---|
-| **Last completed** | the three-lane rework: cars, jumps, world-space prompts, no dogs |
+| **Last completed** | coins, and a difficulty pass — denser hazards, faster road |
 | **Next up** | nothing scheduled — awaiting direction |
 | **In progress** | none |
 | **Blocked** | none |
@@ -166,8 +166,16 @@ describe systems that no longer exist.
 You run down a three-lane road. One hazard at a time comes at you. A **car** blocks your
 lane and a word appears on the genuinely-open side; completing it starts an eased lane
 change. A **jump hazard** blocks the lane and the word sits above it; completing it starts
-a jump, *timed to the obstacle* rather than to the keystroke. Then the road is quiet for a
-moment and the next hazard is scheduled.
+a jump, *timed to the obstacle* rather than to the keystroke.
+
+In the gap that follows, a **line of coins** appears one lane over with a word of its own.
+Type it and you swerve across and take them; ignore it and you drive past. Coins cost
+nothing to miss — no score, no combo, no run — and that is what makes them the only
+optional thing in the game. They exist because the gap between hazards used to be several
+seconds of empty road, and dead time was what made the game feel slow.
+
+Hazards and coins alternate: neither spawns while the other is unanswered, so there is
+only ever one word on screen, and it is always the one that can end the run.
 
 Typing is forgiving within a word — a wrong character costs the combo, not the run, and can
 be corrected — because accuracy is the statistic the unlock gates read. What is not
@@ -188,6 +196,7 @@ confusing a player.
 | **Failure** | collision or timeout ends the run; the `stumbled` outcome is gone |
 | **Input** | no typing field; global `keydown`, word drawn beside its hazard |
 | **Boost** | no longer a prompt cycle — it is the reward for clearing a hazard |
+| **Coins** | optional pickups one lane over, collected only by typing their word |
 | **WPM** | measured over `activeTypingMs`, not wall-clock run time |
 | **Kept** | six maps, unlock gates, progression, results, settings, statistics, storage |
 
@@ -202,6 +211,8 @@ confusing a player.
   typing budget. Deadline and animation read the same `MotionProfile`, so they cannot
   disagree.
 - `src/game-core/obstacles/lane-assignment.ts` — the guarantee that a route always exists.
+- `src/game-core/pickups/` — coins. Read its README before changing anything about them:
+  every absent penalty in there is deliberate.
 - `src/game-bridge/snapshot.ts` — `WorldSnapshot`, the per-frame half of the bridge
   contract. Mutated in place; React never sees it.
 - `src/game-scene/` — the road, the runner, the hazards, the word, the camera.
@@ -216,9 +227,15 @@ confusing a player.
 - a realistic one (200ms to notice, one character in twenty wrong) finishes **≥ 80%**;
 - one at **60%** of the advertised speed finishes **< 25%**.
 
-All six pass. Runs are 75–85 seconds and 7–11 hazards. Density is capped by encounter
-length, not by the interval: a hazard is visible for roughly its whole budget, so they
-cannot be packed closer and stay fair.
+All six pass. Runs are 70–80 seconds with **7–13 hazards and 6–9 coin lines** — roughly
+double the encounters of the first pass, which had 7–11 hazards and nothing between them.
+
+Density is capped by how long an encounter *lasts*, not by the interval between them: a
+hazard is visible for roughly its whole budget, and the spawner will not overlap two.
+Overlapping them was tried and it ends every run — the second word attaches while the
+first move is still in flight, and committing to it preempts a move the player had already
+earned. Density has to come from making an encounter shorter, which is where
+`WARNING_LEAD_FACTOR` (1.6 → 1.15) and the one-lane reserve came from.
 
 The realistic typist's error rate is 5% rather than 8% deliberately. With binary failure a
 mistake on a four-letter word costs more time than typing 30% slower for the whole run, so
@@ -245,7 +262,7 @@ advertises, and the road covers the move. A playtest samples; that table proves.
 All green, verified by running them:
 
 ```bash
-npm run test          # 817 passed, 51 files
+npm run test          # 850 passed, 52 files
 npm run test:e2e      # 15 passed, Chromium against the production build
 npm run lint          # clean
 npm run typecheck     # clean

@@ -92,6 +92,7 @@ export function Hud({
         <Stat label="WPM" value={String(Math.round(stats.currentWpm))} />
         <Stat label="Accuracy" value={`${String(Math.round(stats.accuracy * 100))}%`} />
         <Stat label="Combo" value={stats.combo > 0 ? `${String(stats.combo)}×` : '—'} />
+        <Stat label="Coins" value={String(stats.coins)} />
         <Stat label="Score" value={String(Math.round(stats.score))} />
       </dl>
 

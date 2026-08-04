@@ -49,6 +49,8 @@ const CONTENT: ContentProfile = {
   obstacleIntervalJitter: 0.2,
   recoverySeconds: 1.5,
   doubleBlockChance: 0,
+  coinIntervalSeconds: 6,
+  coinValue: 5,
   themeTags: [],
 };
 
@@ -96,15 +98,19 @@ describe('eligibleObstacles', () => {
 });
 
 describe('spawn schedule', () => {
-  it('does not open a run with an obstacle', () => {
+  it('does not open a run with a hazard', () => {
     const state = spawner();
 
-    expect(state.nextSpawnAtMs).toBeGreaterThan(CONTENT.obstacleIntervalSeconds * 1_000);
+    // Sooner than a full interval — a long empty road at the start of a run is
+    // just a wait — but never immediately.
+    expect(state.nextSpawnAtMs).toBeGreaterThan(0);
     expect(advanceSpawner(state, 0, input()).spawned).toBeNull();
   });
 
   it('spawns nothing before the first due time', () => {
-    expect(run(spawner(), 10_000).ids).toHaveLength(0);
+    const state = spawner();
+
+    expect(run(state, state.nextSpawnAtMs - 200).ids).toHaveLength(0);
   });
 
   it('spawns once the schedule comes due', () => {

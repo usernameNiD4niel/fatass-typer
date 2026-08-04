@@ -30,6 +30,9 @@ import type { GameState } from './messages';
 /** Maximum hazards the pool can describe at once. */
 export const MAX_SNAPSHOT_HAZARDS = 8;
 
+/** Maximum coin lines the pool can describe at once. */
+export const MAX_SNAPSHOT_COINS = 4;
+
 export interface HazardSnapshot {
   instanceId: string;
   action: ObstacleAction;
@@ -45,6 +48,19 @@ export interface HazardSnapshot {
   resolved: boolean;
 }
 
+export interface CoinSnapshot {
+  instanceId: string;
+  /** Distance from the player, in metres. Negative once behind them. */
+  distanceMeters: number;
+  lane: LaneIndex;
+  /** How many coins are in the line, so the scene can draw that many. */
+  value: number;
+  /** True once the player has typed the word and is on their way. */
+  committed: boolean;
+  /** True once collected — the scene plays the pickup and stops drawing them. */
+  collected: boolean;
+}
+
 export interface ChallengeSnapshot {
   /** The word being typed. */
   word: string;
@@ -56,8 +72,16 @@ export interface ChallengeSnapshot {
   /** Which side the safe lane is on, for the world cue. `null` for jumps. */
   safeSide: LaneSide | null;
   safeLane: LaneIndex | null;
-  /** Which hazard the word belongs to, so the scene can place it. */
+  /** Which encounter the word belongs to, so the scene can place it. */
   hazardId: string;
+  /**
+   * A coin word rather than a hazard word.
+   *
+   * The scene styles the two differently on purpose: one of them can end the
+   * run and the other cannot, and the player has to be able to tell at a glance
+   * which one they are looking at.
+   */
+  optional: boolean;
   /** 0..1, rising as the deadline approaches. Drives the urgency pulse. */
   urgency: number;
 }
@@ -82,8 +106,21 @@ export interface WorldSnapshot {
   boosting: boolean;
   hazardCount: number;
   hazards: HazardSnapshot[];
+  coinCount: number;
+  coins: CoinSnapshot[];
   challenge: ChallengeSnapshot | null;
   impulse: ImpulseSnapshot;
+}
+
+function emptyCoin(): CoinSnapshot {
+  return {
+    instanceId: '',
+    distanceMeters: 0,
+    lane: 1,
+    value: 0,
+    committed: false,
+    collected: false,
+  };
 }
 
 function emptyHazard(): HazardSnapshot {
@@ -110,6 +147,8 @@ export function createWorldSnapshot(): WorldSnapshot {
     boosting: false,
     hazardCount: 0,
     hazards: Array.from({ length: MAX_SNAPSHOT_HAZARDS }, emptyHazard),
+    coinCount: 0,
+    coins: Array.from({ length: MAX_SNAPSHOT_COINS }, emptyCoin),
     challenge: null,
     impulse: { shake: 0, fovBias: 0 },
   };
@@ -118,4 +157,9 @@ export function createWorldSnapshot(): WorldSnapshot {
 /** The hazards actually in play this frame. */
 export function liveHazards(snapshot: WorldSnapshot): readonly HazardSnapshot[] {
   return snapshot.hazards.slice(0, snapshot.hazardCount);
+}
+
+/** The coin lines actually in play this frame. */
+export function liveCoins(snapshot: WorldSnapshot): readonly CoinSnapshot[] {
+  return snapshot.coins.slice(0, snapshot.coinCount);
 }

@@ -14,7 +14,7 @@
   background: rgb(12 15 20 / 72%);
   box-shadow: 0 0.3em 1.2em rgb(0 0 0 / 35%);
   font-family: var(--font-family-mono);
-  font-size: 2.6rem;
+  font-size: 1.9rem;
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.03em;
   line-height: 1.15;
@@ -26,6 +26,21 @@
 
 .word[data-urgent='true'] {
   background: rgb(52 12 16 / 82%);
+}
+
+/*
+ * A coin word is smaller, warmer, and never red. One of these two words can end
+ * the run and the other cannot, and the difference has to be legible before it
+ * is read.
+ */
+.word[data-optional='true'] {
+  background: rgb(58 42 8 / 74%);
+  box-shadow: 0 0.3em 1.2em rgb(0 0 0 / 30%);
+  font-size: 1.55rem;
+}
+
+.word[data-optional='true'] .untyped {
+  color: rgb(255 227 160 / 88%);
 }
 
 /*

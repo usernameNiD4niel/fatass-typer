@@ -27,8 +27,8 @@ export const MAP_1: MapConfig = {
   theme: 'neighborhood',
   targetWpm: 20,
   // ~50 seconds at base speed, less when boosting well.
-  distanceMeters: 600,
-  baseSpeedMetersPerSecond: 6,
+  distanceMeters: 740,
+  baseSpeedMetersPerSecond: 7.4,
   timing: {
     // The most generous buffer in the game. Map 6 runs at 1.08.
     reactionBuffer: 1.38,
@@ -38,8 +38,8 @@ export const MAP_1: MapConfig = {
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
   motion: DEFAULT_MOTION,
   speed: {
-    maxMetersPerSecond: 7.4,
-    rampPerMinute: 1.0,
+    maxMetersPerSecond: 9.6,
+    rampPerMinute: 1.6,
   },
   boost: {
     speedMultiplier: 1.55,
@@ -52,10 +52,12 @@ export const MAP_1: MapConfig = {
     // The three gentlest obstacles, all avoided by jumping. Nothing overhead and
     // nothing needing a phrase — those start on later maps.
     obstacleIds: ['rock', 'crate', 'low-barrier', 'sedan'],
-    obstacleIntervalSeconds: 3.6,
+    obstacleIntervalSeconds: 3.0,
     obstacleIntervalJitter: 0.25,
-    recoverySeconds: 1.2,
+    recoverySeconds: 0.35,
     doubleBlockChance: 0,
+    coinIntervalSeconds: 6.5,
+    coinValue: 5,
     themeTags: ['street', 'chase'],
   },
   unlock: {
@@ -78,8 +80,8 @@ export const MAP_2: MapConfig = {
   name: 'Downtown Sprint',
   theme: 'downtown',
   targetWpm: 25,
-  distanceMeters: 650,
-  baseSpeedMetersPerSecond: 6.4,
+  distanceMeters: 800,
+  baseSpeedMetersPerSecond: 7.9,
   timing: {
     reactionBuffer: 1.32,
     fixedVisualLeadTimeMs: 115,
@@ -88,8 +90,8 @@ export const MAP_2: MapConfig = {
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
   motion: DEFAULT_MOTION,
   speed: {
-    maxMetersPerSecond: 7.9,
-    rampPerMinute: 1.1,
+    maxMetersPerSecond: 10.2,
+    rampPerMinute: 1.7,
   },
   boost: {
     speedMultiplier: 1.55,
@@ -98,10 +100,12 @@ export const MAP_2: MapConfig = {
   content: {
     promptCategories: ['short-word', 'medium-word', 'short-phrase', 'themed', 'punctuation'],
     obstacleIds: ['rock', 'crate', 'low-barrier', 'cone-beam', 'sedan', 'van'],
-    obstacleIntervalSeconds: 3.4,
+    obstacleIntervalSeconds: 2.8,
     obstacleIntervalJitter: 0.25,
-    recoverySeconds: 1.1,
+    recoverySeconds: 0.32,
     doubleBlockChance: 0,
+    coinIntervalSeconds: 6.0,
+    coinValue: 5,
     themeTags: ['downtown', 'street', 'chase'],
   },
   unlock: {
@@ -123,8 +127,8 @@ export const MAP_3: MapConfig = {
   name: 'Market District',
   theme: 'market-district',
   targetWpm: 30,
-  distanceMeters: 700,
-  baseSpeedMetersPerSecond: 6.8,
+  distanceMeters: 860,
+  baseSpeedMetersPerSecond: 8.4,
   timing: {
     reactionBuffer: 1.28,
     fixedVisualLeadTimeMs: 110,
@@ -133,8 +137,8 @@ export const MAP_3: MapConfig = {
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
   motion: DEFAULT_MOTION,
   speed: {
-    maxMetersPerSecond: 8.4,
-    rampPerMinute: 1.2,
+    maxMetersPerSecond: 10.8,
+    rampPerMinute: 1.8,
   },
   boost: {
     speedMultiplier: 1.55,
@@ -151,10 +155,12 @@ export const MAP_3: MapConfig = {
       'number',
     ],
     obstacleIds: ['rock', 'crate', 'low-barrier', 'cone-beam', 'roadwork-barrier', 'sedan', 'van'],
-    obstacleIntervalSeconds: 3.2,
+    obstacleIntervalSeconds: 2.6,
     obstacleIntervalJitter: 0.3,
-    recoverySeconds: 1.0,
+    recoverySeconds: 0.3,
     doubleBlockChance: 0.15,
+    coinIntervalSeconds: 5.5,
+    coinValue: 6,
     themeTags: ['market-district', 'street', 'chase'],
   },
   unlock: {
@@ -176,8 +182,8 @@ export const MAP_4: MapConfig = {
   name: 'Industrial Zone',
   theme: 'industrial-zone',
   targetWpm: 35,
-  distanceMeters: 750,
-  baseSpeedMetersPerSecond: 7.2,
+  distanceMeters: 920,
+  baseSpeedMetersPerSecond: 8.9,
   timing: {
     reactionBuffer: 1.24,
     fixedVisualLeadTimeMs: 105,
@@ -186,8 +192,8 @@ export const MAP_4: MapConfig = {
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
   motion: DEFAULT_MOTION,
   speed: {
-    maxMetersPerSecond: 8.9,
-    rampPerMinute: 1.3,
+    maxMetersPerSecond: 11.4,
+    rampPerMinute: 1.9,
   },
   boost: {
     speedMultiplier: 1.6,
@@ -212,10 +218,12 @@ export const MAP_4: MapConfig = {
       'van',
       'box-truck',
     ],
-    obstacleIntervalSeconds: 3.0,
+    obstacleIntervalSeconds: 2.4,
     obstacleIntervalJitter: 0.3,
-    recoverySeconds: 0.9,
+    recoverySeconds: 0.28,
     doubleBlockChance: 0.25,
+    coinIntervalSeconds: 5.0,
+    coinValue: 6,
     themeTags: ['industrial-zone', 'chase'],
   },
   unlock: {
@@ -236,8 +244,8 @@ export const MAP_5: MapConfig = {
   name: 'Night Highway',
   theme: 'night-highway',
   targetWpm: 40,
-  distanceMeters: 800,
-  baseSpeedMetersPerSecond: 7.6,
+  distanceMeters: 980,
+  baseSpeedMetersPerSecond: 9.4,
   timing: {
     reactionBuffer: 1.22,
     fixedVisualLeadTimeMs: 100,
@@ -246,8 +254,8 @@ export const MAP_5: MapConfig = {
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
   motion: DEFAULT_MOTION,
   speed: {
-    maxMetersPerSecond: 9.4,
-    rampPerMinute: 1.4,
+    maxMetersPerSecond: 12.0,
+    rampPerMinute: 2.0,
   },
   boost: {
     speedMultiplier: 1.65,
@@ -264,10 +272,12 @@ export const MAP_5: MapConfig = {
       'number',
     ],
     obstacleIds: ['rock', 'low-barrier', 'cone-beam', 'roadwork-barrier', 'van', 'box-truck'],
-    obstacleIntervalSeconds: 2.9,
+    obstacleIntervalSeconds: 2.3,
     obstacleIntervalJitter: 0.3,
-    recoverySeconds: 0.8,
+    recoverySeconds: 0.25,
     doubleBlockChance: 0.35,
+    coinIntervalSeconds: 4.5,
+    coinValue: 7,
     themeTags: ['night-highway', 'chase'],
   },
   unlock: {
@@ -290,8 +300,8 @@ export const MAP_6: MapConfig = {
   name: 'Final Pursuit',
   theme: 'final-pursuit',
   targetWpm: 50,
-  distanceMeters: 860,
-  baseSpeedMetersPerSecond: 8,
+  distanceMeters: 1060,
+  baseSpeedMetersPerSecond: 10,
   timing: {
     reactionBuffer: 1.2,
     fixedVisualLeadTimeMs: 95,
@@ -300,8 +310,8 @@ export const MAP_6: MapConfig = {
   // map (see `content/road.ts`). Difficulty lives in the dials below it.
   motion: DEFAULT_MOTION,
   speed: {
-    maxMetersPerSecond: 10.0,
-    rampPerMinute: 1.5,
+    maxMetersPerSecond: 12.8,
+    rampPerMinute: 2.1,
   },
   boost: {
     speedMultiplier: 1.7,
@@ -327,10 +337,12 @@ export const MAP_6: MapConfig = {
       'van',
       'box-truck',
     ],
-    obstacleIntervalSeconds: 2.8,
+    obstacleIntervalSeconds: 2.2,
     obstacleIntervalJitter: 0.3,
-    recoverySeconds: 0.7,
+    recoverySeconds: 0.22,
     doubleBlockChance: 0.45,
+    coinIntervalSeconds: 4.0,
+    coinValue: 8,
     themeTags: ['final-pursuit', 'chase'],
   },
   unlock: {

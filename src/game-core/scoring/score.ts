@@ -159,6 +159,24 @@ export function registerCollision(
   return withScore({ ...state, combo: 0 }, state.score - config.collisionPenalty);
 }
 
+/**
+ * A line of coins was collected.
+ *
+ * Flat points per coin, and no combo involvement in either direction. Coins are
+ * optional, so letting them build the combo would make the optional thing
+ * mandatory for anyone chasing a score — and letting a missed one break it would
+ * punish declining, which is the one thing declining must never do.
+ */
+export function awardCoins(
+  state: ScoreState,
+  coins: number,
+  config: ScoringConfig = DEFAULT_SCORING_CONFIG,
+): ScoreState {
+  if (coins <= 0) return state;
+
+  return withScore(state, state.score + coins * config.coinPoints);
+}
+
 /** An obstacle prompt expired unfinished. */
 export function registerMissedPrompt(
   state: ScoreState,

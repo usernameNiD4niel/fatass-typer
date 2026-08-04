@@ -30,7 +30,8 @@ game can actually produce. A playtest samples; that table proves.
 
 ## One hazard at a time
 
-The spawner refuses to fire while any hazard is unresolved. That single gate
+The spawner refuses to fire while any hazard is unresolved — or while the player
+is going for a line of coins (`game-core/pickups`). That single gate
 delivers three separate requirements for free: only one challenge active at a
 time, hazards never overlap, and the safe lane stays open for the whole
 avoidance window — because there is nothing else on the road that could close

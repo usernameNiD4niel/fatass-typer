@@ -4,6 +4,7 @@ import { useMemo, type JSX } from 'react';
 import type { WorldSnapshot } from '../game-bridge';
 import type { MapTheme } from '../game-core/models';
 import { ChaseCamera } from './ChaseCamera';
+import { Coins } from './Coins';
 import { Hazards } from './Hazards';
 import { Player } from './Player';
 import { Road } from './Road';
@@ -88,6 +89,7 @@ export function GameCanvas({
       <ChaseCamera snapshot={snapshot} reducedMotion={reducedMotion} />
 
       <Road snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
+      <Coins snapshot={snapshot} reducedMotion={reducedMotion} />
       <Hazards snapshot={snapshot} palette={palette} />
       <Player snapshot={snapshot} reducedMotion={reducedMotion} />
       <WorldPrompt snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
