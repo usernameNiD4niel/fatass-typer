@@ -1,9 +1,11 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, type JSX } from 'react';
-import type { InstancedMesh, Mesh } from 'three';
+import type { InstancedMesh, Mesh, Texture } from 'three';
 import { Object3D, PlaneGeometry } from 'three';
 
+import type { MapTheme } from '../game-core/models';
 import type { WorldSnapshot } from '../game-bridge';
+import { biomeFor, MAX_SCENERY_PARTS, type PartShape, type SceneryPart } from './biome';
 import {
   CARRIAGEWAY_CENTRE,
   CARRIAGEWAY_WIDTH,
@@ -45,6 +47,7 @@ import { isStraight, shiftAt } from './curve-state';
 export interface RoadProps {
   readonly snapshot: WorldSnapshot;
   readonly palette: ScenePalette;
+  readonly theme: MapTheme;
   readonly reducedMotion: boolean;
 }
 
@@ -95,9 +98,20 @@ const POST_SPACING = 7;
 const GANTRY_COUNT = 4;
 const GANTRY_SPACING = 62;
 
-export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Element {
+export function Road({ snapshot, palette, theme, reducedMotion }: RoadProps): JSX.Element {
+  const biome = biomeFor(theme);
+
   const dashesRef = useRef<InstancedMesh>(null);
-  const sceneryRef = useRef<InstancedMesh>(null);
+  /*
+   * One instanced mesh per scenery *part*, not per object.
+   *
+   * A tree is a trunk and a canopy; a container stack is two containers. They
+   * are different shapes in different colours, so they cannot share a mesh —
+   * but every trunk in the map is one draw call, which is what matters. The
+   * pool is sized for `MAX_SCENERY_PARTS` on every map, so a two-part biome
+   * costs what a one-part biome costs plus one empty array slot.
+   */
+  const sceneryRefs = useRef<(InstancedMesh | null)[]>([]);
   const postsRef = useRef<InstancedMesh>(null);
   const gantriesRef = useRef<InstancedMesh>(null);
 
@@ -197,7 +211,7 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
     }
 
     const posts = postsRef.current;
-    if (posts) {
+    if (posts && biome.roadFurniture) {
       const span = POST_COUNT * POST_SPACING;
 
       let index = 0;
@@ -216,7 +230,7 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
     }
 
     const gantries = gantriesRef.current;
-    if (gantries) {
+    if (gantries && biome.roadFurniture) {
       const span = GANTRY_COUNT * GANTRY_SPACING;
 
       for (let slot = 0; slot < GANTRY_COUNT; slot += 1) {
@@ -229,39 +243,49 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
       gantries.instanceMatrix.needsUpdate = true;
     }
 
-    const scenery = sceneryRef.current;
-    if (scenery) {
-      const span = SCENERY_PER_SIDE * SCENERY_SPACING_METERS;
+    const span = SCENERY_PER_SIDE * SCENERY_SPACING_METERS;
+    for (let part = 0; part < biome.scenery.length; part += 1) {
+      const mesh = sceneryRefs.current[part];
+      const shape = biome.scenery[part];
+      if (!mesh || !shape) continue;
 
       let index = 0;
       for (let side = 0; side < 2; side += 1) {
         const direction = side === 0 ? -1 : 1;
         for (let slot = 0; slot < SCENERY_PER_SIDE; slot += 1) {
           const seed = side * 97 + slot;
-          const height = 4 + noise(seed) * 16;
-          const width = 3 + noise(seed + 11) * 5;
+          const [minHeight, heightRange] = biome.heightMeters;
+          const [minWidth, widthRange] = biome.widthMeters;
+          const height = minHeight + noise(seed) * heightRange;
+          const width = minWidth + noise(seed + 11) * widthRange;
           /*
-           * Set well back, and now measured from the *far* kerb of the flanking
+           * Set back, and measured from the *far* kerb of the flanking
            * carriageway rather than from the player's own. Buildings standing in
            * the oncoming traffic was the giveaway that the two were placed by
            * files that did not know about each other.
            */
-          const inset = 4 + noise(seed + 23) * 14;
+          const inset = biome.insetMeters + noise(seed + 23) * 14;
 
           const z = recycleZ(slot * SCENERY_SPACING_METERS, travelled, span);
           dummy.position.set(
-            direction * (CARRIAGEWAY_CENTRE + CARRIAGEWAY_WIDTH / 2 + inset + width / 2) +
+            direction *
+              (CARRIAGEWAY_CENTRE +
+                CARRIAGEWAY_WIDTH / 2 +
+                inset +
+                width / 2 +
+                shape.offset * width) +
               shiftAt(-z),
-            height / 2,
+            height * shape.base,
             z,
           );
-          dummy.scale.set(width, height, width);
+          dummy.scale.set(width * shape.width, height * shape.height, width * shape.width);
           dummy.updateMatrix();
-          scenery.setMatrixAt(index, dummy.matrix);
+          mesh.setMatrixAt(index, dummy.matrix);
           index += 1;
         }
       }
-      scenery.instanceMatrix.needsUpdate = true;
+      mesh.count = index;
+      mesh.instanceMatrix.needsUpdate = true;
     }
   });
 
@@ -362,6 +386,14 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
       <instancedMesh
         ref={postsRef}
         castShadow
+        /*
+         * Hidden, not merely un-updated, on the maps with no road furniture.
+         *
+         * Skipping the placement loop leaves every instance on its identity
+         * matrix — which is a one-metre cube at the origin, and the origin is
+         * where the player is standing. That is exactly what it looked like.
+         */
+        visible={biome.roadFurniture}
         args={[undefined, undefined, POST_COUNT * 2]}
         frustumCulled={false}
       >
@@ -378,35 +410,33 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
       <instancedMesh
         ref={gantriesRef}
         castShadow
+        visible={biome.roadFurniture}
         args={[undefined, undefined, GANTRY_COUNT]}
         frustumCulled={false}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={palette.buildingB} roughness={0.7} metalness={0.2} />
+        <meshStandardMaterial color={palette.structureB} roughness={0.7} metalness={0.2} />
       </instancedMesh>
 
-      <instancedMesh
-        ref={sceneryRef}
-        castShadow
-        args={[undefined, undefined, SCENERY_PER_SIDE * 2]}
-        frustumCulled={false}
-      >
-        <boxGeometry args={[1, 1, 1]} />
-        {/*
-          Windows, and a third of them lit. The emissive map is what makes the
-          night maps read as a city rather than as a row of dark boxes — and it
-          is the same texture in daylight, where the emissive term is simply
-          swamped by the sun.
-        */}
-        <meshStandardMaterial
-          color={palette.buildingA}
-          roughness={0.8}
-          metalness={0.05}
-          emissive={WINDOW_LIGHT}
-          emissiveIntensity={windowGlow(palette)}
-          {...(facade === null ? {} : { map: facade.color, emissiveMap: facade.emissive })}
-        />
-      </instancedMesh>
+      {Array.from({ length: MAX_SCENERY_PARTS }, (_, part) => {
+        const shape = biome.scenery[part];
+
+        return (
+          <instancedMesh
+            key={part}
+            ref={(mesh) => {
+              sceneryRefs.current[part] = mesh;
+            }}
+            castShadow
+            visible={shape !== undefined}
+            args={[undefined, undefined, SCENERY_PER_SIDE * 2]}
+            frustumCulled={false}
+          >
+            <PartGeometry shape={shape?.shape ?? 'box'} />
+            <SceneryMaterial part={shape} palette={palette} facade={facade} />
+          </instancedMesh>
+        );
+      })}
     </group>
   );
 }
@@ -450,6 +480,54 @@ function bendRibbon(mesh: Mesh): void {
 
   position.needsUpdate = true;
   geometry.computeVertexNormals();
+}
+
+/**
+ * The primitive a scenery part is built from.
+ *
+ * Unit-sized in every axis, so the placement loop can scale metres onto it
+ * without knowing which shape it got. A cone is a tree or a spire depending
+ * only on what colour it is and how tall the slot is.
+ */
+function PartGeometry({ shape }: { shape: PartShape }): JSX.Element {
+  if (shape === 'cylinder') return <cylinderGeometry args={[0.5, 0.5, 1, 10]} />;
+  if (shape === 'cone') return <coneGeometry args={[0.5, 1, 9]} />;
+  if (shape === 'sphere') return <sphereGeometry args={[0.5, 12, 10]} />;
+
+  return <boxGeometry args={[1, 1, 1]} />;
+}
+
+/**
+ * A scenery part's material.
+ *
+ * The window texture is applied only where the biome asks for it. Everything
+ * else — trees, rock, containers, obsidian — takes the same flat standard
+ * material, because a windowed pine is worse than a plain one.
+ */
+function SceneryMaterial({
+  part,
+  palette,
+  facade,
+}: {
+  part: SceneryPart | undefined;
+  palette: ScenePalette;
+  facade: { color: Texture; emissive: Texture } | null;
+}): JSX.Element {
+  const color = palette[part?.color ?? 'structureA'];
+  // The texture itself when this part is a building, null otherwise. Held as
+  // the texture rather than as a boolean so the JSX below narrows honestly.
+  const windows = part?.facade === true ? facade : null;
+
+  return (
+    <meshStandardMaterial
+      color={color}
+      roughness={part?.roughness ?? 0.8}
+      metalness={part?.metalness ?? 0.05}
+      emissive={windows === null ? color : WINDOW_LIGHT}
+      emissiveIntensity={windows === null ? (part?.emissive ?? 0) : windowGlow(palette)}
+      {...(windows === null ? {} : { map: windows.color, emissiveMap: windows.emissive })}
+    />
+  );
 }
 
 /** Pool sizes, fixed for the life of a run. Nothing here grows with distance. */

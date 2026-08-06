@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MAP_THEMES } from '../game-core/models';
 import { TRAFFIC_POOL } from './AmbientTraffic';
+import { biomeFor } from './biome';
 import { ROAD_POOL } from './Road';
 import { scenePalette, windowGlow } from './scene-config';
 import { MAX_SNAPSHOT_COINS, MAX_SNAPSHOT_POPUPS, MAX_SNAPSHOT_POWERUPS } from '../game-bridge';
@@ -51,9 +52,23 @@ describe('window glow', () => {
     // Windows burning at midday is the classic tell of an emissive map applied
     // without asking what time it is.
     expect(windowGlow(scenePalette('neighborhood'))).toBe(0);
-    expect(windowGlow(scenePalette('market-district'))).toBe(0);
     expect(windowGlow(scenePalette('night-highway'))).toBeGreaterThan(0.3);
-    expect(windowGlow(scenePalette('final-pursuit'))).toBeGreaterThan(0.2);
+  });
+
+  /*
+   * Only two maps have windows at all.
+   *
+   * The other four are built out of trees, rock, containers and obsidian, and
+   * the glow number is meaningless on them — it used to be asserted on the
+   * volcano, which stopped having buildings the moment biomes landed and would
+   * have gone on passing for the wrong reason.
+   */
+  it('only matters on the maps that have buildings', () => {
+    const windowed = MAP_THEMES.filter((theme) =>
+      biomeFor(theme).scenery.some((part) => part.facade),
+    );
+
+    expect(windowed).toEqual(['neighborhood', 'night-highway']);
   });
 
   it('never burns brighter than the map it belongs to', () => {

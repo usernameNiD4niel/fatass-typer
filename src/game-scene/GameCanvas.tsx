@@ -12,6 +12,7 @@ import { Player } from './Player';
 import { Powerups } from './Powerups';
 import { Racers } from './Racers';
 import { RivalBadges } from './RivalBadges';
+import { Landmarks } from './Landmarks';
 import { Road } from './Road';
 import {
   BASE_FOV_DEGREES,
@@ -206,13 +207,26 @@ export function GameCanvas({
       <Driver advance={advance} snapshot={snapshot} />
       <ChaseCamera snapshot={snapshot} reducedMotion={reducedMotion} />
 
-      <Road snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
+      <Road snapshot={snapshot} palette={palette} theme={theme} reducedMotion={reducedMotion} />
       {/*
         Traffic on the flanking carriageways. It is scenery — nothing here can
         be hit or typed at — but it is what makes speed legible now that
         nothing comes at the player. See `AmbientTraffic.tsx`.
       */}
-      <AmbientTraffic snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
+      <AmbientTraffic
+        snapshot={snapshot}
+        palette={palette}
+        theme={theme}
+        reducedMotion={reducedMotion}
+      />
+
+      {/* The one big thing this map has and no other map does. */}
+      <Landmarks
+        snapshot={snapshot}
+        palette={palette}
+        theme={theme}
+        reducedMotion={reducedMotion}
+      />
       <Coins snapshot={snapshot} reducedMotion={reducedMotion} />
       <Powerups snapshot={snapshot} reducedMotion={reducedMotion} />
       <Player

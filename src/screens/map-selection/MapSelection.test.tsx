@@ -13,8 +13,8 @@ const MAP_2: MapConfig = {
   ...MAP_1,
   id: 'map-2',
   mapNumber: 2,
-  name: 'Downtown Sprint',
-  theme: 'downtown',
+  name: 'Forest Valley',
+  theme: 'forest-valley',
   targetWpm: 26,
   unlock: { requiresMapId: 'map-1', minimumAccuracy: 0.85 },
 };
@@ -76,7 +76,7 @@ describe('mapCardLabel', () => {
     const model = mapCardModel(MAP_2, profileWith(), MAPS);
 
     expect(mapCardLabel(model)).toBe(
-      'Map 2: Downtown Sprint, target 26 WPM, Finish Neighborhood Dash with 85% accuracy to unlock',
+      'Map 2: Forest Valley, target 26 WPM, Finish Neighborhood Dash with 85% accuracy to unlock',
     );
   });
 
@@ -99,7 +99,7 @@ describe('MapSelection', () => {
     setup();
 
     expect(screen.getByRole('heading', { name: 'Neighborhood Dash' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Downtown Sprint' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Forest Valley' })).toBeInTheDocument();
   });
 
   it('shows each map’s target speed and theme', () => {
@@ -107,7 +107,7 @@ describe('MapSelection', () => {
 
     expect(screen.getByText('20 WPM')).toBeInTheDocument();
     expect(screen.getByText('neighborhood')).toBeInTheDocument();
-    expect(screen.getByText('downtown')).toBeInTheDocument();
+    expect(screen.getByText('forest valley')).toBeInTheDocument();
   });
 
   it('chooses an unlocked map', async () => {
@@ -120,7 +120,7 @@ describe('MapSelection', () => {
 
   it('will not start a locked map', async () => {
     const { user, onSelect } = setup();
-    const locked = screen.getByRole('button', { name: /Map 2: Downtown Sprint/ });
+    const locked = screen.getByRole('button', { name: /Map 2: Forest Valley/ });
 
     // Announced as unavailable but still focusable: the unlock requirement is
     // written on this card, and `disabled` would take it out of the tab order
@@ -137,7 +137,7 @@ describe('MapSelection', () => {
     await user.tab();
     await user.tab();
 
-    expect(screen.getByRole('button', { name: /Map 2: Downtown Sprint/ })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /Map 2: Forest Valley/ })).toHaveFocus();
   });
 
   it('says what would unlock a locked map, in words', () => {

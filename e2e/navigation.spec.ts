@@ -51,7 +51,7 @@ test('reaches a locked map with the keyboard to read why it is locked', async ({
   await boot(page);
   await page.getByRole('button', { name: 'Maps' }).click();
 
-  const locked = page.getByRole('button', { name: /Map 2: Downtown Sprint/ });
+  const locked = page.getByRole('button', { name: /Map 2: Forest Valley/ });
 
   // `aria-disabled`, not `disabled`: the unlock requirement is written on this
   // card, so it has to stay in the tab order (spec §12).

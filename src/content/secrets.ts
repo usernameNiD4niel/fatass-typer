@@ -57,30 +57,29 @@ export const MAP_SECRETS: readonly MapSecret[] = [
   {
     mapId: 'map-2',
     sentence:
-      'downtown was built on top of an older downtown and the crossings still follow streets that ' +
-      'were paved over before anyone here was born so when the traffic signals fail at midnight ' +
-      'the cars drift into the shape of a road nobody has walked in eighty years',
-    title: 'The road underneath',
-    lore: 'The city archive keeps a survey map from before the rebuild. Overlay it on a modern one and the odd diagonal crossings all line up — every place where drivers cut a corner is a street that used to be there. Traffic engineers have stopped trying to fix them.',
+      'the road through this valley bends around an old pine that the surveyors were told ' +
+      'to cut and did not and every crew sent since has found some reason to leave it standing ' +
+      'so the whole road is shaped around one tree that nobody will ever admit to saving',
+    title: 'The tree in the road',
+    lore: 'It is on the original survey as a hazard to be removed. Four resurfacing contracts have widened the bend rather than touched it. The most recent engineer wrote that the curve improves sightlines, which is true, and which nobody believes was the reason.',
   },
   {
     mapId: 'map-3',
     sentence:
-      'the market district keeps a stall that no vendor has ever rented because the awning above it ' +
-      'belongs to a family who promised to return and every trader on the row sweeps the empty ' +
-      'stones each morning and leaves the pitch open in case somebody finally comes back for it',
-    title: 'The open pitch',
-    lore: 'Third row, west end, between the spice sellers and the man who repairs umbrellas. The stones are swept, the awning is mended when it tears, and the pitch fee is quietly paid out of the market association fund. Nobody agrees on who the family were. Everybody agrees the pitch stays open.',
+      'there is a water tank at the mouth of this canyon that nobody owns and nobody empties and ' +
+      'every driver who passes tops it up from whatever they are carrying because the last person ' +
+      'who let it run dry was found four days later walking north with no shoes on',
+    title: 'The tank at the mouth',
+    lore: 'It holds about six hundred litres and it has never been recorded empty. There is no sign, no plaque and no rota. Drivers who have used the road twice already know to stop, and none of them can say who told them.',
   },
   {
     mapId: 'map-4',
     sentence:
-      'the industrial zone runs a conveyor that carries nothing at all through the night shift and ' +
-      'the engineers keep it powered because the machines around it were calibrated against its ' +
-      'vibration decades ago and the entire floor would drift out of tolerance in a single week ' +
-      'without that steady empty belt turning',
-    title: 'The empty belt',
-    lore: 'Line 9 has carried no product since 1998. It costs eleven thousand a year to run. Twice management has scheduled it for decommissioning, and twice the precision shop three hundred metres away began failing tolerance checks within days of the test shutdown. The belt turns.',
+      'the harbour keeps one crane running empty through every night shift because the machines ' +
+      'along the quay were calibrated against its vibration decades ago and the whole line would ' +
+      'drift out of tolerance in a single week without that steady swing over the water',
+    title: 'The empty crane',
+    lore: 'Crane 9 has lifted nothing since 1998. It costs eleven thousand a year to run. Twice the port has scheduled it for scrap, and twice the container scales three hundred metres away began failing checks within days of the test shutdown. The crane swings.',
   },
   {
     mapId: 'map-5',
@@ -95,12 +94,12 @@ export const MAP_SECRETS: readonly MapSecret[] = [
   {
     mapId: 'map-6',
     sentence:
-      'the last stretch of the chase runs past a checkpoint that was abandoned before the ' +
-      'motorway opened and the barrier is still raised because the final operator lifted it on ' +
-      'their last shift and walked home rather than lower it on anybody again and every runner ' +
-      'who reaches this point passes underneath something that was deliberately left open forever',
+      'the last stretch of this road runs past a warning post that was abandoned before the ' +
+      'mountain was ever declared safe and the barrier is still raised because the final keeper ' +
+      'lifted it on their last shift and walked down rather than close the road on anybody again ' +
+      'and every runner who reaches this point passes something deliberately left open forever',
     title: 'The raised barrier',
-    lore: 'The checkpoint booth is empty and the counterweight has long since seized. The barrier points at the sky above the northbound lanes and has done for as long as anyone driving today can remember. It is not maintained. It is simply never lowered, and nobody has ever suggested that it should be.',
+    lore: 'The keeper hut is empty and the counterweight has long since seized. The barrier points at the sky above the ridge road and has done for as long as anyone still climbing can remember. It is not maintained. It is simply never lowered, and nobody has ever suggested that it should be.',
   },
   {
     mapId: 'map-1',
@@ -121,49 +120,50 @@ export const MAP_SECRETS: readonly MapSecret[] = [
   {
     mapId: 'map-2',
     sentence:
-      'every lift in the tower on fifth avenue stops at a floor that does not appear on any of the ' +
-      'buttons and the engineers who service it say the doors have never once opened there',
-    title: 'The floor with no button',
-    lore: 'It is on the schematics as a plant room. The lift slows, settles, and moves on. Three separate service companies have logged it as normal behaviour and none of them has explained why it happens at that floor and no other.',
+      'the deer in this valley cross the road at the same four places every single evening and ' +
+      'those places are exactly where the old cart track ran long before the tarmac on it was ever laid',
+    title: 'The old crossing',
+    lore: 'The cart track was abandoned in the twenties and is invisible from the ground. It shows up clearly in aerial photographs, and so do the four crossings, which the herd has kept without ever having seen the track.',
   },
   {
     mapId: 'map-2',
     sentence:
-      'the crossing outside the station counts down from twelve for everybody every day of the ' +
-      'week except on tuesday mornings when it counts down from twenty instead and the traffic ' +
-      'office swears that nothing in the timing file has ever been changed at all',
-    title: 'The long tuesday',
-    lore: 'A cleaner noticed it first and was not believed for two years. The timing file is identical every day of the week. The crossing has been replaced once since, and the new one does it too.',
+      'the tallest waterfall on this ridge runs loudest in the dry months and quietest after rain ' +
+      'and three separate surveys have measured it and none of them has offered any reason why ' +
+      'the water behaves in a way that every hydrologist agrees it should not',
+    title: 'The loud dry season',
+    lore: 'The flow is ordinary. The sound is not. The current theory involves a cavity behind the fall that fills in wet weather and damps it, which explains the noise and explains nothing about why it was never found.',
   },
   {
     mapId: 'map-3',
     sentence:
-      'the bakery on the market row has thrown nothing away in thirty years because whatever is ' +
-      'left at closing goes into a basket by the door and the basket is always empty by morning',
-    title: 'The basket by the door',
-    lore: 'Nobody has ever seen it emptied. The baker stopped watching a long time ago and now simply fills it. On the two mornings it was still full, the whole row knew something had happened before anybody said so.',
+      'the camel train that crosses this road at dusk has walked the same line for four generations ' +
+      'and the drivers say the animals will correct them whenever they try to take a shorter way across the flat',
+    title: 'The line they keep',
+    lore: 'The route is longer than the direct crossing by about two kilometres. It also avoids every soft patch of sand on the flat, which the drivers know and which the herd appears to know better.',
   },
   {
     mapId: 'map-3',
     sentence:
-      'a clock above the market gate has been wrong by four minutes since the war and every trader ' +
-      'sets their day by it anyway so the whole district runs four minutes ahead of the city',
-    title: 'Four minutes early',
-    lore: 'Traders arrive early, deliveries arrive early, the market opens early. A clockmaker offered to fix it free of charge in 1988 and was talked out of it by the association, who pointed out that everyone would then be late.',
+      'the mesa at the far end of the canyon throws a shadow that reaches the road at the same ' +
+      'minute every year and the marker somebody cut into the rock to record it is older than ' +
+      'every road and every map and every name this place has been given since',
+    title: 'The shadow marker',
+    lore: 'A groove about a metre long, cut where the shadow edge lands on the fourth of August. It is accurate. Nothing else at the site has been dated, and the groove has been recut at least twice by hands nobody can account for.',
   },
   {
     mapId: 'map-4',
     sentence:
-      'the night watchman on the east gate has walked the same route for twenty two years and the ' +
-      'path he takes across the yard has worn a line through the concrete that the rain follows',
+      'the night watchman on the east quay has walked the same route for twenty two years and the ' +
+      'path he takes across the dock has worn a line through the concrete that the rain follows',
     title: 'The worn line',
-    lore: 'Maintenance resurfaced the yard in 2011 and the line came back within a year. It runs from the gatehouse to the far shed, turns twice for no reason anybody can see, and drains better than the channels that were designed for it.',
+    lore: 'Maintenance resurfaced the quay in 2011 and the line came back within a year. It runs from the gatehouse to the far shed, turns twice for no reason anybody can see, and drains better than the channels that were designed for it.',
   },
   {
     mapId: 'map-4',
     sentence:
-      'nobody has found the switch that turns off the last row of lamps in the old paint shop so ' +
-      'the building has not been fully dark for as long as the company has owned it',
+      'nobody has found the switch that turns off the last row of lamps at the end of the old pier ' +
+      'so this harbour has not been fully dark for as long as the port authority has owned it',
     title: 'The last row',
     lore: 'Four lamps, on their own circuit, fed from somewhere not on the drawings. An electrician traced the cable as far as a wall that was built across it. The estimate to go further was refused twice, and now nobody wants to.',
   },
@@ -188,20 +188,20 @@ export const MAP_SECRETS: readonly MapSecret[] = [
   {
     mapId: 'map-6',
     sentence:
-      'the runners who finish this route all say the last kilometre felt shorter than the first one ' +
+      'the runners who finish this ridge all say the last kilometre felt shorter than the first one ' +
       'did and the timing boards have never once agreed with a single one of them about it and ' +
       'the organisers long ago stopped trying to talk anybody out of it',
     title: 'The short kilometre',
-    lore: 'Split times are consistently slowest over the final stretch. Every finisher interviewed since the route opened has described it as the easiest part. The organisers stopped correcting people some years ago.',
+    lore: 'Split times are consistently slowest over the final climb. Every finisher interviewed since the route opened has described it as the easiest part. The organisers stopped correcting people some years ago.',
   },
   {
     mapId: 'map-6',
     sentence:
-      'somebody repaints the finish line on this road every spring and the council has no record of ' +
-      'ever paying for it and no contractor has ever submitted an invoice for the work and the ' +
-      'paint is always the right width and the right shade of white',
-    title: 'The repainted line',
-    lore: 'It appears between the last frost and the first warm week. The paint is the correct specification, the width is correct, and the placement is accurate to within a few centimetres of the original survey. Nobody has ever been seen doing it.',
+      'the ash on this ridge settles everywhere except across the finish line itself and every ' +
+      'spring somebody walks up here to sweep a road that the mountain has already left clean ' +
+      'and none of them will be the first to stop coming',
+    title: 'The clean line',
+    lore: 'Fall patterns are even across the whole plateau. The line is clear anyway, by about a metre either side, and has been photographed clear after falls heavy enough to close the road below. The sweeping continues regardless.',
   },
 ];
 

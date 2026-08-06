@@ -949,6 +949,7 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
       deltaMs,
       elapsedMs: session.elapsedMs,
       distanceMeters: session.map.distanceMeters,
+      playerMeters: session.playerMeters,
     }),
     motion: advanceMotion(session.motion, deltaMs),
     effects: advanceEffects(session.effects, deltaMs),

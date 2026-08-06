@@ -24,7 +24,15 @@ function race(seed = 'race'): RaceState {
   return createRace(MAP_1, createRngFromString(seed));
 }
 
-function run(state: RaceState, totalMs: number, map = MAP_1): RaceState {
+/**
+ * Runs the field forward.
+ *
+ * `playerMeters` defaults to a player keeping pace with the reference speed, so
+ * the chase bonus stays out of the way of tests that are about drawn pace. The
+ * chase has its own tests below, which pass a player who is deliberately far
+ * ahead.
+ */
+function run(state: RaceState, totalMs: number, map = MAP_1, playerSpeed?: number): RaceState {
   let current = state;
   for (let elapsed = 0; elapsed < totalMs; elapsed += 16) {
     current = advanceRace(current, {
@@ -32,6 +40,7 @@ function run(state: RaceState, totalMs: number, map = MAP_1): RaceState {
       deltaMs: 16,
       elapsedMs: elapsed,
       distanceMeters: map.distanceMeters,
+      playerMeters: ((playerSpeed ?? referenceSpeed(map, elapsed)) * elapsed) / 1000,
     });
   }
 
@@ -145,5 +154,53 @@ describe('standings', () => {
     expect(playerLeads(state, front + 1)).toBe(true);
     expect(leadingRacer(state, 0)?.meters).toBe(front);
     expect(playerLeads(state, 0)).toBe(false);
+  });
+});
+
+describe('the chase', () => {
+  /*
+   * The complaint this answers: an opponent that never notices it is losing.
+   * With drawn pace alone the race is decided in its first half-minute and
+   * nothing happens afterwards, because a bot twenty metres down runs exactly
+   * as fast as one twenty metres up.
+   */
+  it('makes a racer run harder when it is well behind', () => {
+    const reference = referenceSpeed(MAP_1, 0);
+    const level = run(race('chase'), 30_000, MAP_1, reference);
+    const chasing = run(race('chase'), 30_000, MAP_1, reference * 2);
+
+    const covered = (state: typeof level): number =>
+      Math.max(...state.racers.map((racer) => racer.meters));
+
+    expect(covered(chasing)).toBeGreaterThan(covered(level) + 10);
+  });
+
+  /*
+   * A rubber band, not a leash. The bonus is capped, so a player who keeps
+   * typing keeps extending — they simply cannot stop and stay ahead.
+   */
+  it('cannot run down a lead of any size', () => {
+    const reference = referenceSpeed(MAP_1, 0);
+    const state = run(race('cap'), 30_000, MAP_1, reference * 6);
+    const covered = Math.max(...state.racers.map((racer) => racer.meters));
+
+    // Well short of a player at six times the pace. The bound is the fastest
+    // the field can legally go: the top of the drawn pace band (1.14) plus the
+    // chase cap (0.22), over the same half-minute.
+    expect(covered).toBeLessThan(reference * 1.36 * 30);
+  });
+
+  it('does nothing in a race that is level', () => {
+    const reference = referenceSpeed(MAP_1, 0);
+    const level = run(race('deadband'), 20_000, MAP_1, reference);
+    const nudged = run(race('deadband'), 20_000, MAP_1, reference * 1.05);
+
+    const covered = (state: typeof level): number =>
+      Math.max(...state.racers.map((racer) => racer.meters));
+
+    // Inside the dead band the field is untouched: a neck-and-neck race is a
+    // race, and helping the loser of it is what took every coin off a typist
+    // running at exactly the speed the map advertises.
+    expect(covered(nudged)).toBe(covered(level));
   });
 });

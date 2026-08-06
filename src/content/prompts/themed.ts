@@ -20,29 +20,29 @@ export const THEMED_WORDS: readonly PromptEntry[] = buildPrompts('themed', [
   { text: 'sprinkler', tags: ['neighborhood'], minimumMap: 2 },
   { text: 'garden gate', tags: ['neighborhood'], minimumMap: 2 },
 
-  /* Map 2 — downtown */
-  { text: 'taxi', tags: ['downtown'], minimumMap: 2 },
-  { text: 'plaza', tags: ['downtown'], minimumMap: 2 },
-  { text: 'lobby', tags: ['downtown'], minimumMap: 2 },
-  { text: 'revolving', tags: ['downtown'], minimumMap: 3 },
-  { text: 'skyline', tags: ['downtown'], minimumMap: 2 },
-  { text: 'crosswalk', tags: ['downtown'], minimumMap: 3 },
+  /* Map 2 — forest valley */
+  { text: 'pine', tags: ['forest-valley'], minimumMap: 2 },
+  { text: 'creek', tags: ['forest-valley'], minimumMap: 2 },
+  { text: 'thicket', tags: ['forest-valley'], minimumMap: 3 },
+  { text: 'waterfall', tags: ['forest-valley'], minimumMap: 3 },
+  { text: 'antlers', tags: ['forest-valley'], minimumMap: 2 },
+  { text: 'clearing', tags: ['forest-valley'], minimumMap: 3 },
 
-  /* Map 3 — market district */
-  { text: 'stall', tags: ['market-district'], minimumMap: 3 },
-  { text: 'crates', tags: ['market-district'], minimumMap: 3 },
-  { text: 'awning', tags: ['market-district'], minimumMap: 3 },
-  { text: 'produce', tags: ['market-district'], minimumMap: 3 },
-  { text: 'haggling', tags: ['market-district'], minimumMap: 4 },
-  { text: 'flowers', tags: ['market-district'], minimumMap: 3 },
+  /* Map 3 — desert canyon */
+  { text: 'dune', tags: ['desert-canyon'], minimumMap: 3 },
+  { text: 'mesa', tags: ['desert-canyon'], minimumMap: 3 },
+  { text: 'cactus', tags: ['desert-canyon'], minimumMap: 3 },
+  { text: 'canyon', tags: ['desert-canyon'], minimumMap: 3 },
+  { text: 'sandstone', tags: ['desert-canyon'], minimumMap: 4 },
+  { text: 'dry heat', tags: ['desert-canyon'], minimumMap: 3 },
 
-  /* Map 4 — industrial zone */
-  { text: 'pallet', tags: ['industrial-zone'], minimumMap: 4 },
-  { text: 'forklift', tags: ['industrial-zone'], minimumMap: 4 },
-  { text: 'loading', tags: ['industrial-zone'], minimumMap: 4 },
-  { text: 'gantry', tags: ['industrial-zone'], minimumMap: 4 },
-  { text: 'girder', tags: ['industrial-zone'], minimumMap: 4 },
-  { text: 'chainlink', tags: ['industrial-zone'], minimumMap: 5 },
+  /* Map 4 — harbour docks */
+  { text: 'pallet', tags: ['harbour-docks'], minimumMap: 4 },
+  { text: 'forklift', tags: ['harbour-docks'], minimumMap: 4 },
+  { text: 'loading', tags: ['harbour-docks'], minimumMap: 4 },
+  { text: 'gantry', tags: ['harbour-docks'], minimumMap: 4 },
+  { text: 'container', tags: ['harbour-docks'], minimumMap: 4 },
+  { text: 'harbour wall', tags: ['harbour-docks'], minimumMap: 5 },
 
   /* Map 5 — night highway */
   { text: 'headlamp', tags: ['night-highway'], minimumMap: 5 },
@@ -52,13 +52,13 @@ export const THEMED_WORDS: readonly PromptEntry[] = buildPrompts('themed', [
   { text: 'hard shoulder', tags: ['night-highway'], minimumMap: 5 },
   { text: 'midnight', tags: ['night-highway'], minimumMap: 5 },
 
-  /* Map 6 — final pursuit */
-  { text: 'floodlight', tags: ['final-pursuit'], minimumMap: 6 },
-  { text: 'last gate', tags: ['final-pursuit'], minimumMap: 6 },
-  { text: 'finish line', tags: ['final-pursuit'], minimumMap: 6 },
-  { text: 'sirens', tags: ['final-pursuit'], minimumMap: 6 },
-  { text: 'no brakes', tags: ['final-pursuit'], minimumMap: 6 },
-  { text: 'the last mile', tags: ['final-pursuit'], minimumMap: 6 },
+  /* Map 6 — volcano ridge */
+  { text: 'ember', tags: ['volcano-ridge'], minimumMap: 6 },
+  { text: 'ash cloud', tags: ['volcano-ridge'], minimumMap: 6 },
+  { text: 'finish line', tags: ['volcano-ridge'], minimumMap: 6 },
+  { text: 'obsidian', tags: ['volcano-ridge'], minimumMap: 6 },
+  { text: 'no brakes', tags: ['volcano-ridge'], minimumMap: 6 },
+  { text: 'the last mile', tags: ['volcano-ridge'], minimumMap: 6 },
 
   /* Cross-map chase vocabulary, used by every map that tags 'chase'. */
   { text: 'panting', tags: ['chase'] },
@@ -67,6 +67,16 @@ export const THEMED_WORDS: readonly PromptEntry[] = buildPrompts('themed', [
   { text: 'sprint', tags: ['chase'] },
   { text: 'pursuit', tags: ['chase'], minimumMap: 3 },
   { text: 'paws', tags: ['chase'] },
+
+  /*
+   * Open-country vocabulary shared by the two maps with no buildings on them.
+   * Maps 2 and 3 tag `trail` where the urban maps tag `street`; without a pool
+   * of its own, a forest would be handing the player kerbs and bollards.
+   */
+  { text: 'ridge', tags: ['trail'], minimumMap: 2 },
+  { text: 'roadside', tags: ['trail'], minimumMap: 2 },
+  { text: 'switchback', tags: ['trail'], minimumMap: 4 },
+  { text: 'open road', tags: ['trail'], minimumMap: 3 },
 
   /* Street vocabulary shared by the early urban maps. */
   { text: 'curb', tags: ['street'] },

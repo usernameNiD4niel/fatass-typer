@@ -23,9 +23,6 @@ import { DRAW_DISTANCE_METERS, type ScenePalette } from './scene-config';
  * none, and it would fail silently offline. Do not.
  */
 
-/** Below this the map is a night map, and the sky is stars rather than air. */
-const NIGHT_INTENSITY = 0.8;
-
 export interface SkyProps {
   readonly palette: ScenePalette;
   /** Stills the twinkle. The sky itself is static either way (spec §12). */
@@ -33,7 +30,7 @@ export interface SkyProps {
 }
 
 export function Sky({ palette, reducedMotion }: SkyProps): JSX.Element {
-  if (palette.lightIntensity < NIGHT_INTENSITY) {
+  if (palette.skyKind === 'night') {
     return (
       <Stars
         radius={DRAW_DISTANCE_METERS * 0.9}
@@ -47,6 +44,16 @@ export function Sky({ palette, reducedMotion }: SkyProps): JSX.Element {
     );
   }
 
+  /*
+   * Ash: the same shader, choked.
+   *
+   * High turbidity and almost no Rayleigh scattering is what a sky full of
+   * particles does — the blue goes first, then the sun spreads out into the
+   * haze. It is the volcano's whole tell, and it costs nothing that the clear
+   * sky does not already cost.
+   */
+  const ash = palette.skyKind === 'ash';
+
   return (
     <DreiSky
       // The same direction the sun light comes from. A sky whose bright spot
@@ -56,10 +63,10 @@ export function Sky({ palette, reducedMotion }: SkyProps): JSX.Element {
       distance={DRAW_DISTANCE_METERS * 2}
       // Hazy rather than alpine: a clean sky makes the fog on the horizon look
       // like a mistake instead of like distance.
-      turbidity={7}
-      rayleigh={1.6}
-      mieCoefficient={0.006}
-      mieDirectionalG={0.8}
+      turbidity={ash ? 20 : 7}
+      rayleigh={ash ? 0.22 : 1.6}
+      mieCoefficient={ash ? 0.03 : 0.006}
+      mieDirectionalG={ash ? 0.93 : 0.8}
     />
   );
 }

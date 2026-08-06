@@ -156,7 +156,7 @@ describe systems that no longer exist.
 
 | | |
 |---|---|
-| **Last completed** | **variety** — three secrets per map chosen by seed, ~90 more words, seeded weather, and a road that bends |
+| **Last completed** | **biomes** — six maps that are six *places*: forest, desert, docks, night, volcano, and the city they all used to be |
 | **Next up** | nothing scheduled — awaiting direction |
 | **In progress** | none |
 | **Blocked** | none |
@@ -202,6 +202,23 @@ re-drawn every few seconds, so a lead has to be held rather than established
 once. At the map's advertised speed the player is neck and neck with them; above
 it they pull clear and keep every coin. `race/README.md` records the tuning and
 what was tried first.
+
+### Why the opponents chase
+
+They used to be moving obstacles: drawn pace, re-drawn every few seconds, and no idea whether
+they were winning. Get twenty metres up and they were gone for the rest of the run — the race
+was decided in its first thirty seconds.
+
+So a racer that is **more than 25 metres behind** runs harder, by 0.05 m/s per metre of deficit,
+capped at 22% of the map's pace (`racer.ts`). A racer in front gets nothing: a rubber band, not
+a leash. A lead still extends — it just has to be held.
+
+**The dead band is the whole trick, and it was found the hard way.** Without it the chase fires
+in a race that is already level, where somebody is always a few metres down, and a typist at the
+map's own advertised speed took **zero** coins on every map. The obvious lever — raising the
+opponents' drawn pace, flat or as a ladder up the six maps — was tried first and failed the same
+assertion, for the same reason: pace moves *both* ends of the race, and the margin the map's own
+audience beats a bot by is small enough to eat.
 
 ### The rival badges
 
@@ -290,6 +307,50 @@ rather than the player sliding along a fixed curve.
 `useFrame` priority `-1`, before anything reads it. Its header says why nine components share
 two numbers instead of being handed them as props.
 
+### The six places
+
+Every map used to be the same map in a different colour: the palette changed the sky and the
+tarmac, and then the scene drew the identical row of boxes down each side and the identical
+cars beside them. Colour is not a setting — a forest is not a city with green buildings.
+
+`game-scene/biome.ts` says what a map is *made of*: what stands beside the road, what moves on
+the outer tracks, and the one large thing it has that no other map has.
+
+| Map | Roadside | Outer tracks | Landmark |
+|---|---|---|---|
+| 1 Neighborhood Dash | buildings, windowed | cars | — |
+| 2 Forest Valley | pines, trunk and canopy | deer and boar | waterfalls |
+| 3 Desert Canyon | mesas with a harder cap | camels and ostriches | buttes |
+| 4 Harbour Docks | container stacks | lorries and cars | gantry cranes |
+| 5 Night Highway | towers, lit | cars | — |
+| 6 Volcano Ridge | obsidian spires, lit collars | rolling rock | lava flows |
+
+The rebrand went all the way down: map names, briefing text, themed vocabulary and the secret
+sentences were all rewritten with the themes. A nature map still called Downtown Sprint that
+hands the player `taxi` reads as a bug, because it is one.
+
+**It is still only drawing.** A deer and a lorry are the same zero metres of anything the
+player can touch, the scenery pool is the same fixed size on all six maps, and
+`scene-pools.test.ts` asserts that — so a richer biome can never become a slower one. Parts
+name their colours (`structureA`, `structureB`, `accent`) rather than carrying literals, which
+is what lets the weather tint a map without `biome.ts` knowing weather exists.
+
+Two things fell out of the rework and are worth keeping straight:
+
+- **`skyKind` is stated, not inferred.** `Sky.tsx` used to call a map "night" when its light
+  dropped below 0.8 — but weather dims that number, so an overcast afternoon could be drawn as
+  midnight, and the volcano (a *daytime* map lit through ash) had no way to ask for the sky it
+  needed. It is now `'day' | 'night' | 'ash'` on the palette.
+- **Road furniture is per-biome.** Reflector posts and overhead gantries are drawn on the three
+  tarmac maps only. A motorway gantry over a canyon track reads as a copy-paste, and it was one.
+  They are `visible={false}` off those maps, not merely un-updated: skipping the placement loop
+  leaves every instance on its identity matrix, which is a one-metre cube at the origin — and the
+  origin is where the player is standing. That is the brown box that appeared under the runner.
+- **Animals are modelled nose-first and then turned around.** The group they sit in is oriented
+  for vehicles, whose front works out to `-z`, so an animal built the obvious way galloped down
+  the road backwards on every same-direction track. They also run at half the vehicle speeds:
+  a deer closing at the car rate is a deer doing seventy miles an hour, and it looked it.
+
 ### Where the new work lives
 
 - `game-core/motion/momentum.ts` — speed as a level, and why it is not a timer.
@@ -304,6 +365,8 @@ two numbers instead of being handed them as props.
 - `game-scene/runner/` — the rig, the pure gait function, and the assembly.
 - `game-scene/AmbientTraffic.tsx` — the speed cue that replaced oncoming hazards.
 - `game-scene/road-curve.ts` + `curve-state.ts` — the bend, and the one place it is written.
+- `game-scene/biome.ts` — what each map is built out of, and why it is not a palette.
+- `game-scene/Landmarks.tsx` — waterfalls, buttes, cranes and lava; why they are not scenery.
 - `game-scene/weather.ts` + `WeatherLayer.tsx` — the sky, and the instanced particle field.
   The component is `WeatherLayer` rather than `Weather` because `./Weather` and `./weather`
   are the same module on a case-insensitive filesystem.
@@ -344,7 +407,7 @@ below it everything does. `content/pace.test.ts` proves that per map × word, as
 All green, verified by running them:
 
 ```bash
-npm run test          # 1032 passed, 68 files
+npm run test          # 1041 passed, 69 files
 npm run test:e2e      # 16 passed, Chromium against the production build
 npm run lint          # clean
 npm run typecheck     # clean

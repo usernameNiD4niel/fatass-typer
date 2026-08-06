@@ -91,6 +91,18 @@ const NAMES = ['Rival', 'Pacer'] as const;
  *
  * Pacing them *at* 0.55 was tried first and it was too much — a target-speed
  * player never once led, so every coin in every run went to a bot.
+ *
+ * ## Why this number cannot simply be raised
+ *
+ * It was the obvious answer to opponents being too easy, and it was tried:
+ * flat rises and a ladder climbing with the map number, both. Every version
+ * failed the same assertion — a typist at the map's own advertised speed took
+ * **zero** coins, on every map from 4 up, because the margin they beat a bot by
+ * is small and this number eats it directly.
+ *
+ * Drawn pace decides whether the map's own audience is *in* the race. It is the
+ * wrong dial for making a good player work, because it moves both. The chase
+ * below is the right one: it does nothing until somebody is genuinely clear.
  */
 const RACER_MOMENTUM_SHARE = 0.25;
 
@@ -147,6 +159,57 @@ export interface AdvanceRaceInput {
   readonly elapsedMs: number;
   /** Zero on an endless map, where nobody finishes. */
   readonly distanceMeters: number;
+  /** How far the player has come. Read only to decide how hard to chase. */
+  readonly playerMeters: number;
+}
+
+/**
+ * How hard an opponent runs down a lead, as extra metres per second per metre
+ * of deficit, and the most it can add.
+ *
+ * ## Why they chase at all
+ *
+ * Drawn pace alone makes an opponent a moving obstacle rather than a rival: get
+ * twenty metres up on one and it will never be seen again, because it has no
+ * idea it is losing. That is exactly what "the bots are not hard to deal with"
+ * describes — the race is decided in its first thirty seconds and then nothing
+ * happens for two minutes.
+ *
+ * So a racer that is *behind* runs a little harder, and the further behind, the
+ * harder. A racer in front gets nothing: this is a rubber band, not a leash, and
+ * a player who has earned a lead should still be able to extend it — they just
+ * have to keep typing to hold it.
+ *
+ * The cap is what keeps it honest. At full stretch it is worth about a fifth of
+ * the map's pace, so a big lead still converts into coins; it cannot summon an
+ * opponent back from any distance, which would make the lead meaningless and
+ * the coins arbitrary.
+ */
+const CHASE_PER_METER = 0.05;
+const CHASE_CAP_SHARE = 0.22;
+
+/**
+ * How far behind an opponent has to be before it starts chasing.
+ *
+ * Without this the chase fires in a race that is *already* level — the two
+ * opponents trade the lead with the player every few seconds, so one of them is
+ * always a few metres down and always being handed pace for it. Measured: a
+ * typist at the map's advertised speed took **zero** coins on all six maps,
+ * because the bot they had just edged out was immediately given the margin back.
+ *
+ * Twenty-five metres is about three seconds of road. Inside it the race is a
+ * race and nobody is helped; outside it the player has genuinely pulled clear,
+ * which is the only case this was ever meant to answer.
+ */
+const CHASE_DEADBAND_METERS = 25;
+
+function chaseBonus(map: MapConfig, elapsedMs: number, deficitMeters: number): number {
+  const chased = deficitMeters - CHASE_DEADBAND_METERS;
+  if (chased <= 0) return 0;
+
+  const reference = referenceSpeed(map, elapsedMs);
+
+  return Math.min(chased * CHASE_PER_METER, reference * CHASE_CAP_SHARE);
 }
 
 /** Runs every racer forward one step. */
@@ -172,7 +235,16 @@ export function advanceRace(state: RaceState, input: AdvanceRaceInput): RaceStat
     // Eased rather than snapped: a bot that changed pace instantly would read
     // as teleporting when it is a few metres from the camera.
     const speed = racer.speed + (targetSpeed - racer.speed) * Math.min(1, seconds * PACE_APPROACH);
-    const meters = racer.meters + speed * seconds;
+    /*
+     * The chase is added to the *distance travelled*, not to `speed`.
+     *
+     * Folding it into the stored speed would compound: next frame's easing
+     * would treat the bonus as the pace it was approaching, and a racer that
+     * fell behind once would accelerate away from its own target for the rest
+     * of the run.
+     */
+    const chase = chaseBonus(input.map, input.elapsedMs, input.playerMeters - racer.meters);
+    const meters = racer.meters + (speed + chase) * seconds;
 
     const done = input.distanceMeters > 0 && meters >= input.distanceMeters;
 

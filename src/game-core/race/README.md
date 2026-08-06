@@ -67,3 +67,16 @@ The player opens a run at base speed with no momentum; the opponents open at
 their pace. So the first seconds belong to them however fast the player
 eventually types, and the opening coin line is often lost. That is a start, not
 a leak.
+
+## The chase
+
+An opponent more than **25 metres behind** the player runs harder, by 0.05 m/s per
+metre of deficit, capped at 22% of the map's pace. One in front gets nothing.
+
+This is the dial for making a good player work. Drawn pace is not: it moves both
+ends of the race at once, and the margin a typist at the map's advertised speed
+beats a bot by is small enough that raising it — flat, or as a ladder up the six
+maps, both were tried — takes every coin off them.
+
+The dead band is why a level race is left alone. Without it, one of the two is
+always a few metres down and always being handed the margin back.

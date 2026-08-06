@@ -25,11 +25,11 @@ import type { PromptCategory } from './prompt';
 /** Visual theme, spec §6 map table. Drives palette and parallax art, not rules. */
 export const MAP_THEMES = [
   'neighborhood',
-  'downtown',
-  'market-district',
-  'industrial-zone',
+  'forest-valley',
+  'desert-canyon',
+  'harbour-docks',
   'night-highway',
-  'final-pursuit',
+  'volcano-ridge',
 ] as const;
 
 export type MapTheme = (typeof MAP_THEMES)[number];

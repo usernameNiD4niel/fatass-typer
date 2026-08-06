@@ -66,6 +66,11 @@ consumers, no drift.
   disabled by reduced motion; the follow is not an effect, and without it there
   is no game to look at.
 - `scene-config.ts` — geometry constants and one palette per map theme.
+- `biome.ts` — what each map is built out of: roadside shapes, what moves on the
+  outer tracks, and the landmark it gets. A palette makes a map a different
+  colour; a biome makes it a different place.
+- `Landmarks.tsx` — the rare large thing (waterfall, butte, crane, lava flow).
+  Separate from scenery because scenery is a rhythm and this is an event.
 
 ## Why the prompt is HTML and not 3D text
 
