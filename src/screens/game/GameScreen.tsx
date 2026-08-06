@@ -197,10 +197,6 @@ export function GameScreen({
         case 'boostStarted':
           audioRef.current?.play('boost');
           break;
-        case 'obstacleWarning':
-          audioRef.current?.play('obstacleWarning');
-          announce({ kind: 'obstacleWarning' });
-          break;
         case 'playerHit':
           audioRef.current?.play('collision');
           announce({ kind: 'hit', reason: 'collided' });
@@ -385,7 +381,6 @@ export function GameScreen({
     };
   }, [state, send]);
 
-  const topSpeed = map.speed.maxMetersPerSecond * map.boost.speedMultiplier;
   const endless = map.distanceMeters <= 0;
 
   return (
@@ -416,7 +411,6 @@ export function GameScreen({
         <div className={styles.topBar}>
           <Hud
             stats={stats}
-            topSpeedMetersPerSecond={topSpeed}
             endless={endless}
             bestDistanceMeters={bestDistanceMeters}
             onPause={togglePause}

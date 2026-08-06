@@ -200,12 +200,12 @@ interface PromptAnchor {
 }
 
 /**
- * Finds whatever the word is attached to — a hazard *or* a coin line.
+ * Finds whatever the word is attached to.
  *
- * Searching only the hazards was a real bug and an invisible one: a coin word
- * would find nothing, hide itself, and leave the player typing a word they
- * could not see. The word exists for both kinds of encounter, so the lookup has
- * to cover both.
+ * A coin line is the only thing left with a body; everything else sits ahead of
+ * the player. Returning `null` hides the word, so a lookup that misses is a
+ * player typing something they cannot see — which is why the flow case is
+ * answered first rather than fallen through to.
  */
 function findAnchor(snapshot: WorldSnapshot, id: string): PromptAnchor | null {
   const challenge = snapshot.challenge;
@@ -215,13 +215,6 @@ function findAnchor(snapshot: WorldSnapshot, id: string): PromptAnchor | null {
   // actually in, so it reads as part of the run rather than as HUD text.
   if (challenge !== null && challenge.kind === 'flow') {
     return { distanceMeters: FLOW_PROMPT_DISTANCE_METERS, lane: snapshot.lanePosition };
-  }
-
-  for (let index = 0; index < snapshot.hazardCount; index += 1) {
-    const hazard = snapshot.hazards[index];
-    if (hazard?.instanceId === id) {
-      return { distanceMeters: hazard.distanceMeters, lane: hazard.blockedLanes[0] ?? 1 };
-    }
   }
 
   for (let index = 0; index < snapshot.coinCount; index += 1) {

@@ -1,9 +1,10 @@
-import type { JSX } from 'react';
+import { useRef, type JSX } from 'react';
 
 import type { LiveRunStats } from '../../game-core/models';
 import { formatDistance } from '../format';
 import { Button, classes } from '../ui';
 import styles from './Hud.module.css';
+import { paceBand, PACE_HEADROOM, PACE_WORD, type PaceBand } from './pace';
 
 /**
  * The run HUD (spec §9).
@@ -12,9 +13,9 @@ import styles from './Hud.module.css';
  * contrast, one row. Spec §4 warns against overloading the HUD, and the way that
  * happens is six readouts all shouting at once.
  *
- * Two meters, because they answer the two questions that matter mid-run: *how
- * far to go* and *how fast am I going* — the second being the thing that decides
- * how much road the next hazard leaves you.
+ * Three meters, because they answer the three questions that matter mid-run:
+ * *how far to go*, *how much trouble am I in*, and *am I typing fast enough for
+ * this map* — the last being the one the player can actually act on.
  *
  * The active word is never here. It belongs beside the hazard it applies to
  * (spec §16), out in the world where the player is already looking.
@@ -22,8 +23,6 @@ import styles from './Hud.module.css';
 
 export interface HudProps {
   readonly stats: LiveRunStats;
-  /** Top speed the map can reach, for the speed meter's scale. */
-  readonly topSpeedMetersPerSecond: number;
   /**
    * No finish line (plan 2.2).
    *
@@ -59,19 +58,29 @@ function Meter({
   ratio,
   fillClass,
   emphasise = false,
+  note,
+  tick,
 }: {
   label: string;
   valueText: string;
   ratio: number;
   fillClass: string | undefined;
   emphasise?: boolean;
+  /** A word beside the label, so the meter never says something in colour alone. */
+  note?: string;
+  /** 0..1 along the track. A reference point the fill can be read against. */
+  tick?: number;
 }): JSX.Element {
   const percent = Math.round(Math.min(1, Math.max(0, ratio)) * 100);
+  const spoken = note === undefined ? valueText : `${note}, ${valueText}`;
 
   return (
     <div className={styles.meter}>
       <span className={styles.meterHead}>
-        <span>{label}</span>
+        <span>
+          {label}
+          {note !== undefined && <span className={styles.meterNote}>{note}</span>}
+        </span>
         <span className={classes(styles.meterValue, emphasise && styles.threatCritical)}>
           {valueText}
         </span>
@@ -83,25 +92,40 @@ function Meter({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percent}
-        aria-valuetext={valueText}
+        aria-valuetext={spoken}
       >
         <div className={classes(styles.fill, fillClass)} style={{ width: `${String(percent)}%` }} />
+        {tick !== undefined && (
+          <div
+            className={styles.tick}
+            style={{ left: `${String(Math.round(tick * 100))}%` }}
+            aria-hidden="true"
+          />
+        )}
       </div>
     </div>
   );
 }
 
+const PACE_FILL: Record<PaceBand, string | undefined> = {
+  idle: styles.paceFillIdle,
+  behind: styles.paceFillBehind,
+  onPace: styles.paceFillOnPace,
+  ahead: styles.paceFillAhead,
+};
+
 export function Hud({
   stats,
-  topSpeedMetersPerSecond,
   endless = false,
   bestDistanceMeters = 0,
   onPause,
   paused,
   canPause,
 }: HudProps): JSX.Element {
-  const speedRatio =
-    topSpeedMetersPerSecond > 0 ? stats.speedMetersPerSecond / topSpeedMetersPerSecond : 0;
+  const bandRef = useRef<PaceBand>('idle');
+  const paceRatio = stats.targetWpm > 0 ? stats.currentWpm / stats.targetWpm : 0;
+  const band = paceBand(paceRatio, bandRef.current);
+  bandRef.current = band;
 
   const pressure = stats.pursuitPressure;
   const chaserWord = pressure >= 0.75 ? 'On you' : pressure >= 0.4 ? 'Closing' : 'Behind';
@@ -188,12 +212,26 @@ export function Hud({
           fillClass={chaserFill}
           emphasise={stats.pursuitPressure >= 0.75}
         />
+        {/*
+          Pace: how fast the player is typing against what this map asks for.
+          It replaces the old m/s readout because speed is now downstream of
+          typing — two meters were showing one fact, and only one of them was
+          a number the player could do anything about.
+        */}
         <Meter
-          label="Speed"
-          // A number, not only a colour and a length (spec §12).
-          valueText={`${stats.speedMetersPerSecond.toFixed(1)} m/s`}
-          ratio={speedRatio}
-          fillClass={styles.speedFill}
+          label="Pace"
+          note={PACE_WORD[band]}
+          // The target as well as the reading, so the ratio is never inferred
+          // from colour (spec §12).
+          valueText={
+            band === 'idle'
+              ? `— / ${String(Math.round(stats.targetWpm))} WPM`
+              : `${String(Math.round(stats.currentWpm))} / ${String(Math.round(stats.targetWpm))} WPM`
+          }
+          ratio={paceRatio / PACE_HEADROOM}
+          tick={1 / PACE_HEADROOM}
+          fillClass={PACE_FILL[band]}
+          emphasise={band === 'behind'}
         />
       </div>
 

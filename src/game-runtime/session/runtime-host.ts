@@ -3,39 +3,28 @@ import {
   createWorldSnapshot,
   MAX_SNAPSHOT_COIN_UNITS,
   MAX_SNAPSHOT_COINS,
-  MAX_SNAPSHOT_HAZARDS,
   MAX_SNAPSHOT_POPUPS,
   MAX_SNAPSHOT_POWERUPS,
 } from '../../game-bridge';
 import type {
   AdaptiveAssistanceConfig,
   MapConfig,
-  ObstacleDefinition,
   PromptEntry,
   RunResult,
 } from '../../game-core/models';
 import { CURRENT_SCHEMA_VERSION, DEFAULT_ADAPTIVE_ASSISTANCE } from '../../game-core/models';
 import { crouchDepth, jumpHeightMeters, lanePosition } from '../../game-core/motion';
-import {
-  type ActiveObstacle,
-  distanceToImpact,
-  obstacleProgress,
-  obstaclePressure,
-  remainingMs,
-  timeToImpact,
-} from '../../game-core/obstacles';
 import { sustainablePeakWpm } from '../../game-core/stats';
 import { DEFAULT_TYPING_OPTIONS, firstErrorIndex } from '../../game-core/typing';
-import type { DeadlinePressure } from '../../game-core/timing';
+import { type DeadlinePressure, deadlinePressure } from '../../game-core/timing';
 import { FixedStepDriver } from '../loop';
 import { distanceToCoins } from '../../game-core/pickups';
 import { distanceToPowerup, hasMagnet, isFlying } from '../../game-core/powerups';
 import { pursuitPressure } from '../../game-core/pursuit';
-import { flowUrgency } from '../../game-core/flow';
+import { flowRemainingMs, flowUrgency } from '../../game-core/flow';
 import {
   activeCoin,
   activeFlowWord,
-  activeObstacle,
   activePowerup,
   advanceRunSession,
   applyRunInput,
@@ -43,7 +32,7 @@ import {
   currentSpeed,
   isBoosting,
   liveStats,
-  obstacleSuccessRate,
+  promptSuccessRate,
   pauseRun,
   type RunSession,
   resumeRun,
@@ -70,7 +59,6 @@ import {
 export interface RuntimeHostOptions {
   readonly map: MapConfig;
   readonly prompts: readonly PromptEntry[];
-  readonly obstacles?: readonly ObstacleDefinition[];
   /** The map's secret, as words in order. Every prompt comes from here first. */
   readonly secretWords?: readonly PromptEntry[];
   /** Characters the player fumbles. The run's vocabulary leans toward them. */
@@ -79,7 +67,7 @@ export interface RuntimeHostOptions {
   readonly emit: (event: GameEvent) => void;
   /** Offers a stats sample; the bridge decides whether it leaves. */
   readonly publishStats: (session: RunSession, nowMs: number) => void;
-  /** Offers the active hazard deadline, if any. Also throttled by the bridge. */
+  /** Offers the current word's deadline, if any. Also throttled by the bridge. */
   readonly publishDeadline?: (
     remainingMs: number | null,
     pressure: DeadlinePressure,
@@ -93,14 +81,14 @@ export interface RuntimeHostOptions {
 const SHAKE_DECAY_PER_SECOND = 3.2;
 
 /**
- * Degrees of field of view a perfect clear kicks in, before it decays.
+ * Degrees of field of view a finished word kicks in, before it decays.
  *
- * Scaled by margin, so the size of the kick *is* the feedback: a scraped clear
- * barely moves the camera and a decisive one is unmistakable. Without that the
- * speed earned in 1.2 was visible only as a number on the HUD, which is not
- * somewhere a player is looking while a car is coming at them.
+ * Smaller than the old hazard kick, and unscaled. A hazard was cleared every
+ * ten seconds and the kick was scaled by margin, so it read as an event. A word
+ * is finished every second or two; the same size of kick that many times would
+ * be a camera that never stops moving, which spec §12 rules out.
  */
-const MAX_PUNCH_DEGREES = 9;
+const COMPLETION_PUNCH_DEGREES = 2.2;
 
 /** How quickly the punch decays, per second. Fast — it is a hit, not a state. */
 const PUNCH_DECAY_PER_SECOND = 4.5;
@@ -140,7 +128,6 @@ export class RuntimeHost implements GameHost {
     this.session = createRunSession({
       map: options.map,
       pool: options.prompts,
-      obstacles: options.obstacles ?? [],
       secretWords: options.secretWords ?? [],
       weakCharacters: options.weakCharacters ?? [],
       seed: options.seed,
@@ -246,7 +233,6 @@ export class RuntimeHost implements GameHost {
     this.session = createRunSession({
       map: this.options.map,
       pool: this.options.prompts,
-      obstacles: this.options.obstacles ?? [],
       secretWords: this.options.secretWords ?? [],
       weakCharacters: this.options.weakCharacters ?? [],
       assistance: this.assistanceConfig,
@@ -267,8 +253,6 @@ export class RuntimeHost implements GameHost {
   }
 
   private emitPrompt(prompt: PromptEntry | null, emit: (event: GameEvent) => void): void {
-    const obstacle = activeObstacle(this.session);
-
     emit({
       type: 'promptChanged',
       prompt:
@@ -279,8 +263,8 @@ export class RuntimeHost implements GameHost {
               text: prompt.text,
               typedLength: this.session.typing.correctCharacters,
               mistakeCount: this.session.typing.incorrectCharacters,
-              kind: 'obstacle',
-              remainingMs: obstacle === null ? null : obstacle.timing.availableMs,
+              kind: 'flow',
+              remainingMs: activeFlowWord(this.session)?.timing.availableMs ?? null,
             },
     });
   }
@@ -298,31 +282,6 @@ export class RuntimeHost implements GameHost {
           this.emitPrompt(event.prompt, emit);
           break;
 
-        case 'obstacleWarning':
-          emit({
-            type: 'obstacleWarning',
-            obstacle: {
-              obstacleId: event.obstacle.definition.id,
-              action: event.obstacle.definition.action,
-              promptText: event.obstacle.prompt.text,
-              secondsUntilImpact:
-                timeToImpact(
-                  event.obstacle,
-                  this.session.playerMeters,
-                  currentSpeed(this.session),
-                ) / 1_000,
-            },
-          });
-          break;
-
-        case 'obstacleResolved':
-          if (event.outcome !== 'avoided') {
-            // Brief, readable, and spent within a few frames (spec §18).
-            this.shake = 1;
-            emit({ type: 'playerHit', reason: event.failureReason ?? 'collision' });
-          }
-          break;
-
         case 'phaseChanged':
           this.onPhaseChanged(emit);
           break;
@@ -335,6 +294,10 @@ export class RuntimeHost implements GameHost {
         case 'flowWordCompleted':
           // Every word that pays says what it paid, at the moment it pays it.
           if (event.points > 0) this.pushPopup(event.points, 'gain');
+          // The kick used to come from committing to a hazard, scaled by the
+          // margin. The word is still the moment worth punctuating; there is
+          // simply no hazard behind it any more.
+          this.punch = Math.max(this.punch, COMPLETION_PUNCH_DEGREES);
           break;
 
         case 'mistyped':
@@ -345,14 +308,7 @@ export class RuntimeHost implements GameHost {
           this.shake = Math.max(this.shake, MISTAKE_SHAKE);
           break;
 
-        case 'obstacleCommitted':
-          // The size of the kick is the reward. See `MAX_PUNCH_DEGREES`.
-          this.punch = Math.max(this.punch, event.marginFraction * MAX_PUNCH_DEGREES);
-          break;
-
         case 'flowWordMissed':
-        case 'obstacleSpawned':
-        case 'obstacleAttached':
         case 'boostEnded':
           break;
       }
@@ -411,8 +367,8 @@ export class RuntimeHost implements GameHost {
       incorrectCharacters: this.session.stats.incorrectCharacters,
       correctedErrors: this.session.stats.correctedErrors,
       completedPrompts: this.session.completedPrompts,
-      missedPrompts: this.session.collisions,
-      obstacleSuccessRate: obstacleSuccessRate(this.session),
+      missedPrompts: this.session.flowWordsMissed,
+      obstacleSuccessRate: promptSuccessRate(this.session),
       longestCombo: this.session.score.longestCombo,
       coinsCollected: this.session.coinsCollected,
       powerupsClaimed: this.session.powerupsClaimed,
@@ -438,10 +394,17 @@ export class RuntimeHost implements GameHost {
     const nowMs = this.now();
     this.options.publishStats(this.session, nowMs);
 
-    const obstacle = activeObstacle(this.session);
+    /*
+     * The deadline belongs to whatever word is on screen. It used to be the
+     * hazard's, because a hazard's was the only one that could end a run; with
+     * hazards gone the flow word is the one carrying the pressure.
+     */
+    const flow = activeFlowWord(this.session);
     this.options.publishDeadline?.(
-      obstacle === null ? null : remainingMs(obstacle, this.session.elapsedMs),
-      obstacle === null ? 'safe' : obstaclePressure(obstacle, this.session.elapsedMs),
+      flow === null ? null : flowRemainingMs(flow, this.session.elapsedMs),
+      flow === null
+        ? 'safe'
+        : deadlinePressure(flowRemainingMs(flow, this.session.elapsedMs), flow.timing.availableMs),
       nowMs,
     );
   }
@@ -466,27 +429,6 @@ export class RuntimeHost implements GameHost {
     world.jumpHeightMeters = jumpHeightMeters(session.motion);
     world.crouch = crouchDepth(session.motion);
     world.boosting = isBoosting(session);
-
-    let count = 0;
-    for (const obstacle of session.obstacles) {
-      if (count >= MAX_SNAPSHOT_HAZARDS) break;
-
-      const slot = world.hazards[count];
-      if (slot === undefined) break;
-
-      slot.instanceId = obstacle.instanceId;
-      slot.action = obstacle.definition.action;
-      slot.distanceMeters = distanceToImpact(obstacle, world.playerMeters);
-      slot.blockedLanes.length = 0;
-      slot.blockedLanes.push(...obstacle.blockedLanes);
-      slot.safeLane = obstacle.safeLane;
-      slot.safeSide = obstacle.safeSide;
-      slot.committed = obstacle.status === 'committed';
-      slot.resolved = obstacle.status === 'resolved' || obstacle.status === 'missed';
-
-      count += 1;
-    }
-    world.hazardCount = count;
 
     let coinCount = 0;
     for (const coin of session.coins) {
@@ -643,30 +585,14 @@ export class RuntimeHost implements GameHost {
       ),
     };
 
-    const obstacle = activeObstacle(session);
-    if (obstacle !== null) {
-      return {
-        ...typed,
-        kind: 'hazard',
-        action: obstacle.definition.action,
-        safeSide: obstacle.safeSide,
-        safeLane: obstacle.safeLane,
-        hazardId: obstacle.instanceId,
-        optional: false,
-        perfect: false,
-        urgency: challengeUrgency(obstacle, session.elapsedMs),
-      };
-    }
-
     const flow = activeFlowWord(session);
     if (flow !== null) {
       return {
         ...typed,
         kind: 'flow',
-        // A flow word points nowhere: there is nothing to avoid and nowhere to
+        // A flow word points nowhere: there is nothing to reach and nowhere to
         // be. The scene places it ahead of the player rather than tracking a
         // body, because it has none.
-        action: 'lane-change',
         safeSide: null,
         safeLane: null,
         hazardId: flow.instanceId,
@@ -681,7 +607,6 @@ export class RuntimeHost implements GameHost {
       return {
         ...typed,
         kind: 'powerup',
-        action: 'lane-change',
         safeSide: powerup.side,
         safeLane: powerup.lane,
         hazardId: powerup.instanceId,
@@ -699,7 +624,6 @@ export class RuntimeHost implements GameHost {
       kind: 'coin',
       // A coin word always points somewhere: it is only ever worth typing
       // because there is a lane to be in.
-      action: 'lane-change',
       safeSide: coin.side,
       safeLane: coin.lane,
       hazardId: coin.instanceId,
@@ -714,7 +638,7 @@ export class RuntimeHost implements GameHost {
     return {
       progress: runProgress(this.session),
       tick: this.driver.stats.tick,
-      hazards: this.session.obstacles.length,
+      hazards: 0,
     };
   }
 }
@@ -727,9 +651,6 @@ function spanUrgency(startedAtMs: number | null, endsAtMs: number | null, nowMs:
 }
 
 /** Deadline pressure as a smooth 0..1, for the prompt's urgency pulse. */
-function challengeUrgency(obstacle: ActiveObstacle, elapsedMs: number): number {
-  return obstacleProgress(obstacle, elapsedMs);
-}
 
 /** Extra field of view from speed (spec §12). Subtle by design. */
 function fovBias(session: RunSession): number {

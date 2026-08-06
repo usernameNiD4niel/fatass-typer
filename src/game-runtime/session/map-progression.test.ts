@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { ALL_PROMPTS, MAPS, OBSTACLES } from '../../content';
+import { ALL_PROMPTS, MAPS } from '../../content';
+import { flowBufferFor } from '../../game-core/flow';
 import { finishRate, playtest, type PlaytestInput } from './playtest-harness';
 
 /**
@@ -45,7 +46,7 @@ import { finishRate, playtest, type PlaytestInput } from './playtest-harness';
 const SEEDS = 24;
 
 function base(map: (typeof MAPS)[number]): Omit<PlaytestInput, 'wpm' | 'seed'> {
-  return { map, prompts: ALL_PROMPTS, obstacles: OBSTACLES };
+  return { map, prompts: ALL_PROMPTS };
 }
 
 describe.each(MAPS.map((map) => [map.id, map] as const))('%s', (_id, map) => {
@@ -69,23 +70,21 @@ describe.each(MAPS.map((map) => [map.id, map] as const))('%s', (_id, map) => {
     expect(rate).toBeLessThan(0.4);
   });
 
-  it('asks for a real handful of hazards, not one or two', () => {
+  it('asks for a real number of words, not one or two', () => {
     const result = playtest({ ...base(map), wpm: map.targetWpm, seed: 'shape' });
 
-    expect(result.hazardsFaced).toBeGreaterThanOrEqual(6);
-    // Density is capped by how long an encounter lasts: a hazard is visible for
-    // roughly its whole budget, so they cannot overlap and still be fair. The
-    // slow maps sit at the bottom of this range because a word at 20 WPM takes
-    // three times as long to type as the same word at 50.
-    expect(result.hazardsFaced).toBeLessThanOrEqual(30);
+    // Words are the encounters now. The slow maps sit at the bottom of this
+    // range because a word at 20 WPM takes three times as long to type as the
+    // same word at 50.
+    expect(result.hazardsFaced).toBeGreaterThanOrEqual(15);
   });
 
   it('fills the gaps with coins, so there is almost always something to type', () => {
     const result = playtest({ ...base(map), wpm: map.targetWpm, seed: 'coins' });
     const { coinsCollected, coinsMissed } = result.session;
 
-    // The gap between hazards used to be several seconds of empty road. Coins
-    // are what is in it now, and a run should offer a real number of them.
+    // Coins are the only thing left on the road with a body, and the only
+    // optional thing in the game. A run should offer a real number of them.
     expect(coinsCollected + coinsMissed).toBeGreaterThanOrEqual(4);
   });
 
@@ -93,9 +92,9 @@ describe.each(MAPS.map((map) => [map.id, map] as const))('%s', (_id, map) => {
     const result = playtest({ ...base(map), wpm: map.targetWpm, seed: 'coins' });
     const { powerupsClaimed, powerupsLost } = result.session;
 
-    // A crate needs a clear road, so *whether* one appears inside a given run
-    // depends on the traffic. What must never happen is one appearing and being
-    // dropped by somebody typing perfectly.
+    // A crate waits for the coins to be done with the road, so *whether* one
+    // appears inside a given run depends on the timing. What must never happen
+    // is one appearing and being dropped by somebody typing perfectly.
     expect(powerupsLost).toBe(0);
 
     const interval = map.content.powerupIntervalSeconds * 1_000;
@@ -109,15 +108,14 @@ describe.each(MAPS.map((map) => [map.id, map] as const))('%s', (_id, map) => {
     const occupancy = result.session.activeTypingMs / result.elapsedMs;
 
     /*
-     * Two thirds and better, and this is now an *honest* two thirds.
+     * Near-total, and honestly so.
      *
-     * It used to read 1.00, and that was an artefact: a hazard's word stayed on
-     * screen from the moment it was answered until the collision plane, so the
-     * seconds spent looking at a word already typed counted as typing. The word
-     * now comes off at commit and a gap word takes its place, so what is left
-     * is the genuine article.
+     * With hazards gone the flow word is the default state of the field rather
+     * than a filler for somebody else's tail: one is up from the first frame
+     * and the next replaces it the instant it is finished. The missing sliver
+     * is the road between a coin line being collected and the next word.
      */
-    expect(occupancy).toBeGreaterThan(0.65);
+    expect(occupancy).toBeGreaterThan(0.85);
   });
 
   it('asks for a real workout, not a dozen words', () => {
@@ -138,15 +136,38 @@ describe.each(MAPS.map((map) => [map.id, map] as const))('%s', (_id, map) => {
     expect(correctCharacters).toBeGreaterThan(150);
   });
 
-  it('never lets a gap word end a run', () => {
-    // Only hazards are fatal. With a word on screen almost all the time, a
-    // fatal filler word would make a run a coin flip rather than a test.
+  it('is only ever ended by the chaser', () => {
+    // Nothing on the road can hit anybody. A player far below the map's speed
+    // lapses words, hands the chaser ground, and is caught — which is the whole
+    // of how a run is lost now.
     const result = playtest({ ...base(map), wpm: Math.round(map.targetWpm * 0.5), seed: 'slow' });
 
-    expect(result.failureReason).not.toBe('none');
-    // Whatever ended it was a hazard: its word ran out of time, or the body did
-    // not get clear. A lapsed gap word is neither.
-    expect(['timeout', 'collision', 'late-move']).toContain(result.failureReason);
+    expect(result.failureReason).toBe('caught');
+  });
+
+  it('does not catch a slow typist in the first few seconds', () => {
+    /*
+     * Caught immediately is as wrong as never caught: the run has to be long
+     * enough to feel like something the player lost rather than was denied.
+     *
+     * Eight seconds rather than twenty because the fast maps genuinely are
+     * unforgiving — at 50 WPM a word lapses every second and a half, so a
+     * typist 40% under Map 6's speed loses ground four times in the time a Map
+     * 1 player loses it once. That is the ladder doing its job.
+     */
+    const result = playtest({ ...base(map), wpm: Math.round(map.targetWpm * 0.6), seed: 'slow' });
+
+    expect(result.elapsedMs).toBeGreaterThan(8_000);
+  });
+
+  it('holds the gap roughly level for a typist inside the tolerance band', () => {
+    // The direct test of the tuning model: `neutralMargin` is derived so that a
+    // typist at the band's floor breaks even. If a retune breaks that, the
+    // ladder stops gating and this is what says so.
+    const result = playtest({ ...base(map), wpm: Math.round(map.targetWpm * 0.85), seed: 'band' });
+
+    expect(result.finished).toBe(true);
+    expect(result.session.pursuit.gapMeters).toBeGreaterThan(0);
   });
 
   it('lets a typist at its advertised speed take every coin offered', () => {
@@ -168,13 +189,10 @@ describe.each(MAPS.map((map) => [map.id, map] as const))('%s', (_id, map) => {
     expect(result.elapsedMs).toBeLessThan(200_000);
   });
 
-  it('clears every hazard it faces when typed perfectly', () => {
+  it('finishes every word it offers when typed perfectly', () => {
     const result = playtest({ ...base(map), wpm: map.targetWpm, seed: 'clean' });
 
     expect(result.failureReason).toBe('none');
-    // The last hazard may still be approaching at the finish line; everything
-    // resolved was cleared.
-    expect(result.hazardsFaced - result.hazardsCleared).toBeLessThanOrEqual(1);
     expect(result.obstacleSuccessRate).toBe(1);
   });
 });
@@ -188,6 +206,14 @@ describe('the ladder', () => {
     }
   });
 
+  it('tightens the word budget as it goes', () => {
+    // The ladder lives here now: a flow word is the primary prompt, so the
+    // buffer it is given is what decides whether a map gates.
+    const buffers = MAPS.map((entry) => flowBufferFor(entry));
+
+    expect(buffers[0]).toBeGreaterThan(buffers[buffers.length - 1] ?? 0);
+  });
+
   it('tightens the reaction buffer as it goes', () => {
     const buffers = MAPS.map((map) => map.timing.reactionBuffer);
 
@@ -195,30 +221,6 @@ describe('the ladder', () => {
     for (let index = 1; index < buffers.length; index += 1) {
       expect(buffers[index]).toBeLessThanOrEqual(buffers[index - 1] ?? 0);
     }
-  });
-
-  it('packs the hazards closer together as it goes', () => {
-    const intervals = MAPS.map((map) => map.content.obstacleIntervalSeconds);
-
-    for (let index = 1; index < intervals.length; index += 1) {
-      expect(intervals[index]).toBeLessThanOrEqual(intervals[index - 1] ?? 0);
-    }
-  });
-
-  it('gives less breathing room between hazards as it goes', () => {
-    const recovery = MAPS.map((map) => map.content.recoverySeconds);
-
-    for (let index = 1; index < recovery.length; index += 1) {
-      expect(recovery[index]).toBeLessThanOrEqual(recovery[index - 1] ?? 0);
-    }
-  });
-
-  it('only blocks a second lane on the later maps', () => {
-    // Reading which side is safe is a skill of its own. The first two maps ask
-    // only for the typing.
-    expect(MAPS[0]?.content.doubleBlockChance).toBe(0);
-    expect(MAPS[1]?.content.doubleBlockChance).toBe(0);
-    expect(MAPS[MAPS.length - 1]?.content.doubleBlockChance).toBeGreaterThan(0);
   });
 
   it('demands more absolute speed at the end than at the start', () => {
@@ -243,7 +245,6 @@ describe('the sentence', () => {
     const result = playtest({
       map,
       prompts: ALL_PROMPTS,
-      obstacles: OBSTACLES,
       wpm: map.targetWpm,
       seed: 'sentence',
     });
@@ -259,7 +260,6 @@ describe('the sentence', () => {
       const result = playtest({
         map,
         prompts: ALL_PROMPTS,
-        obstacles: OBSTACLES,
         wpm: map.targetWpm,
         seed: 'secret',
       });
@@ -279,7 +279,6 @@ describe('the sentence', () => {
     const result = playtest({
       map,
       prompts: ALL_PROMPTS,
-      obstacles: OBSTACLES,
       wpm: Math.round(map.targetWpm * 0.5),
       seed: 'lapsed',
     });

@@ -59,21 +59,45 @@ export interface PursuitConfig {
    * it closes.
    */
   readonly neutralMargin: number;
-  /** Metres gained per unit of margin above neutral, and lost per unit below. */
+  /** Metres gained per unit of margin above neutral. */
   readonly metersPerMargin: number;
+  /**
+   * How much harder a margin *below* neutral bites than one above it pays.
+   *
+   * Losing has to outweigh winning, and the reason is arithmetic rather than
+   * spite: gains are capped by `maxMeters` and losses are not, so a symmetric
+   * response lets a player bank the ceiling early and then coast below the
+   * neutral margin for the rest of the run. On the slow maps, where a word
+   * takes eight seconds and a run holds twenty of them, that was enough for a
+   * typist a quarter under the map's speed to finish it.
+   */
+  readonly lossFactor: number;
   /** Lost on each wrong character. */
   readonly mistakeMeters: number;
   /** Lost when a gap word expires unfinished. */
   readonly flowMissMeters: number;
 }
 
+/*
+ * Retuned for a game where the chaser is the only way to lose.
+ *
+ * These numbers used to sit alongside hazards, which killed outright; the gap
+ * only had to make a *second* kind of pressure. It is now the whole of the
+ * pressure, so every term is larger — a run that nobody could lose is not a
+ * run, and with a word finishing every few seconds each individual move has to
+ * be worth something.
+ *
+ * `neutralMargin` here is only a fallback. Every real session derives its own
+ * from the map — see `tuning.ts`, which is where the six-map ladder lives.
+ */
 export const DEFAULT_PURSUIT: PursuitConfig = {
-  startMeters: 34,
-  maxMeters: 52,
+  startMeters: 46,
+  maxMeters: 58,
   neutralMargin: 0.1,
-  metersPerMargin: 14,
-  mistakeMeters: 2.4,
-  flowMissMeters: 3,
+  metersPerMargin: 30,
+  lossFactor: 2.0,
+  mistakeMeters: 1.5,
+  flowMissMeters: 12,
 };
 
 export function createPursuit(config: PursuitConfig = DEFAULT_PURSUIT): PursuitState {
@@ -98,8 +122,10 @@ export function applyClear(
   config: PursuitConfig = DEFAULT_PURSUIT,
 ): PursuitState {
   const margin = Math.max(0, Math.min(1, marginFraction));
+  const above = margin - config.neutralMargin;
+  const scale = above >= 0 ? config.metersPerMargin : config.metersPerMargin * config.lossFactor;
 
-  return clamp(state.gapMeters + (margin - config.neutralMargin) * config.metersPerMargin, config);
+  return clamp(state.gapMeters + above * scale, config);
 }
 
 /** A wrong character. Costs ground the moment it is typed. */

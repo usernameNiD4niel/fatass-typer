@@ -15,24 +15,28 @@ import {
 } from '../../game-core/flow';
 import type {
   AdaptiveAssistanceConfig,
+  FailureReason,
   LaneIndex,
   LiveRunStats,
   MapConfig,
-  ObstacleDefinition,
   PromptCategory,
   PromptEntry,
 } from '../../game-core/models';
 import { CENTRE_LANE, DEFAULT_ADAPTIVE_ASSISTANCE } from '../../game-core/models';
 import {
   advanceMotion,
-  beginJump,
   beginLaneChange,
+  BOOSTING_THRESHOLD,
   createPlayerMotion,
+  decayMomentum,
   isSettled,
   lanePosition,
+  momentumMultiplier,
+  momentumShare,
   type PlayerMotion,
   rampedSpeed,
   targetLane,
+  topUpMomentum,
 } from '../../game-core/motion';
 import {
   type ActivePowerup,
@@ -43,7 +47,6 @@ import {
   forfeitPowerup,
   grantPowerup,
   hasMagnet,
-  isFlying,
   isPowerupLive,
   NO_EFFECTS,
   placePowerup,
@@ -60,32 +63,13 @@ import {
   placeCoin,
 } from '../../game-core/pickups';
 import {
-  type ActiveObstacle,
-  advanceObstacles,
-  advanceSpawner,
-  assignLanes,
-  type AvoidanceMove,
-  beginRecovery,
-  commitObstacle,
-  createSpawner,
-  expireObstacle,
-  type FailureReason,
-  moveForOutcome,
-  moveIsDue,
-  type ObstacleOutcome,
-  reserveMsFor,
-  placeObstacle,
-  resolveAtImpact,
-  type ResolvedObstacle,
-  startMove,
-  type SpawnerState,
-} from '../../game-core/obstacles';
-import {
   applyClear as pursuitClear,
   applyFlowMiss as pursuitFlowMiss,
   applyMistake as pursuitMistake,
   createPursuit,
   isCaught,
+  type PursuitConfig,
+  pursuitConfigFor,
   pursuitPressure,
   type PursuitState,
 } from '../../game-core/pursuit';
@@ -96,7 +80,6 @@ import {
   breakCombo,
   createScoreState,
   DEFAULT_SCORING_CONFIG,
-  registerCollision as scoreCollision,
   registerPromptCompleted as scorePromptCompleted,
   type ScoreState,
 } from '../../game-core/scoring';
@@ -108,7 +91,6 @@ import {
   runAccuracy,
   type RunStats,
 } from '../../game-core/stats';
-import { boostDurationMs, spawnDistanceMeters } from '../../game-core/timing';
 import { applyInput, createTypingState, type TypingState } from '../../game-core/typing';
 
 /**
@@ -143,7 +125,7 @@ import { applyInput, createTypingState, type TypingState } from '../../game-core
 
 /** Which encounter owns the word currently on screen. */
 export interface ChallengeRef {
-  readonly kind: 'hazard' | 'coin' | 'powerup' | 'flow';
+  readonly kind: 'coin' | 'powerup' | 'flow';
   readonly id: string;
 }
 
@@ -206,23 +188,22 @@ export interface RunSession {
   readonly playerMeters: number;
   /** Milliseconds of *simulated* time. A paused run does not advance it. */
   readonly elapsedMs: number;
-  /** Milliseconds of boost left, or 0. Earned by clearing a hazard. */
-  readonly boostRemainingMs: number;
   /**
-   * How much of the map's boost the current one is worth, 1..`speedMultiplier`.
+   * How fast the player is currently going, as a level from 0 to 1.
    *
-   * Earned, not given. A hazard cleared with most of its budget to spare pays
-   * the map's full multiplier; one scraped past the deadline pays almost
-   * nothing. This is what makes typing faster than the deadline demands worth
-   * doing — before it, clearing at 20 WPM and clearing at 60 produced exactly
-   * the same speed, so the game asked for a floor and rewarded nothing above it.
+   * Earned, not given: every word finished tops it up by what that word was
+   * worth, and it drains the whole time. A word finished with most of its
+   * budget to spare pays the map's full multiplier; one scraped in pays a
+   * floor. That is what makes typing faster than the deadline demands worth
+   * doing — before it, clearing at 20 WPM and at 60 produced the same speed.
    *
-   * It is never above `map.boost.speedMultiplier`, which matters: `placementSpeed`
-   * measures hazard placement against that ceiling, so a boost that could exceed
-   * it would let the player arrive early at a deadline that assumed they could
-   * not.
+   * Never worth more than `map.boost.speedMultiplier`, which matters:
+   * `placementSpeed` measures placement against that ceiling, so a speed that
+   * could exceed it would let the player arrive early at a deadline that
+   * assumed they could not. See `game-core/motion/momentum.ts` for why this is
+   * a level rather than the countdown it used to be.
    */
-  readonly boostMultiplier: number;
+  readonly momentum: number;
   /**
    * Which keys this run has fumbled (plan 2.4).
    *
@@ -239,6 +220,14 @@ export interface RunSession {
    * at zero the run ends — see `game-core/pursuit`.
    */
   readonly pursuit: PursuitState;
+  /**
+   * The chaser's own tuning, derived from the map (`pursuit/tuning.ts`).
+   *
+   * Carried on the session rather than defaulted at each call site: the
+   * break-even margin is the map's difficulty, and a call that forgot to pass
+   * it would quietly put every map back on the same ladder rung.
+   */
+  readonly pursuitConfig: PursuitConfig;
   /** Time left on the impact beat before the run ends. */
   readonly impactRemainingMs: number;
   /** Why the run ended, or `null` while it has not. */
@@ -275,15 +264,9 @@ export interface RunSession {
   readonly stats: RunStats;
   readonly score: ScoreState;
 
-  readonly obstaclePool: readonly ObstacleDefinition[];
-  readonly spawner: SpawnerState;
-  /** Feeds `assignLanes`. Kept apart from the spawner's own draw sequence. */
-  readonly laneRng: Rng;
   /** Adaptive assistance (spec §6). Moves the reaction buffer, nothing else. */
   readonly assistance: AssistanceState;
   readonly assistanceConfig: AdaptiveAssistanceConfig;
-  /** Hazards currently in the world. At most one unresolved, by construction. */
-  readonly obstacles: readonly ActiveObstacle[];
   /** Coin lines currently in the world. At most one unresolved. */
   readonly coins: readonly ActiveCoin[];
   /** Powerup crates currently in the world. At most one unresolved. */
@@ -311,9 +294,6 @@ export interface RunSession {
   readonly secretIndex: number;
 
   readonly completedPrompts: number;
-  readonly obstaclesFaced: number;
-  readonly obstaclesAvoided: number;
-  readonly collisions: number;
   readonly coinsCollected: number;
   readonly coinsMissed: number;
   readonly powerupsClaimed: number;
@@ -338,25 +318,6 @@ export type SessionEvent =
   | { readonly type: 'mistyped'; readonly penalty: number }
   | { readonly type: 'boostStarted' }
   | { readonly type: 'boostEnded' }
-  | { readonly type: 'obstacleSpawned'; readonly obstacle: ActiveObstacle }
-  | { readonly type: 'obstacleWarning'; readonly obstacle: ActiveObstacle }
-  | { readonly type: 'obstacleAttached'; readonly obstacle: ActiveObstacle }
-  /** The word was finished and the avoidance move has begun. */
-  | {
-      readonly type: 'obstacleCommitted';
-      readonly obstacle: ActiveObstacle;
-      readonly move: AvoidanceMove;
-      readonly points: number;
-      /** How much of the budget was left, 0..1. Drives how big the payoff looks. */
-      readonly marginFraction: number;
-    }
-  | {
-      readonly type: 'obstacleResolved';
-      readonly obstacle: ActiveObstacle;
-      readonly outcome: ObstacleOutcome;
-      readonly move: AvoidanceMove;
-      readonly failureReason: FailureReason | null;
-    }
   | { readonly type: 'coinSpawned'; readonly coin: ActiveCoin }
   | { readonly type: 'coinAttached'; readonly coin: ActiveCoin }
   | {
@@ -403,8 +364,6 @@ export interface CreateRunSessionInput {
    * player running out of anything to type.
    */
   readonly secretWords?: readonly PromptEntry[];
-  /** Hazard definitions the map may draw from. Empty means a run with none. */
-  readonly obstacles?: readonly ObstacleDefinition[];
   /** Adaptive assistance. Pass `{ ...config, enabled: false }` to turn it off. */
   readonly assistance?: AdaptiveAssistanceConfig;
   /**
@@ -430,11 +389,11 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     phase: 'ready',
     playerMeters: 0,
     elapsedMs: 0,
-    boostRemainingMs: 0,
-    boostMultiplier: 1,
+    momentum: 0,
     keyStats: EMPTY_KEY_STATS,
     weakCharacters: input.weakCharacters ?? [],
-    pursuit: createPursuit(),
+    pursuit: createPursuit(pursuitConfigFor(input.map)),
+    pursuitConfig: pursuitConfigFor(input.map),
     impactRemainingMs: 0,
     failureReason: null,
     motion: createPlayerMotion(CENTRE_LANE),
@@ -446,9 +405,6 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     selector: createPromptSelector(createRngFromString(`${input.seed}:prompts`)),
     stats: createRunStats(),
     score: createScoreState(),
-    obstaclePool: input.obstacles ?? [],
-    spawner: createSpawner(createRngFromString(`${input.seed}:obstacles`), input.map.content),
-    laneRng: createRngFromString(`${input.seed}:lanes`),
     coinRng: createRngFromString(`${input.seed}:coins`),
     coins: [],
     flow: null,
@@ -462,11 +418,7 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     effects: NO_EFFECTS,
     assistance: createAssistance(),
     assistanceConfig: input.assistance ?? DEFAULT_ADAPTIVE_ASSISTANCE,
-    obstacles: [],
     completedPrompts: 0,
-    obstaclesFaced: 0,
-    obstaclesAvoided: 0,
-    collisions: 0,
     coinsCollected: 0,
     coinsMissed: 0,
     powerupsClaimed: 0,
@@ -489,48 +441,7 @@ export function currentSpeed(session: RunSession): number {
     session.elapsedMs,
   );
 
-  return session.boostRemainingMs > 0 ? ramped * session.boostMultiplier : ramped;
-}
-
-/*
- * The band of margins a run actually produces.
- *
- * Measured across all six maps at 1×, 1.25×, 1.6× and 2.2× their target speed:
- * margins run from about 0.24 at the advertised speed to about 0.67 at more
- * than twice it. They never approach 1, and they cannot — typing the word is
- * most of what the budget is for.
- *
- * Mapping raw margin straight onto the boost range therefore wasted over half
- * of it: a target-speed typist got 1.13× of an available 1.55×, and the cap was
- * unreachable by anybody. Stretching the attainable band across the whole range
- * is what makes the reward legible — the difference between a good clear and a
- * great one is now most of the boost rather than a rounding error.
- */
-const MARGIN_BAND_FLOOR = 0.15;
-const MARGIN_BAND_CEILING = 0.65;
-
-/**
- * The share of the map's boost a scraped clear still pays.
- *
- * Not zero. A player typing at exactly the speed on the card is the audience the
- * map was written for, and leaving them unboosted would make every map slower
- * than its own label — punishing them for being precisely what was asked.
- */
-const MARGIN_FLOOR_SHARE = 0.3;
-
-/**
- * What a clear at this margin is worth as a speed multiplier.
- *
- * Linear across the band, rather than squared as the score is. The score is
- * where the game asks the player to reach; speed is where it has to stay
- * honest, and a squared curve here would leave a competent-but-not-fast player
- * crawling.
- */
-function boostMultiplierFor(map: MapConfig, marginFraction: number): number {
-  const banded = (marginFraction - MARGIN_BAND_FLOOR) / (MARGIN_BAND_CEILING - MARGIN_BAND_FLOOR);
-  const share = MARGIN_FLOOR_SHARE + (1 - MARGIN_FLOOR_SHARE) * Math.max(0, Math.min(1, banded));
-
-  return 1 + (map.boost.speedMultiplier - 1) * share;
+  return ramped * momentumMultiplier(session.momentum, session.map.boost.speedMultiplier);
 }
 
 /**
@@ -553,7 +464,29 @@ function placementSpeed(session: RunSession): number {
 }
 
 export function isBoosting(session: RunSession): boolean {
-  return session.boostRemainingMs > 0;
+  return session.momentum > BOOSTING_THRESHOLD;
+}
+
+/**
+ * Momentum after finishing a word, pushing `boostStarted` if this is the one
+ * that got the player moving.
+ *
+ * Every completed prompt pays, not only the dangerous ones. When hazards were
+ * the only way to earn speed a player could type continuously and still crawl,
+ * because the thing they were typing happened not to be the thing that paid.
+ */
+function earnMomentum(session: RunSession, marginFraction: number, events: SessionEvent[]): number {
+  const next = topUpMomentum(session.momentum, momentumShare(marginFraction));
+  if (session.momentum <= BOOSTING_THRESHOLD && next > BOOSTING_THRESHOLD) {
+    events.push({ type: 'boostStarted' });
+  }
+
+  return next;
+}
+
+/** How much of a prompt's budget was left when it was finished, 0..1. */
+function marginOf(availableMs: number, remainingMs: number): number {
+  return availableMs > 0 ? Math.max(0, Math.min(1, remainingMs / availableMs)) : 0;
 }
 
 /** Progress to the finish line, 0..1. */
@@ -583,6 +516,18 @@ function pacedMap(session: RunSession): MapConfig {
   const wanted = session.map.targetWpm + escalation.wpmPerMinute * minutes;
 
   return { ...session.map, targetWpm: Math.min(escalation.maxWpm, wanted) };
+}
+
+/**
+ * The map every budget is actually measured against.
+ *
+ * The map as written, paced for an endless run's escalation, then eased by
+ * whatever adaptive assistance has decided. One helper rather than three call
+ * sites, because a prompt placed against a different map from the one beside it
+ * is a fairness bug nobody would see until a playtest.
+ */
+function activeMap(session: RunSession): MapConfig {
+  return assistedMap(pacedMap(session), session.assistance);
 }
 
 /** A map with no finish line. How far you got is the whole score (plan 2.2). */
@@ -785,247 +730,11 @@ function advanceSecret(session: RunSession, prompt: PromptEntry): RunSession {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Hazards                                                                    */
+/* The typing field                                                          */
 /* -------------------------------------------------------------------------- */
-
-/** Hazards still owed an outcome, answered or not. */
-function unresolvedHazards(session: RunSession): readonly ActiveObstacle[] {
-  return session.obstacles.filter(
-    (entry) =>
-      entry.status === 'approaching' || entry.status === 'active' || entry.status === 'committed',
-  );
-}
-
-/**
- * True while a hazard is unresolved at all.
- *
- * Coins and powerups wait for this: they are optional, and an optional detour
- * that competes with a hazard for the same seconds is a trap.
- */
-function hasLiveHazard(session: RunSession): boolean {
-  return unresolvedHazards(session).length > 0;
-}
-
-/**
- * A hazard the player still owes a *word* for.
- *
- * The distinction the gap word rests on. A committed hazard is answered — the
- * points are paid, the move is under way — and all that is left is the body
- * travelling to the collision plane. Nothing that needs the body can happen in
- * that stretch, which is why coins, crates and the next hazard all wait for it.
- * A word needs no body, so a gap word may run there, anchored to the very
- * obstacle the player is in the middle of dodging.
- *
- * **The spawner does not use this.** Letting the next hazard spawn during the
- * tail was tried twice and ends every run inside fifteen seconds; see
- * `obstacles/README.md` and CLAUDE.md. Bodies stay strictly serialised.
- */
-function hasUnansweredHazard(session: RunSession): boolean {
-  return session.obstacles.some(
-    (entry) => entry.status === 'approaching' || entry.status === 'active',
-  );
-}
-
-/**
- * The nearest hazard still owed an outcome.
- *
- * Moves are strictly serialised through this one. The player has to stay where
- * the nearest hazard demands until its collision plane is behind them — moving
- * early for the *next* hazard would turn one they had already beaten into a
- * crash. Words queue; bodies do not.
- */
-function leadingHazard(session: RunSession): ActiveObstacle | null {
-  let leader: ActiveObstacle | null = null;
-
-  for (const hazard of unresolvedHazards(session)) {
-    if (leader === null || hazard.impactMeters < leader.impactMeters) leader = hazard;
-  }
-
-  return leader;
-}
-
-/**
- * The lane the player will be in once every queued move has happened.
- *
- * Not `targetLane(motion)`, and the difference is the whole reason queued
- * hazards work. A committed hazard's move is *deferred* until the one in front
- * of it resolves, so the motion state does not yet know where the player is
- * going. Assigning the next hazard around their current lane would put its safe
- * lane wherever they happen to be standing now — which is how a faster typist
- * ended up with a worse road than a slow one, because answering early is what
- * queues a move in the first place.
- */
-function predictedLane(session: RunSession): LaneIndex {
-  let lane = targetLane(session.motion);
-
-  const queued = [...unresolvedHazards(session)].sort((a, b) => a.impactMeters - b.impactMeters);
-  for (const hazard of queued) {
-    if (hazard.definition.action === 'lane-change' && hazard.safeLane !== null) {
-      lane = hazard.safeLane;
-    }
-  }
-
-  return lane;
-}
-
-/**
- * Breathing room between two collision planes, on top of the move itself.
- *
- * Enough that a queued move starts, completes, and settles before the next
- * plane arrives — with room for the fixed simulation step to land wherever it
- * lands.
- */
-const PLANE_MARGIN_MS = 500;
-
-/** Spawns whatever the schedule says is due and places it in the world. */
-function spawnDueObstacle(session: RunSession): RunSessionResult {
-  if (session.obstaclePool.length === 0) return { session, events: [] };
-
-  /*
-   * A due coin line or crate outranks a hazard, the same way a due crate already
-   * outranks a coin line.
-   *
-   * Hazards are scheduled every fraction of a second and only ever wait for the
-   * road, so once they stopped waiting for gap words they took every gap there
-   * was and the pickups starved: measured at zero coins and zero crates a run on
-   * Maps 1 and 2. Precedence, not a longer interval, is the fix — a hazard that
-   * yields here is delayed by one encounter, while a coin line that loses its
-   * turn is gone until the next one comes round.
-   */
-  if (session.elapsedMs >= session.nextCoinAtMs) return { session, events: [] };
-  if (session.elapsedMs >= session.nextPowerupAtMs) return { session, events: [] };
-
-  const due = advanceSpawner(session.spawner, session.elapsedMs, {
-    content: session.map.content,
-    mapNumber: session.map.mapNumber,
-    pool: session.obstaclePool,
-    hazardsLive: hasLiveHazard(session),
-    /*
-     * A hazard still waits for anything on the road — a coin line or a crate
-     * owns its stretch from approach to collection, and sharing it does not
-     * work. A car ordered into the middle of a coin run drags the player off the
-     * row; a jump lifts them over it. Both leave coins the player has already
-     * paid for on the tarmac, so both were measured and both were rejected.
-     *
-     * A *gap word* is the one thing it no longer waits for, and that is the
-     * whole change. It has no body, so there is nothing for a hazard to collide
-     * with, and dropping it costs nothing — see `dropFlowWord`. It used to sit in
-     * this condition, which meant the filler invented to cover the gaps was
-     * itself creating them: on Map 1 that was 3.5 seconds of delay per encounter
-     * and 63% of the run spent on filler or empty road.
-     */
-    coinsLive: session.coins.some(isCoinLive) || session.powerups.some(isPowerupLive),
-  });
-
-  const definition = due.spawned;
-  if (definition === null) return { session: { ...session, spawner: due.state }, events: [] };
-
-  // The sentence first; the hazard's own category is the fallback for after it
-  // is finished. A hazard takes whatever word is next rather than choosing one,
-  // which is what keeps the run assembling a single sentence.
-  const drawn = drawPrompt(session, {
-    categories: [definition.promptCategory],
-    usage: 'obstacle',
-  });
-  const withPrompt = drawn.session;
-
-  // No prompt in the pool fits this hazard's category. Skipping it is the
-  // honest failure: spawning something untypeable would be a free collision.
-  if (drawn.prompt === null) {
-    return { session: { ...withPrompt, spawner: due.state }, events: [] };
-  }
-
-  const assigned = assignLanes(session.laneRng, {
-    action: definition.action,
-    // Where they will be once everything already on the road has been answered
-    // — not where they are standing while they answer it.
-    playerLane: predictedLane(session),
-    doubleBlockChance: session.map.content.doubleBlockChance,
-  });
-
-  const index = session.obstaclesFaced + 1;
-  const placed = placeObstacle({
-    instanceId: `obstacle-${String(index)}`,
-    definition,
-    prompt: drawn.prompt,
-    // Assistance enters here and only here: the hazard is placed against a map
-    // whose reaction buffer has been nudged, so the extra time is real distance
-    // on the road rather than a special case in the deadline.
-    map: assistedMap(pacedMap(session), session.assistance),
-    playerMeters: session.playerMeters,
-    elapsedMs: session.elapsedMs,
-    assignment: assigned.assignment,
-    speedMetersPerSecond: placementSpeed(session),
-  });
-
-  const obstacle = withClearRoad(placed, session);
-
-  return {
-    session: {
-      ...withPrompt,
-      spawner: due.state,
-      laneRng: assigned.rng,
-      obstacles: [...session.obstacles, obstacle],
-      obstaclesFaced: index,
-    },
-    events: [{ type: 'obstacleSpawned', obstacle }],
-  };
-}
-
-/**
- * Pushes a new hazard back until its collision plane has room.
- *
- * With words queued, two hazards can be in flight at once — and if their planes
- * land within a move of each other the second one is unanswerable: its jump or
- * lane change cannot start until the first is resolved, and by then there is no
- * road left to do it in. That shows up as `late-move` on a hazard the player
- * typed perfectly, which is the worst failure this game can produce.
- *
- * So the planes are spaced by the move the *new* hazard will need, plus a
- * margin. This is the only place placement is adjusted after the timing budget
- * has spoken, and it only ever moves a hazard further away.
- */
-function withClearRoad(obstacle: ActiveObstacle, session: RunSession): ActiveObstacle {
-  const unresolved = unresolvedHazards(session);
-  if (unresolved.length === 0) return obstacle;
-
-  const nearestPlane = Math.max(...unresolved.map((entry) => entry.impactMeters));
-  const separationMs = reserveMsFor(obstacle, session.map) + PLANE_MARGIN_MS;
-  const separationMeters = spawnDistanceMeters(separationMs, placementSpeed(session));
-  const earliest = nearestPlane + separationMeters;
-
-  return obstacle.impactMeters >= earliest ? obstacle : { ...obstacle, impactMeters: earliest };
-}
-
-/**
- * Hands the typing field to a hazard. Its word is mandatory.
- *
- * A coin word on screen is abandoned here, and deliberately: the player has one
- * word to read and it had better be the one that can end their run.
- */
-function attachObstaclePrompt(session: RunSession, obstacle: ActiveObstacle): RunSessionResult {
-  const abandoned = dropFlowWord(abandonUncommittedCoins(session));
-
-  return {
-    session: {
-      ...abandoned,
-      prompt: obstacle.prompt,
-      typing: createTypingState(obstacle.prompt.text),
-      promptStartedMs: session.elapsedMs,
-      challenge: { kind: 'hazard', id: obstacle.instanceId },
-    },
-    events: [
-      { type: 'obstacleAttached', obstacle },
-      { type: 'promptChanged', prompt: obstacle.prompt },
-    ],
-  };
-}
 
 /** Hands the typing field to a coin line. Its word is optional. */
 function attachCoinPrompt(session: RunSession, coin: ActiveCoin): RunSessionResult {
-  // A hazard already owns the field. Coins never interrupt one.
-  if (session.challenge?.kind === 'hazard') return { session, events: [] };
-
   return {
     session: {
       ...dropFlowWord(session),
@@ -1041,213 +750,13 @@ function attachCoinPrompt(session: RunSession, coin: ActiveCoin): RunSessionResu
   };
 }
 
-/** Gives up on any coin line the player has not already committed to. */
-function abandonUncommittedCoins(session: RunSession): RunSession {
-  if (!session.coins.some((coin) => coin.status === 'approaching' || coin.status === 'active')) {
-    return session;
-  }
-
-  return {
-    ...session,
-    coins: session.coins.map((coin) =>
-      coin.status === 'approaching' || coin.status === 'active'
-        ? { ...coin, status: 'missed' as const }
-        : coin,
-    ),
-  };
-}
-
-/**
- * Hands the field back, but only if this hazard is the thing holding it.
- *
- * The hazard's own word comes off the screen at *commit*, so by the time the
- * hazard resolves the field usually belongs to the gap word that took its place.
- * Clearing unconditionally there wiped that word off the screen while leaving it
- * live in the session — an orphan nobody could type, which then expired and
- * broke the combo for a word the player never saw fail.
- */
-function releaseHazardField(session: RunSession, instanceId: string): RunSessionResult {
-  if (session.challenge?.kind !== 'hazard' || session.challenge.id !== instanceId) {
-    return { session, events: [] };
-  }
-
-  return clearPrompt(session);
-}
-
-/** Clears the typing field. Nothing to type until the next hazard arrives. */
+/** Clears the typing field. A flow word takes it back on the same step. */
 function clearPrompt(session: RunSession): RunSessionResult {
   if (session.prompt === null && session.challenge === null) return { session, events: [] };
 
   return {
     session: { ...session, prompt: null, typing: createTypingState(''), challenge: null },
     events: [{ type: 'promptChanged', prompt: null }],
-  };
-}
-
-/** Removes a hazard that has finished with the world. */
-function forget(session: RunSession, instanceId: string): RunSession {
-  return {
-    ...session,
-    obstacles: session.obstacles.filter((entry) => entry.instanceId !== instanceId),
-  };
-}
-
-/**
- * Applies what an ending costs or earns (spec §8).
- *
- * The one place hazard outcomes touch the score, the statistics, and the run's
- * fate — so a new outcome cannot be added and silently forgotten by one of
- * them.
- */
-function applyResolution(session: RunSession, resolved: ResolvedObstacle): RunSessionResult {
-  const { outcome, obstacle } = resolved;
-
-  const replaced = session.obstacles.map((entry) =>
-    entry.instanceId === obstacle.instanceId ? obstacle : entry,
-  );
-
-  let next: RunSession = { ...session, obstacles: replaced };
-
-  if (outcome === 'avoided') {
-    next = {
-      ...next,
-      obstaclesAvoided: next.obstaclesAvoided + 1,
-      assistance: registerSuccess(next.assistance, next.assistanceConfig),
-    };
-  } else {
-    const shielded = spendShield(next.effects);
-
-    if (shielded !== null) {
-      // A crash you get to walk away from. The hazard is still resolved and the
-      // combo is still gone; what a shield buys is the run itself.
-      next = {
-        ...next,
-        effects: shielded,
-        score: scoreCollision(next.score),
-        savedByShield: next.savedByShield + 1,
-        assistance: registerFailure(next.assistance, next.assistanceConfig),
-      };
-
-      const survived = beginRecovery(
-        next.spawner,
-        next.elapsedMs,
-        next.map.content.recoverySeconds,
-      );
-      next = { ...next, spawner: survived };
-
-      const cleared = releaseHazardField(next, obstacle.instanceId);
-      const events: SessionEvent[] = [
-        {
-          type: 'obstacleResolved',
-          obstacle,
-          outcome,
-          move: moveForOutcome(outcome, obstacle.definition.action),
-          failureReason: resolved.failureReason,
-        },
-        { type: 'shieldSpent', remaining: shielded.shields },
-        ...cleared.events,
-      ];
-
-      return { session: forget(cleared.session, obstacle.instanceId), events };
-    }
-
-    next = {
-      ...next,
-      score: scoreCollision(next.score),
-      collisions: next.collisions + 1,
-      failureReason: resolved.failureReason,
-      assistance: registerFailure(next.assistance, next.assistanceConfig),
-    };
-  }
-
-  // The road goes quiet for a moment before the next hazard, win or lose.
-  next = {
-    ...next,
-    spawner: beginRecovery(next.spawner, next.elapsedMs, next.map.content.recoverySeconds),
-  };
-
-  const events: SessionEvent[] = [
-    {
-      type: 'obstacleResolved',
-      obstacle,
-      outcome,
-      move: moveForOutcome(outcome, obstacle.definition.action),
-      failureReason: resolved.failureReason,
-    },
-  ];
-
-  const cleared = releaseHazardField(next, obstacle.instanceId);
-  next = forget(cleared.session, obstacle.instanceId);
-  events.push(...cleared.events);
-
-  if (outcome === 'hit') {
-    const beaten = toPhase({ ...next, impactRemainingMs: IMPACT_BEAT_MS }, 'impact');
-
-    return { session: beaten.session, events: [...events, ...beaten.events] };
-  }
-
-  return { session: next, events };
-}
-
-/**
- * Fires the avoidance move of whichever hazard the player must answer for next.
- *
- * Two things can hold a move back. A jump waits until the obstacle is one
- * reserve away, or it lands before arriving (`moveIsDue`). Anything waits while
- * an *earlier* hazard is still unresolved, because moving out of that hazard's
- * safe lane would undo an answer the player already gave.
- *
- * Only the leading hazard is ever considered, so moves stay strictly in order
- * however many words are queued behind them.
- */
-function startDueMoves(session: RunSession): RunSession {
-  const speed = currentSpeed(session);
-
-  /*
-   * A jump answers to its own clock and to nothing else. It does not change
-   * lanes, so it cannot abandon the lane an earlier hazard demanded, and
-   * `moveIsDue` already holds it until the obstacle is one reserve away.
-   *
-   * Waiting for leadership as well was a bug: a queued jump whose moment
-   * arrived while an earlier hazard was still travelling never started at all,
-   * and the player was charged a `late-move` for a word they had typed.
-   */
-  const dueJump = session.obstacles.find(
-    (entry) =>
-      entry.status === 'committed' &&
-      !entry.moveStarted &&
-      entry.definition.action === 'jump' &&
-      moveIsDue(entry, session.playerMeters, speed),
-  );
-
-  if (dueJump !== undefined) {
-    return {
-      ...session,
-      motion: beginJump(session.motion, session.map.motion),
-      obstacles: session.obstacles.map((entry) =>
-        entry.instanceId === dueJump.instanceId ? startMove(entry) : entry,
-      ),
-    };
-  }
-
-  // A lane change *does* wait its turn: moving out of the lane an earlier
-  // hazard demanded would undo an answer the player already gave.
-  const leader = leadingHazard(session);
-  if (leader === null) return retryCoinSwerve(session);
-  if (leader.status !== 'committed' || leader.moveStarted) return retryCoinSwerve(session);
-  if (leader.definition.action === 'jump') return retryCoinSwerve(session);
-
-  // Refused while a jump is in the air — see `commitToAvoidance`. Leaving the
-  // hazard unstarted is what makes this a retry rather than a lost move.
-  const motion = startAvoidanceMove(session, leader);
-  if (motion === session.motion) return session;
-
-  return {
-    ...session,
-    motion,
-    obstacles: session.obstacles.map((entry) =>
-      entry.instanceId === leader.instanceId ? startMove(entry) : entry,
-    ),
   };
 }
 
@@ -1259,12 +768,9 @@ function startDueMoves(session: RunSession): RunSession {
  * marked `committed`, never moved, and every coin in it went by underneath a
  * player who had already typed for them — the one thing coins promise not to do.
  *
- * Hazards were given this retry when the same bug was found there; coins were
- * not, and the fault stayed hidden while jumps and coin lines rarely overlapped.
- * Raising hazard density made it routine.
- *
- * No preempt, matching `commitToCoins`: a coin still never interrupts a hazard's
- * move. It only takes a turn the road was not using.
+ * Nothing jumps any more, so the refusal is rarer than it was; the retry stays
+ * because flight still lifts the player off the road, and a coin line answered
+ * while flying is exactly the case this covers.
  */
 function retryCoinSwerve(session: RunSession): RunSession {
   if (session.motion.jump !== null) return session;
@@ -1279,84 +785,6 @@ function retryCoinSwerve(session: RunSession): RunSession {
   if (motion === session.motion) return session;
 
   return { ...session, motion };
-}
-
-/** Runs every live hazard's clock and reacts to what it reports. */
-function advanceObstacleLifecycle(session: RunSession): RunSessionResult {
-  if (session.obstacles.length === 0) return { session, events: [] };
-
-  const advanced = advanceObstacles(session.obstacles, {
-    playerMeters: session.playerMeters,
-    speedMetersPerSecond: currentSpeed(session),
-    elapsedMs: session.elapsedMs,
-    // A flying player is shown no word, so no hazard may start a deadline
-    // against them. See `ObstacleAdvanceInput.suspended`.
-    suspended: isFlying(session.effects),
-  });
-
-  let current: RunSession = { ...session, obstacles: advanced.obstacles };
-  const events: SessionEvent[] = [];
-
-  current = startDueMoves(current);
-
-  for (const event of advanced.events) {
-    // Once the run is over, nothing else about the road matters.
-    if (current.phase !== 'running') break;
-
-    const live = current.obstacles.find((entry) => entry.instanceId === event.obstacle.instanceId);
-    if (live === undefined) continue;
-
-    switch (event.type) {
-      case 'obstacleWarning':
-        events.push({ type: 'obstacleWarning', obstacle: live });
-        break;
-
-      case 'promptAttached': {
-        // Flying: there is nothing to type, because there is nothing to avoid.
-        if (isFlying(current.effects)) break;
-
-        const attached = attachObstaclePrompt(current, live);
-        current = attached.session;
-        events.push(...attached.events);
-        break;
-      }
-
-      case 'deadlineExpired': {
-        // Same reason. A deadline the player was never shown must not fail them.
-        if (isFlying(current.effects)) break;
-
-        // Ran out of time. This fails before the collision plane, because the
-        // reserve put the deadline in front of it.
-        const expired = expireObstacle(live, current.typing, current.elapsedMs);
-        if (expired.resolved === null) break;
-
-        const applied = applyResolution(current, expired.resolved);
-        current = applied.session;
-        events.push(...applied.events);
-        break;
-      }
-
-      case 'reachedImpact': {
-        const decided = resolveAtImpact({
-          obstacle: live,
-          motion: current.motion,
-          map: current.map,
-          typing: current.typing,
-          elapsedMs: current.elapsedMs,
-          // Flying is a holiday from the road: nothing on it can touch you.
-          flying: isFlying(current.effects),
-        });
-        if (decided.resolved === null) break;
-
-        const applied = applyResolution(current, decided.resolved);
-        current = applied.session;
-        events.push(...applied.events);
-        break;
-      }
-    }
-  }
-
-  return { session: current, events };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1388,14 +816,21 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
   const seconds = deltaMs / 1000;
   const speed = currentSpeed(session);
 
-  const boostRemainingMs = Math.max(0, session.boostRemainingMs - deltaMs);
-  if (session.boostRemainingMs > 0 && boostRemainingMs === 0) events.push({ type: 'boostEnded' });
+  /*
+   * Momentum drains every step, and the boost events fire on the threshold it
+   * crosses rather than on a timer running out. A level has no natural moment
+   * of ending; the audio and the scene both want one.
+   */
+  const momentum = decayMomentum(session.momentum, deltaMs, session.map.boost.durationMs);
+  if (session.momentum > BOOSTING_THRESHOLD && momentum <= BOOSTING_THRESHOLD) {
+    events.push({ type: 'boostEnded' });
+  }
 
   const advanced: RunSession = {
     ...session,
     elapsedMs: session.elapsedMs + deltaMs,
     playerMeters: session.playerMeters + speed * seconds,
-    boostRemainingMs,
+    momentum,
     motion: advanceMotion(session.motion, deltaMs),
     effects: advanceEffects(session.effects, deltaMs),
     // Only time spent with a word on screen counts toward WPM.
@@ -1420,9 +855,14 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
    */
   const powerupSpawned = spawnDuePowerup(advanced);
   const coinsSpawned = spawnDueCoins(powerupSpawned.session);
-  const spawned = spawnDueObstacle(coinsSpawned.session);
-  const lifecycle = advanceObstacleLifecycle(spawned.session);
-  const powerupLifecycle = advancePowerupLifecycle(lifecycle.session);
+  /*
+   * A swerve that was refused when it was asked for gets another chance every
+   * step. `beginLaneChange` refuses while the player is off the ground, and a
+   * coin line answered during flight would otherwise be paid for and never
+   * reached.
+   */
+  const steered = retryCoinSwerve(coinsSpawned.session);
+  const powerupLifecycle = advancePowerupLifecycle(steered);
   const coinLifecycle = advanceCoinLifecycle(powerupLifecycle.session);
   // Last, and only into whatever is left: a flow word takes the field when
   // nothing on the road wants it, and never before.
@@ -1432,8 +872,6 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
   const allEvents = [
     ...events,
     ...powerupSpawned.events,
-    ...spawned.events,
-    ...lifecycle.events,
     ...powerupLifecycle.events,
     ...coinsSpawned.events,
     ...coinLifecycle.events,
@@ -1454,8 +892,37 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
    * the player can see, whichever way it ended.
    */
   if (isCaught(current.pursuit)) {
+    /*
+     * A shield is what a life is, now that nothing collides.
+     *
+     * It used to absorb a crash. With the chaser the only way to lose, absorbing
+     * being caught is the same promise in the only place left to keep it: the
+     * player is thrown clear and the gap is reset to where the run started.
+     * Without this a carried shield would be an item with no effect.
+     */
+    const shielded = spendShield(current.effects);
+    if (shielded !== null) {
+      const saved: RunSession = {
+        ...current,
+        effects: shielded,
+        pursuit: createPursuit(current.pursuitConfig),
+        savedByShield: current.savedByShield + 1,
+        assistance: registerFailure(current.assistance, current.assistanceConfig),
+      };
+
+      return {
+        session: saved,
+        events: [...allEvents, { type: 'shieldSpent', remaining: shielded.shields }],
+      };
+    }
+
     const caught = toPhase(
-      { ...current, failureReason: 'caught', impactRemainingMs: IMPACT_BEAT_MS },
+      {
+        ...current,
+        failureReason: 'caught',
+        impactRemainingMs: IMPACT_BEAT_MS,
+        assistance: registerFailure(current.assistance, current.assistanceConfig),
+      },
       'impact',
     );
 
@@ -1515,7 +982,7 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
       score: breakCombo(typed.score),
       // The chaser closes on the keystroke, not at the end of the word. That is
       // the point of having something visible back there.
-      pursuit: pursuitMistake(typed.pursuit),
+      pursuit: pursuitMistake(typed.pursuit, typed.pursuitConfig),
     };
     const mistake: SessionEvent = {
       type: 'mistyped',
@@ -1541,134 +1008,10 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
   const challenge = typed.challenge;
   if (challenge === null) return { session: typed, events: [] };
 
-  if (challenge.kind === 'hazard') return commitToAvoidance(typed, challenge.id);
   if (challenge.kind === 'powerup') return claimActivePowerup(typed, challenge.id);
   if (challenge.kind === 'flow') return completeFlow(typed, challenge.id);
 
   return commitToCoins(typed, challenge.id);
-}
-
-/**
- * The word was finished in time. Start the move and pay out.
- *
- * Points, combo, and boost land here rather than at the collision plane,
- * because this is the moment the player earned them and the moment they expect
- * the feedback. What is still outstanding is only whether their body gets clear
- * — and the reserve is what makes that a formality rather than a gamble.
- */
-function commitToAvoidance(session: RunSession, instanceId: string): RunSessionResult {
-  const obstacle = session.obstacles.find((entry) => entry.instanceId === instanceId);
-
-  // Expired on the same step, or already resolved.
-  if (obstacle === undefined || obstacle.status !== 'active') {
-    return { session, events: [] };
-  }
-
-  const committed = commitObstacle(obstacle, session.elapsedMs);
-
-  const remainingMs =
-    obstacle.deadlineAtMs === null ? 0 : Math.max(0, obstacle.deadlineAtMs - session.elapsedMs);
-  // Against the budget the hazard actually gave, so the reward is for how
-  // decisively the deadline was beaten rather than for how long the word was.
-  const marginFraction =
-    obstacle.timing.availableMs > 0 ? remainingMs / obstacle.timing.availableMs : 0;
-
-  const scored = scorePromptCompleted(session.score, {
-    correctCharacters: session.typing.correctCharacters,
-    incorrectCharacters: session.typing.incorrectCharacters,
-    isObstacle: true,
-    expectedTypingMs: obstacle.timing.expectedTypingMs,
-    actualTypingMs: session.elapsedMs - session.promptStartedMs,
-    // Finishing early is worth something: it is the difference between clearing
-    // a hazard and scraping past it.
-    remainingMs,
-    marginFraction,
-  });
-
-  /*
-   * The word is answered. Whether the *body* moves yet is a separate question.
-   *
-   * A jump always waits for its moment, or it lands before the obstacle
-   * arrives. A lane change waits only if an earlier hazard is still unresolved
-   * — leaving that hazard's safe lane early would turn a hazard the player had
-   * beaten into a crash. `startDueMoves` picks either of them up.
-   */
-  const isJump = obstacle.definition.action === 'jump';
-  /*
-   * A lane change can be *refused*: the motion layer will not steer a player out
-   * of a jump, whoever is asking. With hazards this close together the previous
-   * hazard's jump is often still in the air when this word is finished, and
-   * marking the move as started when it did not start was a `late-move` on a
-   * hazard the player answered instantly — the worst failure the game can
-   * produce. So the move is only recorded as begun if the body actually moved;
-   * otherwise `startDueMoves` picks it up on a later step, once the jump lands.
-   */
-  const motion = isJump ? session.motion : startAvoidanceMove(session, committed);
-  const began = !isJump && motion !== session.motion;
-  const moved = began ? startMove(committed) : committed;
-
-  const next: RunSession = {
-    ...advanceSecret(session, obstacle.prompt),
-    obstacles: session.obstacles.map((entry) => (entry.instanceId === instanceId ? moved : entry)),
-    motion,
-    score: scored,
-    completedPrompts: session.completedPrompts + 1,
-    // Clearing a hazard is what earns speed. There are no other prompts to earn
-    // it from any more.
-    boostRemainingMs: Math.max(
-      session.boostRemainingMs,
-      boostDurationMs(session.map.boost, obstacle.prompt.normalizedText.length),
-    ),
-    /*
-     * The better of the two, not simply the newest.
-     *
-     * `boostRemainingMs` already refreshes rather than stacking, and a weak
-     * clear arriving while a strong boost still runs must not cancel the speed
-     * the player earned a moment ago. Taking the maximum keeps the two halves
-     * consistent: whichever boost is still worth having is the one in effect.
-     */
-    boostMultiplier:
-      session.boostRemainingMs > 0
-        ? Math.max(session.boostMultiplier, boostMultiplierFor(session.map, marginFraction))
-        : boostMultiplierFor(session.map, marginFraction),
-    // Ground won or lost by how decisively this was cleared — the same margin
-    // that pays the score and the boost, so there is one thing to get good at.
-    pursuit: pursuitClear(session.pursuit, marginFraction),
-  };
-
-  const move = moveForOutcome('avoided', obstacle.definition.action);
-  const points = scored.score - session.score.score;
-
-  const events: SessionEvent[] = [
-    { type: 'promptCompleted', prompt: obstacle.prompt, points },
-    { type: 'obstacleCommitted', obstacle: moved, move, points, marginFraction },
-    { type: 'boostStarted' },
-  ];
-
-  /*
-   * The word is done, so it comes off the screen now rather than at the
-   * collision plane.
-   *
-   * It used to stay up for the whole of the move — several seconds of a word
-   * the player had already finished, which is both a lie about what is being
-   * asked of them and the single largest silence in a run. Releasing it here is
-   * what lets a gap word fill the tail.
-   */
-  const cleared = clearPrompt(next);
-  events.push(...cleared.events);
-
-  const filled = spawnFlowWord(cleared.session);
-
-  return { session: filled.session, events: [...events, ...filled.events] };
-}
-
-/** Starts the lane change the hazard asks for. */
-function startAvoidanceMove(session: RunSession, obstacle: ActiveObstacle): PlayerMotion {
-  if (obstacle.safeLane === null) return session.motion;
-
-  // Preempt: a coin swerve may be in flight, and a player who typed their way
-  // out of a car must never be refused because they were collecting.
-  return beginLaneChange(session.motion, obstacle.safeLane, session.map.motion, { preempt: true });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1687,7 +1030,6 @@ function spawnDueCoins(session: RunSession): RunSessionResult {
   // A due powerup outranks a coin line. Coins take every gap they are offered,
   // so without this the once-a-minute crate would simply never find room.
   if (session.elapsedMs >= session.nextPowerupAtMs) return { session, events: [] };
-  if (hasLiveHazard(session)) return { session, events: [] };
   if (session.coins.some(isCoinLive)) return { session, events: [] };
   if (session.powerups.some(isPowerupLive)) return { session, events: [] };
   /*
@@ -1715,8 +1057,8 @@ function spawnDueCoins(session: RunSession): RunSessionResult {
   const placed = placeCoin({
     instanceId: `coin-${String(session.coins.length + 1)}`,
     prompt: drawn.prompt,
-    map: pacedMap(session),
-    playerLane: predictedLane(session),
+    map: activeMap(session),
+    playerLane: targetLane(session.motion),
     playerMeters: session.playerMeters,
     elapsedMs: session.elapsedMs,
     speedMetersPerSecond: placementSpeed(session),
@@ -1857,41 +1199,27 @@ function releaseCoinField(
 function spawnFlowWord(session: RunSession): RunSessionResult {
   if (session.phase !== 'running') return { session, events: [] };
   if (session.challenge !== null) return { session, events: [] };
-  /*
-   * A hazard the player has not answered owns the field outright. One they have
-   * answered does not: its word is typed, its move is under way, and the road in
-   * front of the collision plane is the longest silence in the game. A gap word
-   * lives there, drawn on the hazard the player is currently dodging.
-   */
-  if (hasUnansweredHazard(session)) return { session, events: [] };
-  // A committed coin line is the same case as a committed hazard: answered, and
-  // now only a swerve waiting to arrive.
+  // A coin line still owns the field while it is asking. It is the only thing
+  // left on the road with a body, and its word is the one that reaches it.
   if (session.coins.some((coin) => coin.status === 'approaching' || coin.status === 'active')) {
     return { session, events: [] };
   }
   if (session.powerups.some(isPowerupLive)) return { session, events: [] };
 
   /*
-   * A gap word fills a *tail*, and only a tail.
+   * A gap word used to be allowed only in a *tail* — the stretch after a hazard
+   * was answered and before its collision plane arrived — and the reason was
+   * real: left free to appear on open road, gap words starved the hazard
+   * spawner outright. The field was never clear, so no hazard was ever placed,
+   * and a run became a word list with scenery.
    *
-   * This is the line between "every word has an obstacle" and "the road is
-   * whatever the typist is slow enough to allow". Left free to appear on open
-   * road, gap words starve the spawner outright — the field is never clear, so
-   * no hazard is ever placed, and a run becomes a word list with scenery. Bound
-   * to a committed hazard or a committed coin line, they can only ever occupy
-   * the stretch where the player's body is already busy and no second encounter
-   * could be asked of them anyway.
-   *
-   * The practical result is that words alternate: the word that decides the
-   * hazard, then a word drawn on that same hazard while you dodge it, then the
-   * next hazard. Every word on screen belongs to something on the road.
+   * **That gate is now inverted, and it has to be.** There is no hazard spawner
+   * left to starve. A flow word is the default state of the field, and it
+   * yields to a coin line or a crate rather than waiting for one to finish.
+   * Keeping the old condition would mean a flow word could only appear behind a
+   * committed coin line — which happens every eight seconds or so — and the
+   * road would be silent for most of a run.
    */
-  const inTail =
-    session.obstacles.some((entry) => entry.status === 'committed') ||
-    session.coins.some((coin) => coin.status === 'committed');
-
-  if (!inTail) return { session, events: [] };
-
   const drawn = drawPrompt(session, {
     // The map's own vocabulary once the sentence is finished. A filler word that
     // is easier than the map is filler; one from the same source is practice.
@@ -1906,7 +1234,7 @@ function spawnFlowWord(session: RunSession): RunSessionResult {
   const word = placeFlowWord({
     instanceId: `flow-${String(index)}`,
     prompt: drawn.prompt,
-    map: pacedMap(session),
+    map: activeMap(session),
     elapsedMs: session.elapsedMs,
   });
 
@@ -1958,7 +1286,15 @@ function advanceFlowLifecycle(session: RunSession): RunSessionResult {
       score: breakCombo(current.score),
       // The first real cost a lapsed gap word has ever had. Declining a coin
       // line is still free; letting the road go quiet is not.
-      pursuit: pursuitFlowMiss(current.pursuit),
+      pursuit: pursuitFlowMiss(current.pursuit, current.pursuitConfig),
+      /*
+       * And the one thing adaptive assistance now watches.
+       *
+       * It used to key off missed hazards, which meant that after the rework it
+       * could never fire at all — nothing else was ever registered as a
+       * failure. A lapsed word is the failure the game still has.
+       */
+      assistance: registerFailure(current.assistance, current.assistanceConfig),
     };
 
     events.push({ type: 'flowWordMissed', word: missed });
@@ -2015,18 +1351,40 @@ function completeFlow(session: RunSession, instanceId: string): RunSessionResult
   const points = scored.score - session.score.score;
   const finished = completeFlowWord(word);
 
+  const events: SessionEvent[] = [
+    { type: 'promptCompleted', prompt: finished.prompt, points },
+    { type: 'flowWordCompleted', word: finished, points },
+  ];
+
+  /*
+   * Speed, though — unlike the score's margin bonus, which a gap word is
+   * deliberately denied.
+   *
+   * The score bonus is for beating something that could have killed you. Speed
+   * is for typing, and a player who is typing continuously has to be able to go
+   * fast on that alone; there is no longer anything else on the road to earn it
+   * from for seconds at a time.
+   */
+  const margin = marginOf(
+    word.timing.availableMs,
+    Math.max(0, word.deadlineAtMs - session.elapsedMs),
+  );
+
   let next: RunSession = {
     ...advanceSecret(session, word.prompt),
     flow: null,
     score: scored,
     completedPrompts: session.completedPrompts + 1,
     flowWordsCompleted: session.flowWordsCompleted + 1,
+    momentum: earnMomentum(session, margin, events),
+    /*
+     * And ground. This is the currency hazards used to pay, and with them gone
+     * the continuous prompt is the continuous income — otherwise the gap only
+     * ever shrinks and every run is a loss on a timer.
+     */
+    pursuit: pursuitClear(session.pursuit, margin, session.pursuitConfig),
+    assistance: registerSuccess(session.assistance, session.assistanceConfig),
   };
-
-  const events: SessionEvent[] = [
-    { type: 'promptCompleted', prompt: finished.prompt, points },
-    { type: 'flowWordCompleted', word: finished, points },
-  ];
 
   const cleared = clearPrompt(next);
   next = cleared.session;
@@ -2051,10 +1409,17 @@ function completeFlow(session: RunSession, instanceId: string): RunSessionResult
  */
 function spawnDuePowerup(session: RunSession): RunSessionResult {
   if (session.elapsedMs < session.nextPowerupAtMs) return { session, events: [] };
-  if (hasLiveHazard(session)) return { session, events: [] };
   if (session.coins.some(isCoinLive)) return { session, events: [] };
   if (session.powerups.some(isPowerupLive)) return { session, events: [] };
-  if (session.flow !== null) return { session, events: [] };
+  /*
+   * A gap word does *not* hold a crate up.
+   *
+   * It used to, back when a crate had to wait for a clear road anyway. With a
+   * word on screen at essentially all times that condition is never true, and
+   * the once-a-minute crate simply stopped appearing. A flow word has no body
+   * and costs nothing to drop — see `dropFlowWord` — so the crate takes the
+   * field the same way a coin line does.
+   */
 
   // A run of words, not one. That is what makes a powerup a powerup — and while
   // the secret is running they are the *next* run of words, so a crate advances
@@ -2067,8 +1432,8 @@ function spawnDuePowerup(session: RunSession): RunSessionResult {
   const placed = placePowerup({
     instanceId: `powerup-${String(session.powerups.length + 1)}`,
     prompt: drawn.prompt,
-    map: pacedMap(session),
-    playerLane: predictedLane(session),
+    map: activeMap(session),
+    playerLane: targetLane(session.motion),
     playerMeters: session.playerMeters,
     elapsedMs: session.elapsedMs,
     speedMetersPerSecond: placementSpeed(session),
@@ -2135,8 +1500,6 @@ function advancePowerupLifecycle(session: RunSession): RunSessionResult {
 
 /** Hands the typing field to a powerup crate. Its sentence is optional. */
 function attachPowerupPrompt(session: RunSession, powerup: ActivePowerup): RunSessionResult {
-  if (session.challenge?.kind === 'hazard') return { session, events: [] };
-
   return {
     session: {
       ...dropFlowWord(session),
@@ -2202,12 +1565,18 @@ function claimActivePowerup(session: RunSession, instanceId: string): RunSession
   const claimed = claimPowerup(powerup);
   const events: SessionEvent[] = [{ type: 'powerupClaimed', powerup: claimed }];
 
+  const margin = marginOf(
+    claimed.timing.availableMs,
+    claimed.deadlineAtMs === null ? 0 : Math.max(0, claimed.deadlineAtMs - session.elapsedMs),
+  );
+
   let next: RunSession = {
     ...advanceSecret(session, claimed.prompt),
     powerups: session.powerups.map((entry) => (entry.instanceId === instanceId ? claimed : entry)),
     effects: grantPowerup(session.effects, claimed.kind),
     powerupsClaimed: session.powerupsClaimed + 1,
     completedPrompts: session.completedPrompts + 1,
+    momentum: earnMomentum(session, margin, events),
   };
   next = releasePowerupField(next, instanceId, events);
 
@@ -2224,14 +1593,24 @@ function commitToCoins(session: RunSession, instanceId: string): RunSessionResul
   // reason they are safe to have on the road at all.
   const motion = beginLaneChange(session.motion, committed.lane, session.map.motion);
 
+  const events: SessionEvent[] = [{ type: 'promptCompleted', prompt: coin.prompt, points: 0 }];
+
+  const margin = marginOf(
+    coin.timing.availableMs,
+    coin.deadlineAtMs === null ? 0 : Math.max(0, coin.deadlineAtMs - session.elapsedMs),
+  );
+
   const next: RunSession = {
     ...advanceSecret(session, coin.prompt),
     coins: session.coins.map((entry) => (entry.instanceId === instanceId ? committed : entry)),
     motion,
     completedPrompts: session.completedPrompts + 1,
+    // A coin word is a word. Declining the line still costs nothing; taking it
+    // must not pay less than declining it, or the optional pickup is a trap —
+    // which is why the ground is paid here and nothing is taken on expiry.
+    momentum: earnMomentum(session, margin, events),
+    pursuit: pursuitClear(session.pursuit, margin, session.pursuitConfig),
   };
-
-  const events: SessionEvent[] = [{ type: 'promptCompleted', prompt: coin.prompt, points: 0 }];
 
   // Same as a hazard: the word is answered, the swerve is the body's problem,
   // and the screen should not keep asking for something already given.
@@ -2267,16 +1646,10 @@ export function liveStats(session: RunSession): LiveRunStats {
     distanceMeters: session.playerMeters,
     secretWordsTyped: session.secretIndex,
     secretWordCount: session.secretWords.length,
-    pursuitPressure: pursuitPressure(session.pursuit),
+    pursuitPressure: pursuitPressure(session.pursuit, session.pursuitConfig),
+    // Paced, not the raw config: the endless map raises its own target.
+    targetWpm: pacedMap(session).targetWpm,
   };
-}
-
-/** The hazard currently holding the typing field, if any. */
-export function activeObstacle(session: RunSession): ActiveObstacle | null {
-  if (session.challenge?.kind !== 'hazard') return null;
-  const id = session.challenge.id;
-
-  return session.obstacles.find((entry) => entry.instanceId === id) ?? null;
 }
 
 /** The powerup crate currently holding the typing field, if any. */
@@ -2302,15 +1675,20 @@ export function activeCoin(session: RunSession): ActiveCoin | null {
   return session.coins.find((entry) => entry.instanceId === id) ?? null;
 }
 
-/** Hazards cleared as a fraction of hazards resolved. 1 when none were. */
-export function obstacleSuccessRate(session: RunSession): number {
-  const resolvedCount = session.obstaclesAvoided + session.collisions;
-  if (resolvedCount === 0) return 1;
+/**
+ * Words finished as a fraction of words offered. 1 when none were.
+ *
+ * Kept under the run result's old `obstacleSuccessRate` name — see the note
+ * there. A lapsed flow word is the only miss there is now.
+ */
+export function promptSuccessRate(session: RunSession): number {
+  const offered = session.completedPrompts + session.flowWordsMissed;
+  if (offered === 0) return 1;
 
-  return session.obstaclesAvoided / resolvedCount;
+  return session.completedPrompts / offered;
 }
 
-/** Is the player mid-move, and therefore unable to accept another hazard? */
+/** Is the player mid-move, and therefore unable to accept another prompt? */
 export function isMoving(session: RunSession): boolean {
   return !isSettled(session.motion);
 }

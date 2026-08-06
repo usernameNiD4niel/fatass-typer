@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ALL_PROMPTS, MAP_1, OBSTACLES } from '../../content';
+import { ALL_PROMPTS, MAP_1 } from '../../content';
 import { weakCharacters, weakestKeys } from '../../game-core/keystats';
 import { advanceRunSession, applyRunInput, createRunSession, startRun } from './run-session';
 import type { RunSession } from './run-session';
@@ -18,7 +18,6 @@ function newSession(seed: string, weak: readonly string[] = []): RunSession {
     createRunSession({
       map: MAP_1,
       pool: ALL_PROMPTS,
-      obstacles: OBSTACLES,
       weakCharacters: weak,
       /*
        * No secret sentence, deliberately.

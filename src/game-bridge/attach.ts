@@ -1,5 +1,5 @@
-import { MAP_1, OBSTACLES, ALL_PROMPTS, findSecret, secretPrompts } from '../content';
-import type { MapConfig, ObstacleDefinition, PromptEntry } from '../game-core/models';
+import { MAP_1, ALL_PROMPTS, findSecret, secretPrompts } from '../content';
+import type { MapConfig, PromptEntry } from '../game-core/models';
 import { liveStats, RuntimeHost } from '../game-runtime/session';
 import { GameBridge } from './bridge';
 import type { WorldSnapshot } from './snapshot';
@@ -20,7 +20,6 @@ import type { WorldSnapshot } from './snapshot';
 export interface AttachGameOptions {
   readonly map?: MapConfig;
   readonly prompts?: readonly PromptEntry[];
-  readonly obstacles?: readonly ObstacleDefinition[];
   /** Fixing the seed makes a run reproducible — used by tests and bug reports. */
   readonly seed?: string;
   /**
@@ -58,7 +57,6 @@ export function attachGame(options: AttachGameOptions = {}): AttachedGame {
   const host = new RuntimeHost({
     map,
     prompts: options.prompts ?? ALL_PROMPTS,
-    obstacles: options.obstacles ?? OBSTACLES,
     secretWords: secret === undefined ? [] : secretPrompts(secret),
     seed: options.seed ?? 'typing-chase',
     ...(options.weakCharacters === undefined ? {} : { weakCharacters: options.weakCharacters }),

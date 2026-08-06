@@ -1,12 +1,11 @@
 export {
-  activeObstacle,
   advanceRunSession,
   applyRunInput,
   createRunSession,
   currentSpeed,
   isBoosting,
   liveStats,
-  obstacleSuccessRate,
+  promptSuccessRate,
   pauseRun,
   resumeRun,
   isMoving,

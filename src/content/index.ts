@@ -10,7 +10,6 @@ export {
   MAP_ENDLESS,
   MAPS,
 } from './maps';
-export { findObstacle, OBSTACLES, obstaclesFor } from './obstacles';
 export { findSecret, MAP_SECRETS, secretPrompts, secretWordCount } from './secrets';
 export type { MapSecret } from './secrets';
 export {

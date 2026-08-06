@@ -51,13 +51,21 @@ export interface ActiveFlowWord {
 /**
  * Slack over the map's advertised speed.
  *
- * Tighter than a hazard's buffer and about the same as a coin's. A flow word
- * carries no reaction cost — it is already on screen, in the same place the last
- * one was, and the player is mid-rhythm rather than reacting to something new.
- * The buffer that a hazard spends on *noticing* is the buffer a flow word does
- * not need.
+ * The map's own reaction buffer, plus a tolerance the map names. Derived from
+ * the map rather than fixed at a constant, and that is what makes the six-map
+ * ladder gate: a flow word is the primary prompt now, so one constant here
+ * would hand all six maps the same tolerance and `reactionBuffer` would stop
+ * deciding anything at all.
+ *
+ * It is *looser* than the buffer a hazard used to get, which reads backwards
+ * until you notice what a lapsed flow word now costs. Missing one used to cost
+ * the combo. It now hands the chaser ground, and enough of them lose the run —
+ * so the budget has to cover a player who is typing at the map's speed and
+ * simply human, not one who is typing at the map's speed metronomically.
  */
-export const FLOW_BUFFER = 1.1;
+export function flowBufferFor(map: MapConfig): number {
+  return map.timing.reactionBuffer + map.content.flowTolerance;
+}
 
 /** Flat allowance for the eye to land on a word that just replaced another. */
 export const FLOW_LEAD_MS = 160;
@@ -80,7 +88,7 @@ export function placeFlowWord(input: PlaceFlowWordInput): ActiveFlowWord {
   const timing = computePromptTiming({
     characterCount: effectiveCharacterCount(input.prompt),
     targetWpm: input.map.targetWpm,
-    timing: { reactionBuffer: FLOW_BUFFER, fixedVisualLeadTimeMs: FLOW_LEAD_MS },
+    timing: { reactionBuffer: flowBufferFor(input.map), fixedVisualLeadTimeMs: FLOW_LEAD_MS },
   });
 
   return {

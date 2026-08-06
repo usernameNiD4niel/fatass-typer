@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ALL_PROMPTS, MAP_4, MAPS, OBSTACLES } from '../../content';
+import { ALL_PROMPTS, MAP_4, MAPS } from '../../content';
 import { registerFailure } from '../../game-core/assistance';
 import { DEFAULT_ADAPTIVE_ASSISTANCE } from '../../game-core/models';
 import { playtest } from './playtest-harness';
@@ -10,13 +10,13 @@ import { advanceRunSession, createRunSession, type RunSession, startRun } from '
  * Adaptive assistance inside a run (step F4, spec §6).
  *
  * The rules themselves are covered in `game-core/assistance`. What is checked
- * here is that they reach the world: an eased session has to place its obstacles
- * further away, and a run must never be able to drift far from the map as
+ * here is that they reach the world: an eased session has to give its words a
+ * longer budget, and a run must never be able to drift far from the map as
  * written.
  *
  * **A finding worth stating plainly:** under the current tuning, assistance
  * effectively never engages. It triggers on three *consecutive missed
- * obstacles*, and the obstacle timing budget is generous enough (that is the
+ * words*, and the timing budget is generous enough (that is the
  * fairness promise in `game-core/obstacles`) that a player who is missing
  * obstacles at all is already so far behind that the dogs catch them first. A
  * sweep of 360 runs — every map, five hesitation levels, three speeds, four
@@ -25,33 +25,32 @@ import { advanceRunSession, createRunSession, type RunSession, startRun } from '
  * deliberately rather than by surprise.
  */
 
-const BASE = { map: MAP_4, prompts: ALL_PROMPTS, obstacles: OBSTACLES };
+const BASE = { map: MAP_4, prompts: ALL_PROMPTS };
 const OFF = { ...DEFAULT_ADAPTIVE_ASSISTANCE, enabled: false };
 
 /**
  * Map 4, unchanged.
  *
- * These tests are about where a hazard is *placed*, which is decided the moment
- * it spawns — before anything can go wrong with it. The run does not need to
- * survive for the placement to be observed.
+ * These tests are about the budget a word is *given*, which is decided the
+ * moment it goes up. The run does not need to survive for that to be observed.
  */
 const CALM = MAP_4;
 
-/** Runs until an obstacle has been placed, and returns it. */
-function firstObstacle(session: RunSession) {
+/** Runs until a flow word is on screen, and returns it. */
+function firstFlowWord(session: RunSession) {
   let current = session;
 
-  for (let step = 0; step < 4_000 && current.obstacles.length === 0; step += 1) {
+  for (let step = 0; step < 4_000 && current.flow === null; step += 1) {
     current = advanceRunSession(current, 16).session;
   }
 
-  return current.obstacles[0];
+  return current.flow;
 }
 
 describe('assistance reaches the world', () => {
   it('gives an eased run more time before impact', () => {
     const plain = startRun(
-      createRunSession({ map: CALM, pool: ALL_PROMPTS, obstacles: OBSTACLES, seed: 'assist' }),
+      createRunSession({ map: CALM, pool: ALL_PROMPTS, seed: 'assist' }),
     ).session;
 
     // Three misses is what the rules call a pattern; this is what the session
@@ -61,28 +60,26 @@ describe('assistance reaches the world', () => {
       assistance: registerFailure(registerFailure(registerFailure(plain.assistance))),
     };
 
-    const plainObstacle = firstObstacle(plain);
-    const easedObstacle = firstObstacle(eased);
+    const plainWord = firstFlowWord(plain);
+    const easedWord = firstFlowWord(eased);
 
-    expect(plainObstacle).toBeDefined();
-    expect(easedObstacle?.timing.availableMs ?? 0).toBeGreaterThan(
-      plainObstacle?.timing.availableMs ?? 0,
-    );
+    expect(plainWord).not.toBeNull();
+    expect(easedWord?.timing.availableMs ?? 0).toBeGreaterThan(plainWord?.timing.availableMs ?? 0);
   });
 
-  it('gives it more road, not a slower game', () => {
+  it('gives it more time, not a slower game', () => {
     const plain = startRun(
-      createRunSession({ map: CALM, pool: ALL_PROMPTS, obstacles: OBSTACLES, seed: 'assist' }),
+      createRunSession({ map: CALM, pool: ALL_PROMPTS, seed: 'assist' }),
     ).session;
     const eased: RunSession = {
       ...plain,
       assistance: registerFailure(registerFailure(registerFailure(plain.assistance))),
     };
 
-    // The obstacle is placed further ahead. The MC's speed, the chase, and the
-    // score are untouched — the player gets more time to see it coming.
-    expect(firstObstacle(eased)?.impactMeters ?? 0).toBeGreaterThan(
-      firstObstacle(plain)?.impactMeters ?? 0,
+    // The word's deadline moves out. The MC's speed, the chaser, and the score
+    // are untouched — the player simply gets longer to type.
+    expect(firstFlowWord(eased)?.deadlineAtMs ?? 0).toBeGreaterThan(
+      firstFlowWord(plain)?.deadlineAtMs ?? 0,
     );
     expect(eased.map).toBe(plain.map);
     // Assistance moves the reaction buffer and nothing else: the score, the
@@ -129,11 +126,10 @@ describe('how often it actually fires', () => {
         const result = playtest({
           map,
           prompts: ALL_PROMPTS,
-          obstacles: OBSTACLES,
           wpm,
           seed: 'dormant',
           // Half a second of hesitation before each new prompt — more than a
-          // practised typist needs, and still not enough to miss an obstacle.
+          // practised typist needs, and still not enough to miss a word.
           reactionDelayMs: 500,
         });
 

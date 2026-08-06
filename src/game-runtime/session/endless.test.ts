@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ALL_PROMPTS, MAP_ENDLESS, MAPS, OBSTACLES } from '../../content';
+import { ALL_PROMPTS, MAP_ENDLESS, MAPS } from '../../content';
 import { isEndless } from './run-session';
 import { playtest } from './playtest-harness';
 
@@ -16,7 +16,6 @@ function run(wpm: number, seed: string) {
   return playtest({
     map: MAP_ENDLESS,
     prompts: ALL_PROMPTS,
-    obstacles: OBSTACLES,
     wpm,
     seed,
     // Endless has no sentence: a sentence has an end and this map does not.

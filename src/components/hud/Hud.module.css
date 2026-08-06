@@ -82,10 +82,25 @@
 }
 
 .track {
+  position: relative;
   height: 0.5rem;
   overflow: hidden;
   background: var(--surface-sunken);
   border-radius: var(--radius-pill);
+}
+
+/*
+ * A reference mark on the track — on the pace meter, where the map's target
+ * sits. Position, not hue: whether the fill has reached the mark is readable
+ * with no colour vision at all (spec §12).
+ */
+.tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text-primary);
+  opacity: 0.55;
 }
 
 .fill {
@@ -117,8 +132,32 @@
   background: var(--accent-default);
 }
 
-.speedFill {
+/*
+ * Pace. The same three bands as the chaser, for the same reason: a player has
+ * to place themselves at a glance, without comparing shades.
+ */
+.paceFillAhead {
   background: var(--threat-safe);
+}
+
+.paceFillOnPace {
+  background: var(--threat-close);
+}
+
+.paceFillBehind {
+  background: var(--threat-critical);
+}
+
+/* Before a single character is typed. Red here would be a lie. */
+.paceFillIdle {
+  background: var(--text-tertiary);
+}
+
+/* The band as a word, beside the meter's label. */
+.meterNote {
+  margin-left: var(--space-2);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-semibold);
 }
 
 /*

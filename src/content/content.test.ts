@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  isMapConfig,
-  isObstacleDefinition,
-  isPromptEntry,
-  MAP_THEMES,
-  PROMPT_CATEGORIES,
-} from '../game-core/models';
+import { isMapConfig, isPromptEntry, MAP_THEMES, PROMPT_CATEGORIES } from '../game-core/models';
 import { MAPS } from './maps';
-import { findObstacle, OBSTACLES, obstaclesFor } from './obstacles';
 import {
   ALL_PROMPTS,
   NUMBERS,
@@ -21,92 +14,13 @@ import {
 /**
  * Content is data, so the tests are validation: every entry has to satisfy the
  * same guards a corrupt save would be checked against, and the cross-references
- * between maps and obstacles have to resolve.
+ * between maps and prompts have to resolve.
  */
-
-describe('obstacle definitions', () => {
-  it('defines five jump hazards and three cars', () => {
-    expect(OBSTACLES.map((obstacle) => obstacle.id).sort()).toEqual(
-      [
-        'rock',
-        'crate',
-        'low-barrier',
-        'cone-beam',
-        'roadwork-barrier',
-        'sedan',
-        'van',
-        'box-truck',
-      ].sort(),
-    );
-  });
-
-  it('validates every definition', () => {
-    for (const obstacle of OBSTACLES) {
-      expect(isObstacleDefinition(obstacle)).toBe(true);
-    }
-  });
-
-  it('gives every obstacle a unique id', () => {
-    expect(new Set(OBSTACLES.map((obstacle) => obstacle.id)).size).toBe(OBSTACLES.length);
-  });
-
-  it('gives every hazard one of the two verbs', () => {
-    const actions = Object.fromEntries(OBSTACLES.map((o) => [o.id, o.action]));
-
-    expect(actions).toMatchObject({
-      rock: 'jump',
-      crate: 'jump',
-      'low-barrier': 'jump',
-      'cone-beam': 'jump',
-      'roadwork-barrier': 'jump',
-      sedan: 'lane-change',
-      van: 'lane-change',
-      'box-truck': 'lane-change',
-    });
-  });
-
-  it('asks for a word, never a phrase', () => {
-    // A phrase inside the seconds a hazard gives you is a different game. Words
-    // only, and the length of the word is the difficulty dial.
-    const phrases = OBSTACLES.filter((o) => o.promptCategory.endsWith('phrase'));
-
-    expect(phrases).toEqual([]);
-  });
-
-  it('keeps the harder obstacles off the early maps', () => {
-    for (const obstacle of OBSTACLES) {
-      if (obstacle.difficultyWeight >= 0.5) expect(obstacle.minimumMap).toBeGreaterThan(1);
-    }
-  });
-
-  it('gives every obstacle a reaction allowance', () => {
-    for (const obstacle of OBSTACLES) {
-      expect(obstacle.baseReactionTimeMs).toBeGreaterThan(0);
-    }
-  });
-
-  it('resolves ids to definitions and skips unknown ones', () => {
-    expect(findObstacle('crate')?.label).toBe('Fallen crate');
-    expect(findObstacle('not-real')).toBeUndefined();
-    expect(obstaclesFor(['sedan', 'not-real']).map((o) => o.id)).toEqual(['sedan']);
-  });
-});
 
 describe('maps', () => {
   it('validates every map config', () => {
     for (const map of MAPS) {
       expect(isMapConfig(map)).toBe(true);
-    }
-  });
-
-  it('only references obstacles that exist and are allowed on it', () => {
-    for (const map of MAPS) {
-      for (const id of map.content.obstacleIds) {
-        const obstacle = findObstacle(id);
-
-        expect(obstacle).toBeDefined();
-        expect(obstacle?.minimumMap).toBeLessThanOrEqual(map.mapNumber);
-      }
     }
   });
 

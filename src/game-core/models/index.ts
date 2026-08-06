@@ -48,9 +48,6 @@ export type { LaneIndex, LaneSide } from './lane';
 export { isMotionProfile, jumpDurationMs, timeToClearanceMs } from './motion';
 export type { MotionProfile } from './motion';
 
-export { isObstacleAction, isObstacleDefinition, OBSTACLE_ACTIONS } from './obstacle';
-export type { ObstacleAction, ObstacleDefinition } from './obstacle';
-
 export { DEFAULT_ADAPTIVE_ASSISTANCE, isMapConfig, MAP_THEMES } from './map';
 export type {
   AdaptiveAssistanceConfig,
@@ -75,7 +72,7 @@ export {
 export type { GameSettings, MistakeBehavior, PromptTextSize, ThemePreference } from './settings';
 
 export { EMPTY_LIVE_STATS, emptyRunResult, isRunResult } from './run';
-export type { LiveRunStats, RunResult } from './run';
+export type { FailureReason, LiveRunStats, RunResult } from './run';
 
 export {
   coercePlayerProfile,

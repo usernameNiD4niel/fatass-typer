@@ -7,7 +7,7 @@ import { requiredWpm } from '../timing';
 import {
   completeFlowWord,
   expireFlowWord,
-  FLOW_BUFFER,
+  flowBufferFor,
   flowExpired,
   flowRemainingMs,
   flowUrgency,
@@ -54,8 +54,17 @@ describe('flow words', () => {
     }
   });
 
-  it('gives less slack than a hazard, because there is nothing to notice', () => {
-    expect(FLOW_BUFFER).toBeLessThan(MAP_1.timing.reactionBuffer);
+  it('tightens as the ladder climbs', () => {
+    // The ladder has to live somewhere. It used to live in the hazard budget;
+    // with flow words the primary prompt, this is where it lives now, and a
+    // constant here would flatten all six maps into one.
+    expect(flowBufferFor(MAP_6)).toBeLessThan(flowBufferFor(MAP_1));
+  });
+
+  it('covers the map, plus the tolerance the map names', () => {
+    expect(flowBufferFor(MAP_1)).toBeCloseTo(
+      MAP_1.timing.reactionBuffer + MAP_1.content.flowTolerance,
+    );
   });
 
   it('expires when the budget runs out, and only then', () => {

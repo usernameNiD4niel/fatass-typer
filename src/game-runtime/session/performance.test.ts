@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ALL_PROMPTS, MAP_1, MAP_6, OBSTACLES } from '../../content';
+import { ALL_PROMPTS, MAP_1, MAP_6 } from '../../content';
 import { profileRun } from './profile-harness';
 
 /**
@@ -19,7 +19,6 @@ describe('frame cost', () => {
     const result = profileRun({
       map: MAP_1,
       prompts: ALL_PROMPTS,
-      obstacles: OBSTACLES,
       seed: 'profile-1',
       seconds: 45,
       wpm: MAP_1.targetWpm,
@@ -36,7 +35,6 @@ describe('frame cost', () => {
     const result = profileRun({
       map: MAP_6,
       prompts: ALL_PROMPTS,
-      obstacles: OBSTACLES,
       seed: 'profile-6',
       seconds: 60,
       wpm: MAP_6.targetWpm,
@@ -63,7 +61,6 @@ describe('frame cost', () => {
     const result = profileRun({
       map: MAP_6,
       prompts: ALL_PROMPTS,
-      obstacles: OBSTACLES,
       seed: 'profile-pool',
       seconds: 60,
       wpm: MAP_6.targetWpm,

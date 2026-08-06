@@ -6,6 +6,23 @@ import { CURRENT_SCHEMA_VERSION } from './schema';
 import type { Versioned } from './schema';
 
 /**
+ * Why a run ended, for the game-over screen (spec §17).
+ *
+ * Lives here rather than beside the hazard code that used to own it, because
+ * "why did the run end" is a question about the run, and the answers no longer
+ * all come from one system.
+ */
+export type FailureReason =
+  /** The deadline passed with the word unfinished. */
+  | 'timeout'
+  /** The word was never finished and the player drove into the hazard. */
+  | 'collision'
+  /** Committed, but the move had not carried them clear in time. */
+  | 'late-move'
+  /** The chaser reached them. */
+  | 'caught';
+
+/**
  * Run outcome (spec §14).
  *
  * Written once when a run ends, then stored in run history. Persisted, so it
@@ -49,7 +66,14 @@ export interface RunResult extends Versioned {
   readonly correctedErrors: number;
   readonly completedPrompts: number;
   readonly missedPrompts: number;
-  /** 0..1. Obstacles avoided divided by obstacles faced. */
+  /**
+   * 0..1. Words finished divided by words offered.
+   *
+   * It used to be obstacles avoided over obstacles faced, and the field kept
+   * its name through the rework so that every run already on disk stays
+   * readable. What it counts changed with the game; what it means — how much of
+   * what was asked for did you actually do — did not.
+   */
   readonly obstacleSuccessRate: number;
   readonly longestCombo: number;
   /** Coins collected. Optional pickups, so this is a flourish, not a grade. */
@@ -107,6 +131,14 @@ export interface LiveRunStats {
    * is in, and metres behind is a number they would have to learn to read.
    */
   readonly pursuitPressure: number;
+  /**
+   * The WPM the map is asking for right now.
+   *
+   * Carried in the stats rather than read from the map config by the HUD,
+   * because an endless map escalates its target as the run goes on — a value
+   * captured once at mount would be a lie for all but the first few seconds.
+   */
+  readonly targetWpm: number;
 }
 
 export const EMPTY_LIVE_STATS: LiveRunStats = {
@@ -123,6 +155,7 @@ export const EMPTY_LIVE_STATS: LiveRunStats = {
   secretWordsTyped: 0,
   secretWordCount: 0,
   pursuitPressure: 0,
+  targetWpm: 0,
   flightRemainingMs: 0,
   magnetRemainingMs: 0,
   elapsedMs: 0,

@@ -4,20 +4,18 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { EMPTY_LIVE_STATS, type LiveRunStats } from '../../game-core/models';
 import { Hud } from './Hud';
+import { paceBand } from './pace';
 
 function statsWith(overrides: Partial<LiveRunStats> = {}): LiveRunStats {
   return { ...EMPTY_LIVE_STATS, ...overrides };
 }
 
 describe('Hud', () => {
-  const TOP_SPEED = 12;
-
   function setup(stats: LiveRunStats, options: { paused?: boolean; canPause?: boolean } = {}) {
     const onPause = vi.fn();
     render(
       <Hud
         stats={stats}
-        topSpeedMetersPerSecond={TOP_SPEED}
         onPause={onPause}
         paused={options.paused ?? false}
         canPause={options.canPause ?? true}
@@ -72,14 +70,55 @@ describe('Hud', () => {
     );
   });
 
-  it('reports speed as a number, not only as a bar', () => {
-    setup(statsWith({ speedMetersPerSecond: 6.4 }));
+  it('meters pace against what the map is asking for', () => {
+    setup(statsWith({ currentWpm: 40, targetWpm: 40 }));
 
-    const meter = screen.getByRole('progressbar', { name: 'Speed' });
+    const meter = screen.getByRole('progressbar', { name: 'Pace' });
 
-    // Colour and length are not enough on their own (spec §21).
-    expect(meter).toHaveAttribute('aria-valuetext', '6.4 m/s');
-    expect(meter).toHaveAttribute('aria-valuenow', '53');
+    // Colour and length are not enough on their own (spec §12): the word and
+    // both numbers are in the accessible text, and the fill sits exactly on
+    // the target tick at 1 / 1.25 of the track.
+    expect(meter).toHaveAttribute('aria-valuetext', '▲ Ahead, 40 / 40 WPM');
+    expect(meter).toHaveAttribute('aria-valuenow', '80');
+  });
+
+  it('says which side of the target the player is on, in words', () => {
+    setup(statsWith({ currentWpm: 24, targetWpm: 40 }));
+
+    expect(screen.getByText('▼ Behind')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Pace' })).toHaveAttribute(
+      'aria-valuetext',
+      '▼ Behind, 24 / 40 WPM',
+    );
+  });
+
+  it('opens neutral rather than behind, before anything is typed', () => {
+    setup(statsWith({ currentWpm: 0, targetWpm: 40 }));
+
+    // Red on the first frame of every run would be a lie.
+    expect(screen.getByText('— Ready')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Pace' })).toHaveAttribute(
+      'aria-valuetext',
+      '— Ready, — / 40 WPM',
+    );
+  });
+
+  describe('paceBand', () => {
+    it('bands a pace by its share of the target', () => {
+      expect(paceBand(1.2, 'idle')).toBe('ahead');
+      expect(paceBand(0.9, 'idle')).toBe('onPace');
+      expect(paceBand(0.5, 'idle')).toBe('behind');
+      expect(paceBand(0, 'ahead')).toBe('idle');
+    });
+
+    it('holds its band across the boundary it is sitting on', () => {
+      // A three-second window arriving at 10Hz would otherwise strobe, which
+      // spec §12 forbids.
+      expect(paceBand(0.99, 'ahead')).toBe('ahead');
+      expect(paceBand(0.95, 'ahead')).toBe('onPace');
+      expect(paceBand(0.76, 'behind')).toBe('behind');
+      expect(paceBand(0.8, 'behind')).toBe('onPace');
+    });
   });
 
   it('never shows the word being typed — that belongs beside its hazard', () => {

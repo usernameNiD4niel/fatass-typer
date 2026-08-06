@@ -8,7 +8,7 @@ import {
   isRecord,
   isStringArray,
 } from './guards';
-import type { MapId, ObstacleId } from './ids';
+import type { MapId } from './ids';
 import { isMotionProfile } from './motion';
 import type { MotionProfile } from './motion';
 import type { PromptCategory } from './prompt';
@@ -17,9 +17,9 @@ import type { PromptCategory } from './prompt';
  * Map configuration (spec §6).
  *
  * Difficulty is never "a WPM number". It is the combination of target speed,
- * prompt length and familiarity, hazard frequency, reaction buffer, recovery
- * time, and how often a car blocks both ways out. All of it lives here as data
- * so systems never hardcode tuning (CLAUDE.md §3).
+ * prompt length and familiarity, the reaction buffer, the slack a flow word is
+ * given, and how often coins and crates interrupt the rhythm. All of it lives
+ * here as data so systems never hardcode tuning (CLAUDE.md §3).
  */
 
 /** Visual theme, spec §6 map table. Drives palette and parallax art, not rules. */
@@ -44,7 +44,7 @@ export interface UnlockRule {
   readonly minimumAccuracy: number;
 }
 
-/** Timing budget for obstacle prompts (spec §6 prompt timing formula). */
+/** Timing budget for a prompt (spec §6 prompt timing formula). */
 export interface TimingProfile {
   /**
    * Multiplier applied to the expected typing time. 1.70 on Map 1 down to 1.08
@@ -72,31 +72,12 @@ export interface BoostProfile {
   readonly durationMs: number;
 }
 
-/** Which content this map draws on and how often obstacles appear. */
+/** Which content this map draws on, and how often the road interrupts it. */
 export interface ContentProfile {
   readonly promptCategories: readonly PromptCategory[];
-  readonly obstacleIds: readonly ObstacleId[];
-  /** Average seconds between obstacles. Lower means denser pressure. */
-  readonly obstacleIntervalSeconds: number;
-  /** Random variation applied to the interval, 0..1. Keeps spacing unpredictable. */
-  readonly obstacleIntervalJitter: number;
-  /**
-   * Quiet road after a hazard resolves, in seconds. The breath between
-   * encounters is pacing, not an accident of the interval (spec §14).
-   */
-  readonly recoverySeconds: number;
-  /**
-   * Chance that a car blocks *both* neighbouring lanes when the player is in
-   * the centre and has two escapes, 0..1. Zero on the early maps: with one way
-   * out the player still has to type, but not also read which side.
-   *
-   * Never applies when there is only one escape — that would leave nowhere to
-   * go, which `lane-assignment.ts` refuses to construct.
-   */
-  readonly doubleBlockChance: number;
   /**
    * Average seconds between coin lines, measured from the moment the road is
-   * clear. Coins only ever appear in the gaps between hazards.
+   * clear. A coin line takes the field from the flow word while it is asking.
    */
   readonly coinIntervalSeconds: number;
   /** How many coins are in one line. Score, and a number on the HUD. */
@@ -106,6 +87,19 @@ export interface ContentProfile {
    * an event, often enough that a long run sees several.
    */
   readonly powerupIntervalSeconds: number;
+  /**
+   * Slack a flow word gets *on top of* `timing.reactionBuffer`, as a fraction.
+   *
+   * A flow word carries no reaction cost — it is already on screen, in the
+   * place the last one was, and the player is mid-rhythm rather than reacting
+   * to something new. So it asks for less slack than the thing that has to be
+   * noticed first.
+   *
+   * Per-map rather than one constant, and that is the whole point: flow words
+   * are now the primary prompt, so a fixed buffer would give all six maps the
+   * same tolerance and the ladder would stop gating anything.
+   */
+  readonly flowTolerance: number;
   /** Tags preferred when selecting themed vocabulary for this map. */
   readonly themeTags: readonly string[];
 }
@@ -243,15 +237,11 @@ export function isMapConfig(value: unknown): value is MapConfig {
   if (!isStringArray(content['promptCategories']) || content['promptCategories'].length === 0) {
     return false;
   }
-  if (!isStringArray(content['obstacleIds'])) return false;
   if (!isStringArray(content['themeTags'])) return false;
-  if (!isPositiveNumber(content['obstacleIntervalSeconds'])) return false;
-  if (!isRatio(content['obstacleIntervalJitter'])) return false;
-  if (!isCount(content['recoverySeconds'])) return false;
-  if (!isRatio(content['doubleBlockChance'])) return false;
   if (!isPositiveNumber(content['coinIntervalSeconds'])) return false;
   if (!isIntegerAtLeast(content['coinValue'], 1)) return false;
   if (!isPositiveNumber(content['powerupIntervalSeconds'])) return false;
+  if (!isRatio(content['flowTolerance'])) return false;
 
   const unlock = value['unlock'];
   if (!isRecord(unlock)) return false;

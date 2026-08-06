@@ -6,7 +6,7 @@ import { effectiveCharacterCount } from '../models/prompt';
 import { pick, type Rng } from '../random';
 import {
   computePromptTiming,
-  motionReserveMs,
+  laneChangeReserveMs,
   type PromptTiming,
   spawnDistanceMeters,
   timeToImpactMs,
@@ -148,7 +148,7 @@ export function placePowerup(input: PlacePowerupInput): PlacePowerupResult {
     timing: { reactionBuffer: POWERUP_BUFFER, fixedVisualLeadTimeMs: POWERUP_LEAD_MS },
   });
 
-  const reserveMs = motionReserveMs('lane-change', input.map.motion);
+  const reserveMs = laneChangeReserveMs(input.map.motion);
   const leadMeters = spawnDistanceMeters(
     (timing.availableMs + reserveMs) * POWERUP_LEAD_FACTOR,
     input.speedMetersPerSecond,

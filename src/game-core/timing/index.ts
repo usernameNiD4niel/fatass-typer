@@ -4,7 +4,7 @@ export {
   MIN_BOOST_SCALE,
   REFERENCE_PROMPT_CHARACTERS,
 } from './boost-duration';
-export { motionReserveMs } from './motion-reserve';
+export { laneChangeReserveMs } from './lane-reserve';
 export {
   computePromptTiming,
   CRITICAL_THRESHOLD,
@@ -12,7 +12,6 @@ export {
   deadlineProgress,
   expectedTypingMs,
   isPromptFeasible,
-  obstaclePromptTiming,
   requiredWpm,
   spawnDistanceMeters,
   timeToImpactMs,

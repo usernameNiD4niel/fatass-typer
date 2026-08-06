@@ -13,8 +13,6 @@ import {
   normalizePromptText,
 } from './prompt';
 import type { PromptEntry } from './prompt';
-import { isObstacleDefinition } from './obstacle';
-import type { ObstacleDefinition } from './obstacle';
 import { isMapConfig } from './map';
 import type { MapConfig } from './map';
 import { coerceSettings, DEFAULT_SETTINGS, isGameSettings } from './settings';
@@ -42,16 +40,6 @@ const PROMPT: PromptEntry = {
   tags: ['neighborhood'],
 };
 
-const OBSTACLE: ObstacleDefinition = {
-  id: 'crate',
-  label: 'Wooden crate',
-  action: 'jump',
-  difficultyWeight: 0.2,
-  minimumMap: 1,
-  promptCategory: 'short-word',
-  baseReactionTimeMs: 400,
-};
-
 const MAP: MapConfig = {
   id: 'map-1',
   mapNumber: 1,
@@ -74,14 +62,10 @@ const MAP: MapConfig = {
   boost: { speedMultiplier: 1.4, durationMs: 2000 },
   content: {
     promptCategories: ['short-word', 'medium-word'],
-    obstacleIds: ['crate'],
-    obstacleIntervalSeconds: 8,
-    obstacleIntervalJitter: 0.2,
-    recoverySeconds: 1.5,
-    doubleBlockChance: 0,
     coinIntervalSeconds: 6,
     coinValue: 5,
     powerupIntervalSeconds: 60,
+    flowTolerance: 0.2,
     themeTags: ['neighborhood'],
   },
   unlock: { requiresMapId: null, minimumAccuracy: 0 },
@@ -155,20 +139,6 @@ describe('prompt content', () => {
     expect(isPromptEntry({ ...PROMPT, category: 'haiku' })).toBe(false);
     expect(isPromptEntry({ ...PROMPT, minimumMap: 0 })).toBe(false);
     expect(isPromptEntry({ ...PROMPT, text: '' })).toBe(false);
-  });
-});
-
-describe('obstacle definitions', () => {
-  it('accepts a well-formed definition', () => {
-    expect(isObstacleDefinition(OBSTACLE)).toBe(true);
-  });
-
-  it('rejects an unknown avoidance action', () => {
-    expect(isObstacleDefinition({ ...OBSTACLE, action: 'teleport' })).toBe(false);
-  });
-
-  it('rejects a negative reaction allowance', () => {
-    expect(isObstacleDefinition({ ...OBSTACLE, baseReactionTimeMs: -1 })).toBe(false);
   });
 });
 

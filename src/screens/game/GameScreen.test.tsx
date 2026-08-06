@@ -32,7 +32,7 @@ describe('GameScreen', () => {
     }
 
     expect(screen.getByRole('progressbar', { name: 'To finish' })).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Speed' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Pace' })).toBeInTheDocument();
   });
 
   it('has no typing field at all', () => {

@@ -1,7 +1,7 @@
 import { type JSX, lazy, type ReactNode, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { Button } from './components/ui';
-import { ALL_MAPS, findMap, MAP_1, MAPS, obstaclesFor } from './content';
+import { ALL_MAPS, findMap, MAP_1, MAPS } from './content';
 import { weakCharacters } from './game-core/keystats';
 import { progressFor, type PlayerProfile, type RunResult } from './game-core/models';
 import { useAppliedSettings } from './hooks/useAppliedSettings';
@@ -235,7 +235,6 @@ export function App(): JSX.Element {
           <LevelBriefing
             map={selectedMap}
             profile={profile}
-            obstacles={obstaclesFor(selectedMap.content.obstacleIds)}
             onStart={() => {
               machine.send('COUNTDOWN_COMPLETE');
             }}
