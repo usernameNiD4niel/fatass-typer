@@ -1,4 +1,4 @@
-import type { GameSettings, LiveRunStats, ObstacleAction, RunResult } from '../game-core/models';
+import type { GameSettings, LiveRunStats, RunResult } from '../game-core/models';
 
 /**
  * The bridge message contract (spec §13).
@@ -39,18 +39,10 @@ export interface PromptViewModel {
   /** How many characters are currently accepted as correct. */
   readonly typedLength: number;
   readonly mistakeCount: number;
-  /** Boost prompts are optional speed; obstacle prompts are mandatory. */
-  readonly kind: 'boost' | 'obstacle';
+  /** Which encounter the word belongs to. */
+  readonly kind: 'flow' | 'coin' | 'powerup';
   /** Milliseconds left to finish, or `null` when nothing is enforcing a deadline. */
   readonly remainingMs: number | null;
-}
-
-/** An obstacle the player has been warned about. */
-export interface ObstacleViewModel {
-  readonly obstacleId: string;
-  readonly action: ObstacleAction;
-  readonly promptText: string;
-  readonly secondsUntilImpact: number;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -78,17 +70,17 @@ export type GameCommandType = GameCommand['type'];
 /* Events — the runtime to React                                              */
 /* -------------------------------------------------------------------------- */
 
-/** How close an obstacle deadline is. Mirrors `game-core`'s `DeadlinePressure`. */
+/** How close the current word's deadline is. Mirrors `game-core`. */
 export type DeadlinePressureLevel = 'safe' | 'warning' | 'critical' | 'expired';
 
 export type GameEvent =
   | { readonly type: 'ready' }
   /**
-   * The active obstacle's deadline, throttled like the stats.
+   * The current word's deadline, throttled like the stats.
    *
    * A separate event rather than a field on `LiveRunStats`: the deadline exists
-   * only while an obstacle prompt is attached, and folding a mostly-null field
-   * into the stats every tick would make the common case pay for the rare one.
+   * only while a word is attached, and folding a mostly-null field into the
+   * stats every tick would make the common case pay for the rare one.
    */
   | {
       readonly type: 'deadlineChanged';
@@ -98,8 +90,7 @@ export type GameEvent =
   | { readonly type: 'stateChanged'; readonly state: GameState }
   | { readonly type: 'promptChanged'; readonly prompt: PromptViewModel | null }
   | { readonly type: 'statsUpdated'; readonly stats: LiveRunStats }
-  | { readonly type: 'obstacleWarning'; readonly obstacle: ObstacleViewModel }
-  /** A prompt was finished and the boost started. The runner's moment to gloat. */
+  /** A word was finished and the player picked up speed. */
   | { readonly type: 'boostStarted' }
   | { readonly type: 'playerHit'; readonly reason: string }
   | { readonly type: 'levelCompleted'; readonly result: RunResult }

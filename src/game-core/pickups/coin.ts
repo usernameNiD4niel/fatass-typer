@@ -5,7 +5,7 @@ import { effectiveCharacterCount } from '../models/prompt';
 import { pick, type Rng } from '../random';
 import {
   computePromptTiming,
-  motionReserveMs,
+  laneChangeReserveMs,
   type PromptTiming,
   spawnDistanceMeters,
   timeToImpactMs,
@@ -148,7 +148,7 @@ export function placeCoin(input: PlaceCoinInput): PlaceCoinResult {
     timing: { reactionBuffer: COIN_BUFFER, fixedVisualLeadTimeMs: COIN_LEAD_MS },
   });
 
-  const reserveMs = motionReserveMs('lane-change', input.map.motion);
+  const reserveMs = laneChangeReserveMs(input.map.motion);
   const leadMeters = spawnDistanceMeters(
     (timing.availableMs + reserveMs) * COIN_LEAD_FACTOR,
     input.speedMetersPerSecond,

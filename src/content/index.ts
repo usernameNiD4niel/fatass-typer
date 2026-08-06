@@ -1,5 +1,20 @@
+<<<<<<< Updated upstream
 export { findMap, MAP_1, MAP_2, MAP_3, MAP_4, MAP_5, MAP_6, MAPS } from './maps';
 export { findObstacle, OBSTACLES, obstaclesFor } from './obstacles';
+=======
+export {
+  ALL_MAPS,
+  findMap,
+  MAP_1,
+  MAP_2,
+  MAP_3,
+  MAP_4,
+  MAP_5,
+  MAP_6,
+  MAP_ENDLESS,
+  MAPS,
+} from './maps';
+>>>>>>> Stashed changes
 export { findSecret, MAP_SECRETS, secretPrompts, secretWordCount } from './secrets';
 export type { MapSecret } from './secrets';
 export {

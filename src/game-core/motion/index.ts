@@ -25,3 +25,14 @@ export type {
 } from './player-motion';
 
 export { rampedSpeed } from './speed';
+
+export {
+  BOOSTING_THRESHOLD,
+  decayMomentum,
+  MARGIN_BAND_CEILING,
+  MARGIN_BAND_FLOOR,
+  MARGIN_FLOOR_SHARE,
+  momentumMultiplier,
+  momentumShare,
+  topUpMomentum,
+} from './momentum';

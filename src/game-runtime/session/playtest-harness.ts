@@ -1,16 +1,11 @@
 import { findSecret, secretPrompts } from '../../content';
-import type {
-  AdaptiveAssistanceConfig,
-  MapConfig,
-  ObstacleDefinition,
-  PromptEntry,
-} from '../../game-core/models';
-import type { FailureReason } from '../../game-core/obstacles';
+import type { AdaptiveAssistanceConfig, MapConfig, PromptEntry } from '../../game-core/models';
+import type { FailureReason } from '../../game-core/models';
 import {
   advanceRunSession,
   applyRunInput,
   createRunSession,
-  obstacleSuccessRate,
+  promptSuccessRate,
   type RunSession,
   startRun,
 } from './run-session';
@@ -36,7 +31,6 @@ export function msPerCharacter(wpm: number): number {
 export interface PlaytestInput {
   readonly map: MapConfig;
   readonly prompts: readonly PromptEntry[];
-  readonly obstacles: readonly ObstacleDefinition[];
   /** Defaults to the map's own secret. Pass `[]` to run without a sentence. */
   readonly secretWords?: readonly PromptEntry[];
   readonly wpm: number;
@@ -93,7 +87,6 @@ export function playtest(input: PlaytestInput): PlaytestResult {
     createRunSession({
       map: input.map,
       pool: input.prompts,
-      obstacles: input.obstacles,
       secretWords: input.secretWords ?? (secret === undefined ? [] : secretPrompts(secret)),
       seed: input.seed,
       ...(input.assistance === undefined ? {} : { assistance: input.assistance }),
@@ -152,9 +145,9 @@ export function playtest(input: PlaytestInput): PlaytestResult {
     finished: session.phase === 'levelComplete',
     failureReason: session.phase === 'levelComplete' ? 'none' : (session.failureReason ?? 'none'),
     elapsedMs: session.elapsedMs,
-    hazardsFaced: session.obstaclesFaced,
-    hazardsCleared: session.obstaclesAvoided,
-    obstacleSuccessRate: obstacleSuccessRate(session),
+    hazardsFaced: session.completedPrompts + session.flowWordsMissed,
+    hazardsCleared: session.completedPrompts,
+    obstacleSuccessRate: promptSuccessRate(session),
     mistakes,
   };
 }

@@ -1,5 +1,5 @@
 import type { GameEvent } from '../../game-bridge/messages';
-import type { MapConfig, ObstacleDefinition, PromptEntry } from '../../game-core/models';
+import type { MapConfig, PromptEntry } from '../../game-core/models';
 import { RuntimeHost } from './runtime-host';
 import type { RunSession } from './run-session';
 
@@ -26,7 +26,6 @@ const FRAME_MS = 1000 / 60;
 export interface ProfileInput {
   readonly map: MapConfig;
   readonly prompts: readonly PromptEntry[];
-  readonly obstacles: readonly ObstacleDefinition[];
   readonly seed: string;
   /** How long to profile, in simulated seconds. */
   readonly seconds: number;
@@ -82,7 +81,6 @@ export function profileRun(input: ProfileInput): ProfileResult {
   const host = new RuntimeHost({
     map: input.map,
     prompts: input.prompts,
-    obstacles: input.obstacles,
     seed: input.seed,
     emit: collect,
     publishStats: () => undefined,
@@ -126,7 +124,7 @@ export function profileRun(input: ProfileInput): ProfileResult {
         frame,
         elapsedMs: host.currentSession.elapsedMs,
         costMs,
-        hazards: host.snapshot.hazardCount,
+        hazards: host.snapshot.coinCount,
         playerMeters: host.currentSession.playerMeters,
       });
     }

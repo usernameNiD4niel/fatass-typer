@@ -2,7 +2,7 @@ export {
   type ActiveFlowWord,
   completeFlowWord,
   expireFlowWord,
-  FLOW_BUFFER,
+  flowBufferFor,
   FLOW_LEAD_MS,
   flowExpired,
   flowRemainingMs,

@@ -1,4 +1,4 @@
-import type { LaneIndex, LaneSide, ObstacleAction } from '../game-core/models';
+import type { LaneIndex, LaneSide } from '../game-core/models';
 import type { PowerupKind } from '../game-core/powerups';
 import type { GameState } from './messages';
 
@@ -18,36 +18,18 @@ import type { GameState } from './messages';
  * ## Mutated in place
  *
  * Every field is mutable and the object is reused across frames. That is
- * deliberate: at 60Hz a fresh snapshot per frame — with a fresh array of
- * hazards inside it — is a steady stream of garbage in the hottest path in the
- * program (spec §20 "avoid per-frame allocations"). Hazards live in a
- * fixed-length pool; only `[0, hazardCount)` is meaningful, and entries beyond
- * it are stale data from an earlier frame rather than anything to draw.
+ * deliberate: at 60Hz a fresh snapshot per frame — with fresh arrays of coins
+ * and crates inside it — is a steady stream of garbage in the hottest path in
+ * the program (spec §20 "avoid per-frame allocations"). Everything with a body
+ * lives in a fixed-length pool; only `[0, count)` is meaningful, and entries
+ * beyond it are stale data from an earlier frame rather than anything to draw.
  *
  * Read it, do not keep it. A reference held across frames is a reference to
  * whatever the world looks like *now*.
  */
 
-/** Maximum hazards the pool can describe at once. */
-export const MAX_SNAPSHOT_HAZARDS = 8;
-
 /** Maximum coin lines the pool can describe at once. */
 export const MAX_SNAPSHOT_COINS = 4;
-
-export interface HazardSnapshot {
-  instanceId: string;
-  action: ObstacleAction;
-  /** Distance from the player, in metres. Negative once it is behind them. */
-  distanceMeters: number;
-  /** Lanes it occupies. Reused array — read, do not retain. */
-  blockedLanes: LaneIndex[];
-  safeLane: LaneIndex | null;
-  safeSide: LaneSide | null;
-  /** True once the player has typed the word and the move has begun. */
-  committed: boolean;
-  /** True once it has been decided, win or lose. */
-  resolved: boolean;
-}
 
 /** Coins one line can describe. Matches `game-core/pickups`. */
 export const MAX_SNAPSHOT_COIN_UNITS = 8;
@@ -107,7 +89,7 @@ export interface EffectsSnapshot {
  * `flow` is the odd one: it has no body anywhere in the world, so the scene
  * places it rather than tracking something. See `game-core/flow`.
  */
-export type ChallengeKind = 'hazard' | 'coin' | 'powerup' | 'flow';
+export type ChallengeKind = 'coin' | 'powerup' | 'flow';
 
 export interface ChallengeSnapshot {
   kind: ChallengeKind;
@@ -117,18 +99,17 @@ export interface ChallengeSnapshot {
   typedLength: number;
   /** Index of the first uncorrected mistake, or -1. */
   firstErrorIndex: number;
-  action: ObstacleAction;
-  /** Which side the safe lane is on, for the world cue. `null` for jumps. */
+  /** Which side the lane to swerve to is on, or `null` when there is none. */
   safeSide: LaneSide | null;
   safeLane: LaneIndex | null;
   /** Which encounter the word belongs to, so the scene can place it. */
   hazardId: string;
   /**
-   * A coin word rather than a hazard word.
+   * Nothing is lost by ignoring it.
    *
-   * The scene styles the two differently on purpose: one of them can end the
-   * run and the other cannot, and the player has to be able to tell at a glance
-   * which one they are looking at.
+   * True for a coin line and a crate; false for the flow word, which costs the
+   * combo and hands the chaser ground. The scene styles them differently, so a
+   * player can tell at a glance which they are looking at.
    */
   optional: boolean;
   /**
@@ -160,8 +141,6 @@ export interface WorldSnapshot {
   /** 0..1, deepest at take-off and on landing. Cosmetic crouch. */
   crouch: number;
   boosting: boolean;
-  hazardCount: number;
-  hazards: HazardSnapshot[];
   coinCount: number;
   coins: CoinSnapshot[];
   powerupCount: number;
@@ -195,19 +174,6 @@ function emptyCoin(): CoinSnapshot {
   };
 }
 
-function emptyHazard(): HazardSnapshot {
-  return {
-    instanceId: '',
-    action: 'jump',
-    distanceMeters: 0,
-    blockedLanes: [],
-    safeLane: null,
-    safeSide: null,
-    committed: false,
-    resolved: false,
-  };
-}
-
 export function createWorldSnapshot(): WorldSnapshot {
   return {
     phase: 'uninitialized',
@@ -217,8 +183,6 @@ export function createWorldSnapshot(): WorldSnapshot {
     jumpHeightMeters: 0,
     crouch: 0,
     boosting: false,
-    hazardCount: 0,
-    hazards: Array.from({ length: MAX_SNAPSHOT_HAZARDS }, emptyHazard),
     coinCount: 0,
     coins: Array.from({ length: MAX_SNAPSHOT_COINS }, emptyCoin),
     powerupCount: 0,
@@ -233,11 +197,6 @@ export function createWorldSnapshot(): WorldSnapshot {
     challenge: null,
     impulse: { shake: 0, fovBias: 0 },
   };
-}
-
-/** The hazards actually in play this frame. */
-export function liveHazards(snapshot: WorldSnapshot): readonly HazardSnapshot[] {
-  return snapshot.hazards.slice(0, snapshot.hazardCount);
 }
 
 /** The coin lines actually in play this frame. */

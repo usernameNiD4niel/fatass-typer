@@ -1,23 +1,9 @@
 import type { JSX } from 'react';
 
 import { Button, Card } from '../../components/ui';
-import type {
-  MapConfig,
-  ObstacleAction,
-  ObstacleDefinition,
-  PlayerProfile,
-} from '../../game-core/models';
+import type { MapConfig, PlayerProfile } from '../../game-core/models';
 import { progressFor } from '../../game-core/models';
 import styles from './LevelBriefing.module.css';
-
-/**
- * What each hazard asks for, in words rather than in the rules' vocabulary.
- * "type the prompt to lane-change past it" is accurate and unreadable.
- */
-const ACTION_BRIEFING: Readonly<Record<ObstacleAction, string>> = {
-  jump: 'type the prompt to jump past it.',
-  'lane-change': 'type the word on the open side to pull into that lane.',
-};
 
 /**
  * Level briefing (spec §9).
@@ -35,8 +21,6 @@ const ACTION_BRIEFING: Readonly<Record<ObstacleAction, string>> = {
 export interface LevelBriefingProps {
   readonly map: MapConfig;
   readonly profile: PlayerProfile;
-  /** The obstacles this map can spawn, already filtered to its own list. */
-  readonly obstacles: readonly ObstacleDefinition[];
   readonly onStart: () => void;
   readonly onBack: () => void;
 }
@@ -55,13 +39,7 @@ function estimatedSeconds(map: MapConfig): number {
   return Math.round(map.distanceMeters / map.baseSpeedMetersPerSecond);
 }
 
-export function LevelBriefing({
-  map,
-  profile,
-  obstacles,
-  onStart,
-  onBack,
-}: LevelBriefingProps): JSX.Element {
+export function LevelBriefing({ map, profile, onStart, onBack }: LevelBriefingProps): JSX.Element {
   const progress = progressFor(profile, map.id);
   const played = progress.attempts > 0;
 
@@ -71,7 +49,8 @@ export function LevelBriefing({
         <p className={styles.eyebrow}>Map {map.mapNumber}</p>
         <h1 className={styles.title}>{map.name}</h1>
         <p className={styles.summary}>
-          Type the prompts to stay ahead. Clear the obstacle prompts before you reach them.
+          Type the words to stay ahead of what is behind you. Every word finished pushes it back;
+          every word missed lets it close.
         </p>
       </header>
 
@@ -80,24 +59,9 @@ export function LevelBriefing({
           <Fact label="Target speed" value={`${String(map.targetWpm)} WPM`} />
           <Fact label="Distance" value={`${String(map.distanceMeters)} m`} />
           <Fact label="About" value={`${String(estimatedSeconds(map))} s`} />
-          <Fact
-            label="Obstacles"
-            value={obstacles.length === 0 ? 'None' : String(obstacles.length)}
-          />
+          <Fact label="Coins" value={`${String(map.content.coinValue)} a line`} />
         </dl>
       </Card>
-
-      {obstacles.length > 0 && (
-        <Card title="What you will meet" titleLevel={2}>
-          <ul className={styles.tips}>
-            {obstacles.map((obstacle) => (
-              <li key={obstacle.id}>
-                <strong>{obstacle.label}</strong> — {ACTION_BRIEFING[obstacle.action]}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
 
       <Card title="Your best here" titleLevel={2}>
         {played ? (

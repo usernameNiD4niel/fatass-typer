@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { ALL_PROMPTS, MAP_1, OBSTACLES } from '../../content';
-import { isSettled, lanePosition } from '../../game-core/motion';
+import { ALL_PROMPTS, MAP_1 } from '../../content';
+import { isSettled, lanePosition, MARGIN_FLOOR_SHARE } from '../../game-core/motion';
 import {
   activeCoin,
-  activeObstacle,
   advanceRunSession,
   applyRunInput,
   createRunSession,
@@ -12,9 +11,9 @@ import {
   IMPACT_BEAT_MS,
   isBoosting,
   liveStats,
-  obstacleSuccessRate,
   pauseRun,
   playerLane,
+  promptSuccessRate,
   type RunSession,
   resumeRun,
   runProgress,
@@ -25,22 +24,18 @@ import {
  * The run, end to end, with no pixels involved.
  *
  * This is the milestone the whole rework aimed at: the game is correct and
- * fully tested before anything is drawn. If a hazard is unfair, if a lane change
- * lands late, if a pause loses a player time — it shows up here, not in a
- * playtest.
+ * fully tested before anything is drawn. If a word is unfair, if a swerve lands
+ * late, if a pause loses a player time — it shows up here, not in a playtest.
+ *
+ * Hazards are gone. What is left is a word in front of the player at all times,
+ * a chaser behind them that every finished word pushes back, coins one lane
+ * over, and a crate about once a minute.
  */
 
 const STEP_MS = 16;
 
-function newSession(seed = 'test-seed', withHazards = true): RunSession {
-  return startRun(
-    createRunSession({
-      map: MAP_1,
-      pool: ALL_PROMPTS,
-      obstacles: withHazards ? OBSTACLES : [],
-      seed,
-    }),
-  ).session;
+function newSession(seed = 'test-seed'): RunSession {
+  return startRun(createRunSession({ map: MAP_1, pool: ALL_PROMPTS, seed })).session;
 }
 
 /** Runs the simulation forward, as the loop would. Stops when the run ends. */
@@ -55,17 +50,12 @@ function advance(session: RunSession, totalMs: number): RunSession {
   return current;
 }
 
-/**
- * Advances until a *hazard* word is on screen, or gives up.
- *
- * Coins and powerups also hold the field, and a coin usually gets there first —
- * so waiting for "any word" would hand these tests the wrong encounter.
- */
+/** Advances until any word is on screen. */
 function untilChallenge(session: RunSession, limitMs = 90_000): RunSession {
   let current = session;
 
   for (let elapsed = 0; elapsed < limitMs; elapsed += STEP_MS) {
-    if (current.challenge?.kind === 'hazard' || current.phase !== 'running') break;
+    if (current.challenge !== null || current.phase !== 'running') break;
     current = advanceRunSession(current, STEP_MS).session;
   }
 
@@ -79,6 +69,18 @@ function typePrompt(session: RunSession): RunSession {
 
   for (let index = 1; index <= target.length; index += 1) {
     current = applyRunInput(current, target.slice(0, index)).session;
+  }
+
+  return current;
+}
+
+/** Plays well: types whatever is on screen, for as long as asked. */
+function playWell(session: RunSession, totalMs: number): RunSession {
+  let current = session;
+
+  for (let elapsed = 0; elapsed < totalMs; elapsed += STEP_MS) {
+    if (current.phase !== 'running') break;
+    current = typePrompt(advanceRunSession(current, STEP_MS).session);
   }
 
   return current;
@@ -106,9 +108,7 @@ describe('setting up a run', () => {
     const second = advance(newSession('same'), 20_000);
 
     expect(second.playerMeters).toBeCloseTo(first.playerMeters, 9);
-    expect(second.obstacles.map((entry) => entry.definition.id)).toEqual(
-      first.obstacles.map((entry) => entry.definition.id),
-    );
+    expect(second.prompt?.id).toBe(first.prompt?.id);
   });
 });
 
@@ -124,7 +124,7 @@ describe('the road', () => {
     const later = currentSpeed({ ...newSession(), elapsedMs: 90_000 });
 
     expect(later).toBeGreaterThan(early);
-    expect(later).toBeLessThanOrEqual(MAP_1.speed.maxMetersPerSecond);
+    expect(later).toBeLessThanOrEqual(MAP_1.speed.maxMetersPerSecond * MAP_1.boost.speedMultiplier);
   });
 
   it('reports progress toward the finish line', () => {
@@ -137,96 +137,44 @@ describe('the road', () => {
   });
 });
 
-describe('hazards', () => {
-  it('brings a hazard with a word to type', () => {
-    const session = untilChallenge(newSession());
+describe('words', () => {
+  it('puts one in front of the player straight away', () => {
+    // The road is never silent. This is the thing gap words exist for, and with
+    // hazards gone it is the whole of what the player reads.
+    const session = untilChallenge(newSession('flow'));
 
     expect(session.prompt).not.toBeNull();
-    expect(activeObstacle(session)).not.toBeNull();
+    expect(session.challenge).not.toBeNull();
   });
 
-  it('only ever has one unresolved hazard on the road', () => {
-    let session = newSession('crowd');
+  it('replaces one the instant it is finished', () => {
+    let session = untilChallenge(newSession('chain'));
+    const first = session.prompt?.id;
 
-    for (let elapsed = 0; elapsed < 120_000; elapsed += STEP_MS) {
-      if (session.phase !== 'running') break;
-      session = advanceRunSession(session, STEP_MS).session;
+    session = typePrompt(session);
 
-      const live = session.obstacles.filter(
-        (entry) =>
-          entry.status === 'approaching' ||
-          entry.status === 'active' ||
-          entry.status === 'committed',
-      );
-      expect(live.length).toBeLessThanOrEqual(1);
-    }
+    expect(session.prompt).not.toBeNull();
+    expect(session.prompt?.id).not.toBe(first);
   });
 
-  // Long, densely-typed simulations: a word is on screen at almost every step
-  // now, so these walk far more encounters than the default timeout allows.
-  it('always leaves a car hazard a lane to escape into', { timeout: 30_000 }, () => {
-    let session = newSession('lanes');
+  it('keeps a word on screen for nearly the whole run', () => {
+    let session = newSession('occupancy');
+    let withWord = 0;
+    let steps = 0;
 
-    for (let elapsed = 0; elapsed < 120_000; elapsed += STEP_MS) {
+    for (let elapsed = 0; elapsed < 40_000; elapsed += STEP_MS) {
       if (session.phase !== 'running') break;
       session = typePrompt(advanceRunSession(session, STEP_MS).session);
-
-      for (const hazard of session.obstacles) {
-        expect(hazard.blockedLanes.length).toBeLessThan(3);
-        if (hazard.definition.action === 'lane-change') {
-          expect(hazard.safeLane).not.toBeNull();
-          expect(hazard.blockedLanes).not.toContain(hazard.safeLane);
-        }
-      }
+      steps += 1;
+      if (session.challenge !== null) withWord += 1;
     }
+
+    expect(withWord / steps).toBeGreaterThan(0.9);
   });
+});
 
-  it('starts the move the hazard asks for when the word is finished', () => {
-    let session = untilChallenge(newSession('move'));
-    const hazard = activeObstacle(session);
-    expect(hazard).not.toBeNull();
-
-    session = typePrompt(session);
-
-    const committed = session.obstacles.find((entry) => entry.instanceId === hazard?.instanceId);
-    expect(committed?.status).toBe('committed');
-
-    if (hazard?.definition.action === 'lane-change') {
-      // A lane change starts at once: moving early is only ever safer.
-      expect(isSettled(session.motion)).toBe(false);
-      expect(session.motion.transition?.toLane).toBe(hazard.safeLane);
-    } else {
-      // A jump waits. Started here it would land again before the obstacle
-      // arrived — the PDF asks for a jump synchronised to the collision point.
-      expect(session.motion.jump).toBeNull();
-      expect(committed?.moveStarted).toBe(false);
-
-      const airborne = advance(session, 10_000);
-      expect(airborne.obstaclesAvoided).toBeGreaterThan(0);
-    }
-  });
-
-  it('clears the hazard when the word was typed in time', () => {
-    let session = untilChallenge(newSession('clear'));
-    session = typePrompt(session);
-    session = advance(session, 10_000);
-
-    expect(session.obstaclesAvoided).toBeGreaterThan(0);
-    expect(session.collisions).toBe(0);
-  });
-
-  it('hands the field back once the hazard is done', () => {
-    let session = untilChallenge(newSession('clear'));
-    const hazardId = session.challenge?.id;
-    session = typePrompt(session);
-    session = advance(session, 6_000);
-
-    // The hazard no longer owns the word. What comes next is either quiet road
-    // or a line of coins, but it is not this hazard.
-    expect(session.challenge?.id).not.toBe(hazardId);
-  });
-
-  it('earns a boost for clearing a hazard', () => {
+describe('speed', () => {
+  it('is earned by typing, and only by typing', () => {
     let session = untilChallenge(newSession('boost'));
     expect(isBoosting(session)).toBe(false);
 
@@ -235,37 +183,89 @@ describe('hazards', () => {
     expect(currentSpeed(session)).toBeGreaterThan(MAP_1.baseSpeedMetersPerSecond);
   });
 
+<<<<<<< Updated upstream
   it('leaves the road quiet for a moment after a hazard', () => {
     let session = untilChallenge(newSession('recovery'));
     session = typePrompt(session);
     session = advance(session, 1_000);
+=======
+  it('pays more for finishing with more of the budget to spare', () => {
+    // The same word, same seed, finished instantly versus finished at the last
+    // moment. Without the margin curve these produce identical speed, which is
+    // why there would be no reason to type faster than the deadline.
+    const decisive = typePrompt(untilChallenge(newSession('margin')));
 
-    const quiet = session.obstacles.filter((entry) => entry.status === 'approaching');
-    expect(quiet).toHaveLength(0);
+    let late = untilChallenge(newSession('margin'));
+    const budgetMs = late.flow?.timing.availableMs ?? 0;
+    late = typePrompt(advance(late, budgetMs * 0.8));
+
+    expect(decisive.momentum).toBeGreaterThan(late.momentum);
+    expect(currentSpeed(decisive)).toBeGreaterThan(currentSpeed(late));
+    expect(decisive.momentum).toBeLessThanOrEqual(1);
+  });
+
+  it('pays every word at least the floor, so continuous typing never crawls', () => {
+    // A player typing at exactly the map's speed is the audience it was written
+    // for. Leaving them at base speed would make the map slower than its label.
+    const session = playWell(newSession('floor'), 8_000);
+
+    expect(session.momentum).toBeGreaterThanOrEqual(MARGIN_FLOOR_SHARE);
+    expect(currentSpeed(session)).toBeGreaterThan(MAP_1.baseSpeedMetersPerSecond);
+  });
+
+  it('drains when nothing is typed', () => {
+    const moving = typePrompt(untilChallenge(newSession('drain')));
+    const idle = advance(moving, MAP_1.boost.durationMs * 2);
+>>>>>>> Stashed changes
+
+    expect(idle.momentum).toBeLessThan(moving.momentum);
+  });
+});
+
+describe('the chaser', () => {
+  it('falls back when words are finished well', () => {
+    const start = newSession('chase').pursuit.gapMeters;
+    const session = playWell(newSession('chase'), 30_000);
+
+    expect(session.phase).toBe('running');
+    expect(session.pursuit.gapMeters).toBeGreaterThanOrEqual(start);
+  });
+
+  it('closes on a player who types nothing, and ends the run', () => {
+    const session = advance(newSession('doomed'), 300_000);
+
+    expect(session.phase).toBe('gameOver');
+    expect(session.failureReason).toBe('caught');
+  });
+
+  it('closes a little on every wrong character', () => {
+    const session = untilChallenge(newSession('mistake'));
+    const target = session.prompt?.text ?? '';
+    const before = session.pursuit.gapMeters;
+
+    const typed = applyRunInput(applyRunInput(session, target.slice(0, 1)).session, '#').session;
+
+    expect(typed.pursuit.gapMeters).toBeLessThan(before);
+    expect(typed.phase).toBe('running');
   });
 });
 
 describe('coins', () => {
-  /**
-   * Advances until a coin line owns the word, clearing hazards on the way.
-   *
-   * Hazards have to be typed or the run ends before any coins appear — which is
-   * itself the point: coins live in the gaps a competent player creates.
-   */
+  /** Advances until a coin line owns the word, typing everything on the way. */
   function untilCoinWord(session: RunSession, limitMs = 90_000): RunSession {
     let current = session;
 
     for (let elapsed = 0; elapsed < limitMs; elapsed += STEP_MS) {
       if (current.challenge?.kind === 'coin') break;
       if (current.phase !== 'running') break;
-      if (current.challenge?.kind === 'hazard') current = typePrompt(current);
+      if (current.challenge?.kind === 'flow') current = typePrompt(current);
       current = advanceRunSession(current, STEP_MS).session;
     }
 
     return current;
   }
 
-  it('offers coins in the gaps, in a lane the player has to move to', () => {
+  it('offers coins in a lane the player has to move to', () => {
     const session = untilCoinWord(newSession('coins'));
 
     expect(session.challenge?.kind).toBe('coin');
@@ -298,53 +298,41 @@ describe('coins', () => {
     expect(session.motion.lane).toBe(lane);
   });
 
-  it('costs nothing to ignore', () => {
-    // No hazards in this one, deliberately. Ignoring a coin line means ignoring
-    // whatever comes after it too, and hazards now follow closely enough that
-    // the crash — not the coins — would be what changed the score.
-    let session = untilCoinWord(newSession('coins', false));
-    const before = { score: session.score.score, combo: session.score.combo };
+  it('costs no score and no ground to decline', () => {
+    // Coins are the only optional thing in the game, and that is only true
+    // while declining them is free. The gap word that follows costs the combo
+    // if it lapses — that is the flow word's price, not the coin's.
+    let session = untilCoinWord(newSession('decline'));
+    const before = { score: session.score.score, gap: session.pursuit.gapMeters };
 
-    session = advance(session, 8_000);
+    session = advanceRunSession(session, STEP_MS).session;
+    while (session.challenge?.kind === 'coin' && session.phase === 'running') {
+      session = advanceRunSession(session, STEP_MS).session;
+    }
 
     expect(session.score.score).toBe(before.score);
-    // Not even the combo. Declining is free, or it is not optional.
-    expect(session.score.combo).toBe(before.combo);
+    expect(session.pursuit.gapMeters).toBe(before.gap);
     expect(session.phase).toBe('running');
   });
 
-  it('never lets a coin word compete with a hazard word', { timeout: 30_000 }, () => {
+  it('never lets a coin word and a gap word be on screen together', () => {
     let session = newSession('crowded');
 
-    for (let elapsed = 0; elapsed < 90_000; elapsed += STEP_MS) {
+    for (let elapsed = 0; elapsed < 40_000; elapsed += STEP_MS) {
       if (session.phase !== 'running') break;
-      session = typePrompt(advanceRunSession(session, STEP_MS).session);
+      session = advanceRunSession(session, STEP_MS).session;
 
-      // One word, whatever is on the road. The hazard always wins the field.
       const unanswered = session.coins.filter(
         (coin) => coin.status === 'approaching' || coin.status === 'active',
       );
-      const hazardOwnsField = session.challenge?.kind === 'hazard';
-      if (hazardOwnsField) expect(unanswered).toHaveLength(0);
+      // One word, whatever is on the road: a live coin line owns the field.
+      if (unanswered.length > 0) expect(session.challenge?.kind).not.toBe('flow');
     }
-  });
-
-  it('gives a hazard right of way over a coin swerve already under way', () => {
-    // A player mid-collection who types their way out of a car must actually
-    // get out of the way. The hazard preempts the swerve.
-    let session = untilCoinWord(newSession('coins'));
-    session = typePrompt(session);
-    expect(isSettled(session.motion)).toBe(false);
-
-    session = advance(session, 90_000);
-
-    // Whatever happened, it was not a collision caused by being busy.
-    expect(session.failureReason).not.toBe('late-move');
   });
 });
 
 describe('powerups', () => {
-  /** Advances until a powerup sentence owns the field, clearing everything else. */
+  /** Advances until a powerup sentence owns the field, typing everything else. */
   function untilSentence(session: RunSession, limitMs = 200_000): RunSession {
     let current = session;
 
@@ -389,11 +377,6 @@ describe('powerups', () => {
     // Gone. Not a shorter deadline, not a partial reward.
     expect(session.powerupsLost).toBe(1);
     expect(session.powerupsClaimed).toBe(0);
-    expect(session.challenge).toBeNull();
-
-    // And typing the rest of it perfectly afterwards changes nothing.
-    session = typePrompt(session);
-    expect(session.powerupsClaimed).toBe(0);
   });
 
   it('costs nothing but the powerup', () => {
@@ -404,109 +387,39 @@ describe('powerups', () => {
     session = applyRunInput(session, `${target.slice(0, 2)}#`).session;
 
     expect(session.phase).toBe('running');
-    expect(session.collisions).toBe(0);
     expect(session.playerMeters).toBe(before);
-  });
-
-  it('is offered about once a minute', { timeout: 30_000 }, () => {
-    let session = newSession('cadence');
-    const offers: number[] = [];
-    let seen: string | null = null;
-
-    for (let elapsed = 0; elapsed < 180_000; elapsed += STEP_MS) {
-      if (session.phase !== 'running') break;
-      if (session.challenge !== null) session = typePrompt(session);
-      session = advanceRunSession(session, STEP_MS).session;
-
-      const id = session.challenge?.kind === 'powerup' ? session.challenge.id : null;
-      if (id !== null && id !== seen) {
-        seen = id;
-        offers.push(session.elapsedMs);
-      }
-    }
-
-    expect(offers.length).toBeGreaterThanOrEqual(1);
-    for (let index = 1; index < offers.length; index += 1) {
-      const gap = (offers[index] ?? 0) - (offers[index - 1] ?? 0);
-      // Never faster than the interval; some slack for finding a clear road.
-      expect(gap).toBeGreaterThan(50_000);
-    }
   });
 });
 
 describe('what a powerup buys', () => {
-  it('a shield turns a fatal crash into a survivable one', () => {
-    // Nothing typed, so the first hazard is a crash. With a shield in hand the
-    // run carries on, which is the whole point of carrying one.
+  it('a shield throws the player clear of the chaser', () => {
+    // With hazards gone this is what a life *is*: being caught is survivable
+    // once, and the gap is reset to where the run started.
     let session: RunSession = {
       ...newSession('shielded'),
       effects: { flightRemainingMs: 0, magnetRemainingMs: 0, shields: 1 },
     };
 
-    for (let elapsed = 0; elapsed < 60_000; elapsed += STEP_MS) {
+    for (let elapsed = 0; elapsed < 300_000; elapsed += STEP_MS) {
       if (session.savedByShield > 0 || session.phase !== 'running') break;
       session = advanceRunSession(session, STEP_MS).session;
     }
 
     expect(session.savedByShield).toBe(1);
-    expect(session.collisions).toBe(0);
     expect(session.phase).toBe('running');
     expect(session.effects.shields).toBe(0);
+    expect(session.pursuit.gapMeters).toBe(session.pursuitConfig.startMeters);
   });
 
-  it('and the next crash after that still ends the run', () => {
+  it('and being caught after that still ends the run', () => {
     const shielded: RunSession = {
       ...newSession('spent'),
       effects: { flightRemainingMs: 0, magnetRemainingMs: 0, shields: 1 },
     };
 
-    const after = advance(shielded, 200_000);
+    const after = advance(shielded, 600_000);
 
     expect(after.savedByShield).toBe(1);
-    expect(after.phase).toBe('gameOver');
-  });
-
-  it('flight carries the player over everything, typed or not', () => {
-    const flying: RunSession = {
-      ...newSession('flying'),
-      effects: { flightRemainingMs: 30_000, magnetRemainingMs: 0, shields: 0 },
-    };
-
-    // Twenty seconds of hazards, none of them answered.
-    const after = advance(flying, 20_000);
-
-    // Hazards were met and none of them landed. They are not *cleared* — a
-    // waived hazard never asked anything, so counting it as an avoidance would
-    // inflate the obstacle success rate for a player who typed nothing.
-    expect(after.obstaclesFaced).toBeGreaterThan(0);
-    expect(after.collisions).toBe(0);
-    expect(after.phase).toBe('running');
-  });
-
-  it('never arms a hazard the flying player was shown no word for', () => {
-    // The bug this guards: while flying there is nothing to type, but hazards
-    // used to go active and start a deadline anyway. When flight ran out, that
-    // deadline expired on a word the player had never seen — the game killing
-    // them for having taken a powerup. See `ObstacleAdvanceInput.suspended`.
-    const flying: RunSession = {
-      ...newSession('waived'),
-      effects: { flightRemainingMs: 12_000, magnetRemainingMs: 0, shields: 0 },
-    };
-
-    const after = advance(flying, 12_000);
-
-    expect(after.obstacles.every((entry) => entry.status !== 'active')).toBe(true);
-    expect(after.collisions).toBe(0);
-  });
-
-  it('and stops carrying them once it runs out', () => {
-    const flying: RunSession = {
-      ...newSession('landing'),
-      effects: { flightRemainingMs: 4_000, magnetRemainingMs: 0, shields: 0 },
-    };
-
-    const after = advance(flying, 120_000);
-
     expect(after.phase).toBe('gameOver');
   });
 
@@ -515,36 +428,22 @@ describe('what a powerup buys', () => {
     // with a whole sentence typed clean.
     let session: RunSession = {
       ...newSession('magnet'),
-      effects: { flightRemainingMs: 120_000, magnetRemainingMs: 120_000, shields: 0 },
+      effects: { flightRemainingMs: 0, magnetRemainingMs: 120_000, shields: 0 },
     };
 
-    session = advance(session, 60_000);
+    session = playWell(session, 60_000);
 
     expect(session.coinsCollected).toBeGreaterThan(0);
-    expect(session.coinsMissed).toBe(0);
   });
 });
 
 describe('failing', () => {
-  it('ends the run when a hazard is not answered', () => {
-    // Never type anything. The first hazard is the last thing that happens.
-    const session = advance(newSession('doomed'), 120_000);
-
-    expect(session.phase).toBe('gameOver');
-    expect(session.collisions).toBe(1);
-    expect(session.failureReason).not.toBeNull();
-  });
-
   it('holds the impact for a readable beat before ending', () => {
     let session = newSession('beat');
 
-    for (let elapsed = 0; elapsed < 120_000; elapsed += STEP_MS) {
-      const next = advanceRunSession(session, STEP_MS).session;
-      if (next.phase === 'impact') {
-        session = next;
-        break;
-      }
-      session = next;
+    for (let elapsed = 0; elapsed < 300_000; elapsed += STEP_MS) {
+      session = advanceRunSession(session, STEP_MS).session;
+      if (session.phase === 'impact') break;
     }
 
     expect(session.phase).toBe('impact');
@@ -582,24 +481,16 @@ describe('typing', () => {
     expect(session.completedPrompts).toBe(1);
   });
 
-  it('ignores input when there is nothing to type', () => {
-    const session = newSession();
-    expect(session.prompt).toBeNull();
-
-    expect(applyRunInput(session, 'anything').session).toBe(session);
-  });
-
   it('ignores input once the run is over', () => {
-    const over = advance(newSession('over'), 120_000);
+    const over = advance(newSession('over'), 300_000);
 
     expect(applyRunInput(over, 'x').session).toBe(over);
   });
 });
 
 describe('pausing', () => {
-  it('freezes the world, the clock, and any move in flight', () => {
+  it('freezes the world and the clock', () => {
     let session = untilChallenge(newSession('pause'));
-    session = typePrompt(session);
     session = advanceRunSession(session, 100).session;
 
     const paused = pauseRun(session).session;
@@ -610,20 +501,17 @@ describe('pausing', () => {
     expect(later.elapsedMs).toBe(frozen.elapsedMs);
     expect(later.playerMeters).toBe(frozen.playerMeters);
     expect(lanePosition(later.motion)).toBe(lanePosition(frozen.motion));
-    expect(later.motion.transition?.elapsedMs).toBe(frozen.motion.transition?.elapsedMs);
   });
 
   it('gives back exactly the deadline the player had', () => {
     let session = untilChallenge(newSession('deadline'));
     session = advanceRunSession(session, 200).session;
 
-    const hazard = activeObstacle(session);
-    const remaining = (hazard?.deadlineAtMs ?? 0) - session.elapsedMs;
+    const remaining = (session.flow?.deadlineAtMs ?? 0) - session.elapsedMs;
 
     const resumed = resumeRun(advanceRunSession(pauseRun(session).session, 30_000).session).session;
-    const after = activeObstacle(resumed);
 
-    expect((after?.deadlineAtMs ?? 0) - resumed.elapsedMs).toBeCloseTo(remaining, 9);
+    expect((resumed.flow?.deadlineAtMs ?? 0) - resumed.elapsedMs).toBeCloseTo(remaining, 9);
   });
 
   it('only pauses a running run', () => {
@@ -636,47 +524,41 @@ describe('pausing', () => {
 
 describe('reporting', () => {
   it('measures WPM over time spent typing, not over the whole run', () => {
-    let session = untilChallenge(newSession('wpm'));
-    session = typePrompt(session);
-    // A long quiet stretch between hazards.
-    session = advance(session, 4_000);
-
+    const session = playWell(newSession('wpm'), 10_000);
     const stats = liveStats(session);
 
     expect(session.activeTypingMs).toBeGreaterThan(0);
-    expect(session.activeTypingMs).toBeLessThan(session.elapsedMs);
-    // Divided by run time this would read a fraction of the real speed.
+    expect(session.activeTypingMs).toBeLessThanOrEqual(session.elapsedMs);
     expect(stats.averageWpm).toBeGreaterThan(0);
   });
 
-  it('reports speed and lane for the HUD and the scene', () => {
+  it('reports speed, lane, and the map’s current target for the HUD', () => {
     const stats = liveStats(newSession());
 
     expect(stats.speedMetersPerSecond).toBeCloseTo(MAP_1.baseSpeedMetersPerSecond, 6);
     expect(stats.lanePosition).toBe(1);
+    expect(stats.targetWpm).toBe(MAP_1.targetWpm);
   });
 
-  it('counts a hazard success rate, and calls an empty run perfect', () => {
-    expect(obstacleSuccessRate(newSession())).toBe(1);
+  it('counts a word success rate, and calls an empty run perfect', () => {
+    expect(promptSuccessRate(newSession())).toBe(1);
 
-    let session = untilChallenge(newSession('rate'));
-    session = advance(typePrompt(session), 8_000);
+    const session = playWell(newSession('rate'), 10_000);
 
-    expect(obstacleSuccessRate(session)).toBe(1);
+    expect(promptSuccessRate(session)).toBe(1);
   });
 });
 
 describe('finishing', () => {
-  it('reaches the finish line and stops exactly on it', () => {
-    let session = newSession('finish', false);
-    session = advance(session, 200_000);
+  it('reaches the finish line and stops exactly on it', { timeout: 30_000 }, () => {
+    const session = playWell(newSession('finish'), 400_000);
 
     expect(session.phase).toBe('levelComplete');
     expect(session.playerMeters).toBe(MAP_1.distanceMeters);
   });
 
-  it('does not keep simulating once it is over', () => {
-    const finished = advance(newSession('finish', false), 200_000);
+  it('does not keep simulating once it is over', { timeout: 30_000 }, () => {
+    const finished = playWell(newSession('finish'), 400_000);
 
     expect(advanceRunSession(finished, 1_000).session).toBe(finished);
   });

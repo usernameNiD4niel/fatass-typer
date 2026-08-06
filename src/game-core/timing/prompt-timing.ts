@@ -1,7 +1,4 @@
-import type { MapConfig, TimingProfile } from '../models/map';
-import type { ObstacleDefinition } from '../models/obstacle';
-import { effectiveCharacterCount } from '../models/prompt';
-import type { PromptEntry } from '../models/prompt';
+import type { TimingProfile } from '../models/map';
 import { millisecondsToType } from '../stats/wpm';
 
 /**
@@ -26,9 +23,10 @@ export interface PromptTimingInput {
   readonly targetWpm: number;
   readonly timing: TimingProfile;
   /**
-   * Extra allowance for noticing this particular obstacle, from
-   * `ObstacleDefinition.baseReactionTimeMs`. Zero for boost prompts, which have
-   * no impact deadline.
+   * Extra allowance for noticing this particular prompt, on top of the map's
+   * own visual lead. Zero for everything currently in the game — kept because
+   * the budget formula is the map's contract with the player and a caller that
+   * needs to hand out more time should do it here, in the open.
    */
   readonly extraReactionMs?: number;
 }
@@ -70,20 +68,6 @@ export function computePromptTiming(input: PromptTimingInput): PromptTiming {
     availableMs,
     spareMs: availableMs - typingMs,
   };
-}
-
-/** Timing for a prompt attached to an obstacle on a given map. */
-export function obstaclePromptTiming(
-  map: MapConfig,
-  obstacle: ObstacleDefinition,
-  prompt: PromptEntry,
-): PromptTiming {
-  return computePromptTiming({
-    characterCount: effectiveCharacterCount(prompt),
-    targetWpm: map.targetWpm,
-    timing: map.timing,
-    extraReactionMs: obstacle.baseReactionTimeMs,
-  });
 }
 
 /**
