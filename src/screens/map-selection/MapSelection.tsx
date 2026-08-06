@@ -4,6 +4,7 @@ import { Button, classes, SelectableCard } from '../../components/ui';
 import type { MapConfig, PlayerProfile } from '../../game-core/models';
 import { type MapCardModel, mapCardLabel, mapCardModel } from './map-card-model';
 import styles from './MapSelection.module.css';
+import { formatDistance } from '../../components/format';
 
 /**
  * Map selection (spec §9).
@@ -36,6 +37,9 @@ function MapCard({
   onSelect: (mapId: string) => void;
 }): JSX.Element {
   const { map, progress, locked, completed } = model;
+  // No finish line, so "Completed" is not a thing that can happen and distance
+  // is the only record worth showing (plan 2.2).
+  const endless = map.distanceMeters <= 0;
 
   return (
     <SelectableCard
@@ -47,8 +51,10 @@ function MapCard({
       }}
     >
       <div className={styles.cardHead}>
-        <span className={styles.number}>Map {map.mapNumber}</span>
-        {(completed || locked) && (
+        <span className={styles.number}>
+          {endless ? 'No finish line' : `Map ${String(map.mapNumber)}`}
+        </span>
+        {((completed && !endless) || locked) && (
           <span
             className={classes(
               styles.status,
@@ -61,14 +67,20 @@ function MapCard({
         )}
       </div>
 
-      <p className={styles.target}>{map.targetWpm} WPM</p>
+      <p className={styles.target}>
+        {map.targetWpm} WPM{endless ? ' and rising' : ''}
+      </p>
       <p className={styles.theme}>{formatTheme(map.theme)}</p>
 
       {locked ? (
         <p className={styles.lock}>{model.unlockRequirement}</p>
       ) : progress.attempts > 0 ? (
         <p className={styles.bests}>
-          <span>Best {Math.round(progress.bestScore)}</span>
+          {endless ? (
+            <span>Furthest {formatDistance(progress.bestDistanceMeters)}</span>
+          ) : (
+            <span>Best {Math.round(progress.bestScore)}</span>
+          )}
           <span>{Math.round(progress.bestAccuracy * 100)}% accuracy</span>
         </p>
       ) : (

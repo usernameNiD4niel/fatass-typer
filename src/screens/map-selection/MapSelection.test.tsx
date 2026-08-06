@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MAP_1 } from '../../content';
 import type { MapConfig, PlayerProfile } from '../../game-core/models';
-import { createPlayerProfile } from '../../game-core/models';
+import { createPlayerProfile, EMPTY_MAP_PROGRESS } from '../../game-core/models';
 import { mapCardLabel, mapCardModel, unlockRequirementText } from './map-card-model';
 import { MapSelection } from './MapSelection';
 
@@ -13,8 +13,8 @@ const MAP_2: MapConfig = {
   ...MAP_1,
   id: 'map-2',
   mapNumber: 2,
-  name: 'Downtown Sprint',
-  theme: 'downtown',
+  name: 'Forest Valley',
+  theme: 'forest-valley',
   targetWpm: 26,
   unlock: { requiresMapId: 'map-1', minimumAccuracy: 0.85 },
 };
@@ -33,6 +33,7 @@ const PLAYED = {
   bestAccuracy: 0.937,
   bestCompletionTimeMs: 48_000,
   attempts: 3,
+  bestDistanceMeters: 0,
 };
 
 function setup(profile: PlayerProfile = profileWith()) {
@@ -75,7 +76,7 @@ describe('mapCardLabel', () => {
     const model = mapCardModel(MAP_2, profileWith(), MAPS);
 
     expect(mapCardLabel(model)).toBe(
-      'Map 2: Downtown Sprint, target 26 WPM, Finish Neighborhood Dash with 85% accuracy to unlock',
+      'Map 2: Forest Valley, target 26 WPM, Finish Neighborhood Dash with 85% accuracy to unlock',
     );
   });
 
@@ -98,7 +99,7 @@ describe('MapSelection', () => {
     setup();
 
     expect(screen.getByRole('heading', { name: 'Neighborhood Dash' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Downtown Sprint' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Forest Valley' })).toBeInTheDocument();
   });
 
   it('shows each map’s target speed and theme', () => {
@@ -106,7 +107,7 @@ describe('MapSelection', () => {
 
     expect(screen.getByText('20 WPM')).toBeInTheDocument();
     expect(screen.getByText('neighborhood')).toBeInTheDocument();
-    expect(screen.getByText('downtown')).toBeInTheDocument();
+    expect(screen.getByText('forest valley')).toBeInTheDocument();
   });
 
   it('chooses an unlocked map', async () => {
@@ -119,7 +120,7 @@ describe('MapSelection', () => {
 
   it('will not start a locked map', async () => {
     const { user, onSelect } = setup();
-    const locked = screen.getByRole('button', { name: /Map 2: Downtown Sprint/ });
+    const locked = screen.getByRole('button', { name: /Map 2: Forest Valley/ });
 
     // Announced as unavailable but still focusable: the unlock requirement is
     // written on this card, and `disabled` would take it out of the tab order
@@ -136,7 +137,7 @@ describe('MapSelection', () => {
     await user.tab();
     await user.tab();
 
-    expect(screen.getByRole('button', { name: /Map 2: Downtown Sprint/ })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /Map 2: Forest Valley/ })).toHaveFocus();
   });
 
   it('says what would unlock a locked map, in words', () => {
@@ -178,5 +179,36 @@ describe('MapSelection', () => {
     await user.tab();
 
     expect(screen.getByRole('button', { name: /Map 1: Neighborhood Dash/ })).toHaveFocus();
+  });
+});
+
+describe('the endless map', () => {
+  it('shows distance rather than a map number and a completion badge', () => {
+    const endless: MapConfig = { ...MAP_1, id: 'endless', name: 'Endless', distanceMeters: 0 };
+    const profile = profileWith({
+      unlockedMapIds: ['map-1', 'endless'],
+      mapProgress: {
+        endless: {
+          ...EMPTY_MAP_PROGRESS,
+          attempts: 3,
+          bestAccuracy: 0.9,
+          bestDistanceMeters: 2_450,
+        },
+      },
+    });
+
+    render(
+      <MapSelection
+        maps={[MAP_1, endless]}
+        profile={profile}
+        onSelect={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    // "Map 7" would be a lie about the progression, and "Completed" is not
+    // something that can happen to a map with no finish line.
+    expect(screen.getByText('No finish line')).toBeInTheDocument();
+    expect(screen.getByText('Furthest 2.45 km')).toBeInTheDocument();
   });
 });

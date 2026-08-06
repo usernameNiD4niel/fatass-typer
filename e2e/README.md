@@ -39,7 +39,7 @@ catching.
 
 `navigation.spec.ts` covers getting around by keyboard alone. `run.spec.ts`
 covers a run: starting it, confirming there is no typing box, typing a word to
-clear a hazard, pausing with Escape, restarting with Ctrl+Enter, quitting, and
+finish a word, pausing with Escape, restarting with Ctrl+Enter, quitting, and
 crashing.
 
 ## Manual QA checklist
@@ -47,19 +47,20 @@ crashing.
 Automated tests do not watch the screen. Before shipping a change to the run,
 walk this once:
 
-| Check                 | Looking for                                                          |
-| --------------------- | -------------------------------------------------------------------- |
-| Start a run           | Road, runner, and buildings appear; speed climbs off zero            |
-| First car             | Word appears on the open side, with an arrow and a lane glow         |
-| Type it               | Characters light up in order; the runner eases across, does not snap |
-| First barrier         | Word sits above it; the jump fires _late_, clearing at the obstacle  |
-| Repeat lane changes   | Left and right both occur; two-lane moves land in time               |
-| Repeat jumps          | Landing squash reads; no clipping through the barrier                |
-| Wrong character       | Marked in place, combo resets, run continues                         |
-| Let a deadline expire | Impact beat, then the results screen says "Crashed"                  |
-| `Esc`                 | Everything freezes mid-move; resume loses no deadline time           |
-| `Ctrl`/`Cmd`+`Enter`  | Fresh run from zero, wherever focus is                               |
-| Resize the window     | Scene reflows; no stretching, no letterboxing                        |
-| Switch tabs mid-run   | Run pauses; returning does not skip the world forward                |
-| Reduced motion        | Scenery holds still, camera stops leading; the road still moves      |
-| Finish a map          | Results screen, unlock message, best scores recorded                 |
+| Check                | Looking for                                                        |
+| -------------------- | ------------------------------------------------------------------ |
+| Start a run          | Road, runner, buildings and passing traffic; speed climbs off zero |
+| The first word       | On screen immediately; the next replaces it the moment it is done  |
+| Type it              | Characters light up in order; the pace bar turns green             |
+| First coin line      | Word with an arrow and a lane glow; typing it swerves you across   |
+| Ignore a coin line   | You drive past; score, combo and the chaser are all unchanged      |
+| Lighting             | The runner casts a shadow that tracks their feet; no shadow acne   |
+| Runner               | Knees and elbows bend; arms swing opposite the legs                |
+| Wrong character      | Marked in place, combo resets, run continues                       |
+| Let words lapse      | The chaser closes, then the results screen says "Caught"           |
+| `Esc`                | Everything freezes mid-move; resume loses no deadline time         |
+| `Ctrl`/`Cmd`+`Enter` | Fresh run from zero, wherever focus is                             |
+| Resize the window    | Scene reflows; no stretching, no letterboxing                      |
+| Switch tabs mid-run  | Run pauses; returning does not skip the world forward              |
+| Reduced motion       | Scenery holds still, camera stops leading; the road still moves    |
+| Finish a map         | Results screen, unlock message, best scores recorded               |

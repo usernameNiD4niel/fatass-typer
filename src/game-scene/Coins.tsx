@@ -6,6 +6,8 @@ import { Vector3 } from 'three';
 import type { WorldSnapshot } from '../game-bridge';
 import { MAX_SNAPSHOT_COIN_UNITS, MAX_SNAPSHOT_COINS } from '../game-bridge';
 import { laneCenterX } from './scene-config';
+import { shiftAt } from './curve-state';
+import { Glow } from './Glow';
 
 /**
  * Coin lines.
@@ -91,7 +93,7 @@ export function Coins({ snapshot, reducedMotion }: CoinsProps): JSX.Element {
       }
 
       line.visible = true;
-      line.position.x = laneCenterX(coin.lane);
+      line.position.x = laneCenterX(coin.lane) + shiftAt(coin.distanceMeters);
       line.position.z = -coin.distanceMeters;
 
       for (let slot = 0; slot < line.children.length; slot += 1) {
@@ -172,10 +174,27 @@ export function Coins({ snapshot, reducedMotion }: CoinsProps): JSX.Element {
         >
           {Array.from({ length: MAX_SNAPSHOT_COIN_UNITS }, (_, slot) => (
             <group key={slot} position={[0, COIN_HEIGHT, 0]}>
-              <mesh rotation={[Math.PI / 2, 0, 0]}>
+              {/*
+                Actually metal, now that the lighting can show it: full metalness
+                and a low roughness is what makes a coin catch the sun as it
+                spins rather than simply being yellow.
+              */}
+              <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
                 <cylinderGeometry args={[0.42, 0.42, 0.08, 14]} />
-                <meshLambertMaterial color={GOLD} emissive={GOLD_EDGE} emissiveIntensity={0.35} />
+                <meshStandardMaterial
+                  color={GOLD}
+                  emissive={GOLD_EDGE}
+                  emissiveIntensity={0.3}
+                  roughness={0.25}
+                  metalness={1}
+                />
               </mesh>
+              {/*
+                A halo, so a coin is findable on the night maps. Edge-on, a disc
+                is a few pixels of nothing; this is what keeps it visible while
+                it spins. See `Glow.tsx`.
+              */}
+              <Glow color={GOLD} size={1.5} opacity={0.4} />
             </group>
           ))}
         </group>

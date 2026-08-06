@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ALL_PROMPTS, MAP_1 } from '../../content';
+import { ALL_PROMPTS, MAP_1, SURGES } from '../../content';
 import { isSettled, lanePosition, MARGIN_FLOOR_SHARE } from '../../game-core/motion';
 import {
   activeCoin,
@@ -10,6 +10,7 @@ import {
   currentSpeed,
   IMPACT_BEAT_MS,
   isBoosting,
+  isSurging,
   liveStats,
   pauseRun,
   playerLane,
@@ -35,7 +36,8 @@ import {
 const STEP_MS = 16;
 
 function newSession(seed = 'test-seed'): RunSession {
-  return startRun(createRunSession({ map: MAP_1, pool: ALL_PROMPTS, seed })).session;
+  return startRun(createRunSession({ map: MAP_1, pool: ALL_PROMPTS, surges: SURGES, seed }))
+    .session;
 }
 
 /** Runs the simulation forward, as the loop would. Stops when the run ends. */
@@ -183,12 +185,6 @@ describe('speed', () => {
     expect(currentSpeed(session)).toBeGreaterThan(MAP_1.baseSpeedMetersPerSecond);
   });
 
-<<<<<<< Updated upstream
-  it('leaves the road quiet for a moment after a hazard', () => {
-    let session = untilChallenge(newSession('recovery'));
-    session = typePrompt(session);
-    session = advance(session, 1_000);
-=======
   it('pays more for finishing with more of the budget to spare', () => {
     // The same word, same seed, finished instantly versus finished at the last
     // moment. Without the margin curve these produce identical speed, which is
@@ -216,7 +212,6 @@ describe('speed', () => {
   it('drains when nothing is typed', () => {
     const moving = typePrompt(untilChallenge(newSession('drain')));
     const idle = advance(moving, MAP_1.boost.durationMs * 2);
->>>>>>> Stashed changes
 
     expect(idle.momentum).toBeLessThan(moving.momentum);
   });
@@ -388,6 +383,131 @@ describe('powerups', () => {
 
     expect(session.phase).toBe('running');
     expect(session.playerMeters).toBe(before);
+  });
+});
+
+describe('the surge', () => {
+  /** Advances until the long sentence owns the field, typing everything else. */
+  function untilSurge(session: RunSession, limitMs = 120_000): RunSession {
+    let current = session;
+
+    for (let elapsed = 0; elapsed < limitMs; elapsed += STEP_MS) {
+      if (current.challenge?.kind === 'surge') break;
+      if (current.phase !== 'running') break;
+      if (current.challenge !== null) current = typePrompt(current);
+      current = advanceRunSession(current, STEP_MS).session;
+    }
+
+    return current;
+  }
+
+  it('arrives on its own clock, about half a minute in', () => {
+    const session = untilSurge(newSession('surge'));
+
+    expect(session.challenge?.kind).toBe('surge');
+    expect(session.elapsedMs).toBeGreaterThan(25_000);
+    expect(session.elapsedMs).toBeLessThan(60_000);
+  });
+
+  it('asks for a sentence, not a word', () => {
+    const session = untilSurge(newSession('surge'));
+    const words = (session.prompt?.text ?? '').split(' ');
+
+    // Length is the mechanic: one slip ends it, so what is being tested is
+    // whether a rhythm can be held rather than whether a word is known.
+    expect(words.length).toBeGreaterThan(4);
+  });
+
+  it('carries a struggling player faster the further into it they get', () => {
+    /*
+     * A surge sets a *floor* under momentum rather than adding to it, so it
+     * only lifts somebody who is not already at that pace — which is the point,
+     * since it exists for whoever is behind. This starts from a standstill.
+     */
+    const found = untilSurge(newSession('surge'));
+    const session: RunSession = { ...found, momentum: 0 };
+    const target = session.prompt?.text ?? '';
+    const atRest = currentSpeed(session);
+
+    const halfway = applyRunInput(session, target.slice(0, Math.floor(target.length / 2))).session;
+
+    // Paying for a surge merely being *on screen* handed free speed to somebody
+    // typing nothing at all. What it pays for is holding the sentence.
+    expect(currentSpeed(halfway)).toBeGreaterThan(atRest);
+  });
+
+  it('ends on a single wrong character, and takes the speed with it', () => {
+    let session = untilSurge(newSession('surge'));
+    const target = session.prompt?.text ?? '';
+
+    session = applyRunInput(session, target.slice(0, 6)).session;
+    const fast = currentSpeed(session);
+    session = applyRunInput(session, `${target.slice(0, 6)}#`).session;
+
+    expect(session.surge).toBeNull();
+    expect(session.surgesBroken).toBe(1);
+    expect(currentSpeed(session)).toBeLessThan(fast);
+    // The run carries on. It is the surge that ended, not the player.
+    expect(session.phase).toBe('running');
+  });
+
+  it('pays a lasting boost for the whole sentence, typed clean', () => {
+    let session = untilSurge(newSession('surge'));
+
+    session = typePrompt(session);
+
+    expect(session.surgesCompleted).toBe(1);
+    expect(session.surgesBroken).toBe(0);
+    expect(session.surgeRewardUntilMs).toBeGreaterThan(session.elapsedMs);
+    expect(isSurging(session)).toBe(true);
+  });
+
+  it('puts a word back on screen the moment it is over', () => {
+    // The road is never silent, whatever happened to the sentence.
+    let session = untilSurge(newSession('surge'));
+    session = typePrompt(session);
+
+    expect(session.challenge).not.toBeNull();
+  });
+
+  it('moves the opponents too', () => {
+    /*
+     * The half of the mechanic the player never sees. A surge only the player
+     * got would turn a catch-up tool into a way to leave the field for good.
+     */
+    let session = newSession('surge');
+    const before = session.race.racers.map((racer) => racer.meters);
+
+    session = untilSurge(session);
+    const after = session.race.racers.map((racer) => racer.meters);
+
+    for (const [index, meters] of after.entries()) {
+      expect(meters).toBeGreaterThan(before[index] ?? 0);
+    }
+  });
+
+  it('costs ground when it lapses, like any other silence', () => {
+    // A surge holds the field, so no gap word is up while it runs. Without a
+    // cost, typing nothing through one was free.
+    let session = untilSurge(newSession('surge'));
+    const before = session.pursuit.gapMeters;
+
+    session = advance(session, 30_000);
+
+    expect(session.surgesBroken).toBeGreaterThan(0);
+    expect(session.pursuit.gapMeters).toBeLessThan(before);
+  });
+
+  it('never runs two sentences at once', { timeout: 30_000 }, () => {
+    let session = newSession('crowd');
+
+    for (let elapsed = 0; elapsed < 150_000; elapsed += STEP_MS) {
+      if (session.phase !== 'running') break;
+      session = typePrompt(advanceRunSession(session, STEP_MS).session);
+
+      const live = session.surge !== null && session.surge.status === 'active';
+      if (live) expect(session.challenge?.kind).toBe('surge');
+    }
   });
 });
 

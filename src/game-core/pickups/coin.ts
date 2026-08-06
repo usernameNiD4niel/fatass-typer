@@ -188,6 +188,14 @@ export type CoinEvent =
       readonly index: number;
       readonly collected: boolean;
     }
+  /** A rival got there first. The coin is gone, and not to the player. */
+  | {
+      readonly type: 'coinUnitStolen';
+      readonly coin: ActiveCoin;
+      readonly index: number;
+      /** Which racer took it, for the announcement. */
+      readonly by: string;
+    }
   /** Every coin in the line has been decided. */
   | { readonly type: 'coinLineFinished'; readonly coin: ActiveCoin };
 
@@ -207,6 +215,26 @@ export interface CoinAdvanceInput {
    * not a magnet.
    */
   readonly magnet?: boolean;
+  /**
+   * The other runners, as distances.
+   *
+   * A racer in front reaches a coin before the player does, and takes it. That
+   * is the whole of what makes the race matter mid-run rather than only at the
+   * finish line: a lead is worth coins, and losing the lead costs them.
+   *
+   * Deliberately not lane-aware. A bot that only took coins in the lane it
+   * happened to be running in would contest a line about a third of the time
+   * and read as random; the rule the player can actually hold in their head is
+   * "whoever is in front gets there first".
+   */
+  readonly rivals?: readonly RivalPosition[];
+}
+
+/** Where one rival is, for the coin contest. */
+export interface RivalPosition {
+  readonly id: string;
+  readonly name: string;
+  readonly meters: number;
 }
 
 export interface CoinAdvanceResult {
@@ -284,6 +312,38 @@ export function advanceCoin(coin: ActiveCoin, input: CoinAdvanceInput): CoinAdva
 
   const units = [...current.units];
   let changed = false;
+
+  /*
+   * Rivals first, because being first is the entire point.
+   *
+   * A racer ahead of the player crosses each coin's plane before they do, so
+   * the coin is gone by the time the player arrives. A player who is leading
+   * never reaches this branch: nobody is in front of them to take anything.
+   *
+   * A magnet still beats it — it was bought with a clean sentence, and an item
+   * that can be pipped by a bot is not worth the sentence.
+   */
+  if (!magnet && input.rivals !== undefined) {
+    for (let index = 0; index < units.length; index += 1) {
+      const unit = units[index];
+      if (unit === undefined || unit.passed) continue;
+
+      const plane = current.collectMeters + unit.offsetMeters;
+      if (input.playerMeters >= plane) continue;
+
+      const thief = input.rivals.find((rival) => rival.meters >= plane);
+      if (thief === undefined) continue;
+
+      units[index] = { ...unit, passed: true, collected: false };
+      changed = true;
+      events.push({
+        type: 'coinUnitStolen',
+        coin: { ...current, units },
+        index,
+        by: thief.name,
+      });
+    }
+  }
 
   for (let index = 0; index < units.length; index += 1) {
     const unit = units[index];

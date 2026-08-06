@@ -65,18 +65,22 @@ export const MAP_1: MapConfig = {
 };
 
 /**
- * Map 2 — Downtown Sprint (spec §6).
+ * Map 2 — Forest Valley (spec §6).
  *
  * The first map that asks for punctuation and numbers. Difficulty is never one
- * dial (spec §6): the target speed rises, the reaction buffer tightens, the
- * vocabulary widens, and a sidestep obstacle joins the jumps — no single one of
- * those would be much of a step up on its own.
+ * dial (spec §6): the target speed rises, the reaction buffer tightens, and the
+ * vocabulary widens — no single one of those would be much of a step up on its
+ * own.
+ *
+ * It is also the first map that does not look like the first map: pines instead
+ * of buildings, deer instead of cars, and waterfalls down the valley side. See
+ * `game-scene/biome.ts`.
  */
 export const MAP_2: MapConfig = {
   id: 'map-2',
   mapNumber: 2,
-  name: 'Downtown Sprint',
-  theme: 'downtown',
+  name: 'Forest Valley',
+  theme: 'forest-valley',
   targetWpm: 25,
   distanceMeters: 1680,
   baseSpeedMetersPerSecond: 7.9,
@@ -101,7 +105,7 @@ export const MAP_2: MapConfig = {
     coinValue: 5,
     powerupIntervalSeconds: 60,
     flowTolerance: 0.13,
-    themeTags: ['downtown', 'street', 'chase'],
+    themeTags: ['forest-valley', 'trail', 'chase'],
   },
   unlock: {
     requiresMapId: 'map-1',
@@ -110,17 +114,16 @@ export const MAP_2: MapConfig = {
 };
 
 /**
- * Map 3 — Market District (spec §6).
+ * Map 3 — Desert Canyon (spec §6).
  *
- * Where overhead obstacles start. The hanging sign enters the frame from a
- * direction the player is not watching, which is why it carries the largest
- * reaction allowance of any obstacle.
+ * The middle of the ladder, and the first map where the reaction buffer is
+ * genuinely tight. Mesas, cacti and a camel train on the far track.
  */
 export const MAP_3: MapConfig = {
   id: 'map-3',
   mapNumber: 3,
-  name: 'Market District',
-  theme: 'market-district',
+  name: 'Desert Canyon',
+  theme: 'desert-canyon',
   targetWpm: 30,
   distanceMeters: 1800,
   baseSpeedMetersPerSecond: 8.4,
@@ -153,7 +156,7 @@ export const MAP_3: MapConfig = {
     coinValue: 6,
     powerupIntervalSeconds: 60,
     flowTolerance: 0.14,
-    themeTags: ['market-district', 'street', 'chase'],
+    themeTags: ['desert-canyon', 'trail', 'chase'],
   },
   unlock: {
     requiresMapId: 'map-2',
@@ -162,17 +165,17 @@ export const MAP_3: MapConfig = {
 };
 
 /**
- * Map 4 — Industrial Zone (spec §6).
+ * Map 4 — Harbour Docks (spec §6).
  *
- * The narrow passage appears here: the one obstacle that asks for a phrase
- * rather than a word, and the first time a player has to hold a rhythm through
- * a space rather than sprint a single word.
+ * Where phrases start to outnumber words, and the first map that asks a player
+ * to hold a rhythm rather than sprint a single word. Container stacks, gantry
+ * cranes, and lorries on the service road.
  */
 export const MAP_4: MapConfig = {
   id: 'map-4',
   mapNumber: 4,
-  name: 'Industrial Zone',
-  theme: 'industrial-zone',
+  name: 'Harbour Docks',
+  theme: 'harbour-docks',
   targetWpm: 35,
   distanceMeters: 1930,
   baseSpeedMetersPerSecond: 8.9,
@@ -205,7 +208,7 @@ export const MAP_4: MapConfig = {
     coinValue: 6,
     powerupIntervalSeconds: 60,
     flowTolerance: 0.17,
-    themeTags: ['industrial-zone', 'chase'],
+    themeTags: ['harbour-docks', 'chase'],
   },
   unlock: {
     requiresMapId: 'map-3',
@@ -265,18 +268,20 @@ export const MAP_5: MapConfig = {
 };
 
 /**
- * Map 6 — Final Pursuit (spec §6).
+ * Map 6 — Volcano Ridge (spec §6).
  *
- * 50 WPM, a 1.08 buffer, and every obstacle in the game. The last map is
- * allowed to be hard; what it is not allowed to be is unfair, and the timing
- * budget still guarantees that a 50 WPM typist can finish every prompt it
- * throws — the tests assert exactly that.
+ * 50 WPM and a 1.08 buffer. The last map is allowed to be hard; what it is not
+ * allowed to be is unfair, and the timing budget still guarantees that a 50 WPM
+ * typist can finish every prompt it throws — the tests assert exactly that.
+ *
+ * The look does the rest of the work: obsidian spires, ash in the air, and lava
+ * running where the other maps have water.
  */
 export const MAP_6: MapConfig = {
   id: 'map-6',
   mapNumber: 6,
-  name: 'Final Pursuit',
-  theme: 'final-pursuit',
+  name: 'Volcano Ridge',
+  theme: 'volcano-ridge',
   targetWpm: 50,
   distanceMeters: 2220,
   baseSpeedMetersPerSecond: 10,
@@ -309,7 +314,7 @@ export const MAP_6: MapConfig = {
     coinValue: 8,
     powerupIntervalSeconds: 60,
     flowTolerance: 0.15,
-    themeTags: ['final-pursuit', 'chase'],
+    themeTags: ['volcano-ridge', 'chase'],
   },
   unlock: {
     requiresMapId: 'map-5',
@@ -317,8 +322,6 @@ export const MAP_6: MapConfig = {
   },
 };
 
-<<<<<<< Updated upstream
-=======
 /**
  * Endless (plan 2.2).
  *
@@ -425,9 +428,11 @@ export const MAP_ENDLESS: MapConfig = {
  * line answers all of them wrongly. `ALL_MAPS` is for the places that just need
  * to look a map up by id.
  */
->>>>>>> Stashed changes
 export const MAPS: readonly MapConfig[] = [MAP_1, MAP_2, MAP_3, MAP_4, MAP_5, MAP_6];
 
+/** Every playable map, including endless. */
+export const ALL_MAPS: readonly MapConfig[] = [...MAPS, MAP_ENDLESS];
+
 export function findMap(mapId: string): MapConfig | undefined {
-  return MAPS.find((map) => map.id === mapId);
+  return ALL_MAPS.find((map) => map.id === mapId);
 }

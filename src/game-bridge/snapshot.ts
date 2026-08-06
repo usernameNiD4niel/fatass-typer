@@ -28,6 +28,9 @@ import type { GameState } from './messages';
  * whatever the world looks like *now*.
  */
 
+/** Opponents in the race. Fixed: there are two, and there will be two.  */
+export const MAX_SNAPSHOT_RACERS = 2;
+
 /** Maximum coin lines the pool can describe at once. */
 export const MAX_SNAPSHOT_COINS = 4;
 
@@ -89,7 +92,7 @@ export interface EffectsSnapshot {
  * `flow` is the odd one: it has no body anywhere in the world, so the scene
  * places it rather than tracking something. See `game-core/flow`.
  */
-export type ChallengeKind = 'coin' | 'powerup' | 'flow';
+export type ChallengeKind = 'coin' | 'powerup' | 'flow' | 'surge';
 
 export interface ChallengeSnapshot {
   kind: ChallengeKind;
@@ -128,6 +131,69 @@ export interface ImpulseSnapshot {
   shake: number;
   /** Additional field of view in degrees, from speed. */
   fovBias: number;
+  /**
+   * A one-off kick of extra field of view, in degrees, decaying to zero.
+   *
+   * Separate from `fovBias` because they answer different questions. The bias is
+   * how fast the player *is* going; the punch is the moment they earned it. Held
+   * in one number they would fight: a punch would read as a permanent speed
+   * change and the decay would read as slowing down.
+   */
+  punch: number;
+}
+
+/** Kinds of floating score label the scene can draw. */
+export type PopupKind = 'gain' | 'loss';
+
+/**
+ * A floating score label.
+ *
+ * Per-frame, so it travels in the snapshot rather than through the event bus:
+ * these are spawned by keystrokes, and pushing one React event per mistyped
+ * character through a bus that exists to throttle traffic would be working
+ * against it.
+ */
+export interface PopupSnapshot {
+  /** Empty when the slot is unused. Changes when the slot is reused. */
+  id: string;
+  /** Signed. Negative for a penalty, so the scene never has to infer the sign. */
+  points: number;
+  kind: PopupKind;
+  /** Milliseconds since it appeared. The scene turns this into rise and fade. */
+  ageMs: number;
+  /** Lane it belongs over, so labels do not all stack in the middle. */
+  lane: number;
+}
+
+/**
+ * Labels drawable at once.
+ *
+ * Small on purpose. Mistyping fast can produce a label per keystroke, and a
+ * screen full of them is noise rather than feedback — the oldest slot is
+ * recycled, so the newest is always visible.
+ */
+export const MAX_SNAPSHOT_POPUPS = 6;
+
+/**
+ * The chaser (plan 1.3).
+ *
+ * A rule, not a decoration: at a gap of zero the run ends. The scene draws the
+ * body from `gapMeters` and its danger cue from `pressure`, so retuning the
+ * distances never silently retunes how alarming it looks.
+ */
+/** One opponent, as the scene needs them. */
+export interface RacerSnapshot {
+  instanceId: string;
+  /** Metres ahead of the player. Negative once the player has passed them. */
+  aheadMeters: number;
+  lane: number;
+  finished: boolean;
+}
+
+export interface PursuitSnapshot {
+  gapMeters: number;
+  /** 0..1, where 1 is on top of the player. */
+  pressure: number;
 }
 
 export interface WorldSnapshot {
@@ -141,6 +207,8 @@ export interface WorldSnapshot {
   /** 0..1, deepest at take-off and on landing. Cosmetic crouch. */
   crouch: number;
   boosting: boolean;
+  racerCount: number;
+  racers: RacerSnapshot[];
   coinCount: number;
   coins: CoinSnapshot[];
   powerupCount: number;
@@ -148,10 +216,17 @@ export interface WorldSnapshot {
   effects: EffectsSnapshot;
   challenge: ChallengeSnapshot | null;
   impulse: ImpulseSnapshot;
+  pursuit: PursuitSnapshot;
+  popupCount: number;
+  popups: PopupSnapshot[];
 }
 
 /** Maximum powerup crates the pool can describe at once. */
 export const MAX_SNAPSHOT_POWERUPS = 2;
+
+function emptyPopup(): PopupSnapshot {
+  return { id: '', points: 0, kind: 'gain', ageMs: 0, lane: 1 };
+}
 
 function emptyPowerup(): PowerupSnapshot {
   return { instanceId: '', kind: 'shield', distanceMeters: 0, lane: 1, claimed: false };
@@ -183,6 +258,13 @@ export function createWorldSnapshot(): WorldSnapshot {
     jumpHeightMeters: 0,
     crouch: 0,
     boosting: false,
+    racerCount: 0,
+    racers: Array.from({ length: MAX_SNAPSHOT_RACERS }, () => ({
+      instanceId: '',
+      aheadMeters: 0,
+      lane: 0,
+      finished: false,
+    })),
     coinCount: 0,
     coins: Array.from({ length: MAX_SNAPSHOT_COINS }, emptyCoin),
     powerupCount: 0,
@@ -195,7 +277,10 @@ export function createWorldSnapshot(): WorldSnapshot {
       shields: 0,
     },
     challenge: null,
-    impulse: { shake: 0, fovBias: 0 },
+    impulse: { shake: 0, fovBias: 0, punch: 0 },
+    pursuit: { gapMeters: 0, pressure: 0 },
+    popupCount: 0,
+    popups: Array.from({ length: MAX_SNAPSHOT_POPUPS }, emptyPopup),
   };
 }
 

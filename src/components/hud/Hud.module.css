@@ -140,8 +140,6 @@
   background: var(--threat-safe);
 }
 
-<<<<<<< Updated upstream
-=======
 .paceFillOnPace {
   background: var(--threat-close);
 }
@@ -178,7 +176,6 @@
   background: var(--threat-critical);
 }
 
->>>>>>> Stashed changes
 /* The threat word, so the danger is never colour-only (spec §12). */
 .threatWord {
   font-weight: var(--font-weight-semibold);

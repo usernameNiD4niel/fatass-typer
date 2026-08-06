@@ -1,4 +1,5 @@
-import { isCount, isRatio, isRecord } from './guards';
+import type { KeyStats } from '../keystats';
+import { isCount, isIntegerAtLeast, isNonEmptyString, isRatio, isRecord } from './guards';
 import type { IsoTimestamp, MapId, RunId } from './ids';
 import { isId, isIsoTimestamp } from './ids';
 import { CURRENT_SCHEMA_VERSION } from './schema';
@@ -32,6 +33,23 @@ export interface RunResult extends Versioned {
   readonly mapId: MapId;
   readonly startedAt: IsoTimestamp;
   readonly durationMs: number;
+  /**
+   * How far the player got, in metres.
+   *
+   * Recorded on every run, but it is the *only* measure of a run on an endless
+   * map, where there is no finish line to complete and no completion time to
+   * beat (plan 2.2).
+   */
+  readonly distanceMeters: number;
+  /**
+   * Which keys this run fumbled (plan 2.4).
+   *
+   * Optional, and validated only when present. It is additive to a shape that
+   * is already on disk, and a required field would make every previously stored
+   * run fail validation and vanish from the player's history — runs are skipped
+   * rather than repaired, so there is no second chance for them.
+   */
+  readonly keyStats?: KeyStats;
   /** True only when the finish line was reached. */
   readonly completed: boolean;
   readonly score: number;
@@ -58,6 +76,24 @@ export interface RunResult extends Versioned {
    */
   readonly obstacleSuccessRate: number;
   readonly longestCombo: number;
+  /**
+   * Where the player finished the race, 1-based.
+   *
+   * Optional and defaulted when absent, like the fields below it: it is
+   * additive to a shape that is already on disk, and a required field would
+   * make every stored run fail validation and vanish from the player's history.
+   */
+  readonly placement?: number;
+  /** Coins a rival reached first. */
+  readonly coinsStolen?: number;
+  /**
+   * Which of the map's secrets this run was given.
+   *
+   * A map has several and a run picks one from its seed, so the results screen
+   * cannot look it up by map alone — it would show whichever comes first in the
+   * file rather than the sentence the player actually typed.
+   */
+  readonly secretId?: string;
   /** Coins collected. Optional pickups, so this is a flourish, not a grade. */
   readonly coinsCollected: number;
   /** Powerups taken — sentences typed without a single mistake. */
@@ -82,6 +118,14 @@ export interface RunResult extends Versioned {
  * Not persisted, so no schema version. The bridge sends this at a fixed low
  * frequency — never per frame (CLAUDE.md §3).
  */
+/** One opponent, as the HUD needs them. */
+export interface RivalStanding {
+  /** Which side of the road they run on. */
+  readonly side: 'left' | 'right';
+  /** Metres from the player. Negative when they are behind. */
+  readonly gapMeters: number;
+}
+
 export interface LiveRunStats {
   readonly currentWpm: number;
   readonly averageWpm: number;
@@ -101,11 +145,11 @@ export interface LiveRunStats {
   readonly flightRemainingMs: number;
   readonly magnetRemainingMs: number;
   readonly elapsedMs: number;
+  /** How far the player has come, in metres. The score on an endless map. */
+  readonly distanceMeters: number;
   /** Words of the map secret typed, and how many there are. */
   readonly secretWordsTyped: number;
   readonly secretWordCount: number;
-<<<<<<< Updated upstream
-=======
   /**
    * How close the chaser is, 0..1, where 1 is on top of the player.
    *
@@ -121,7 +165,16 @@ export interface LiveRunStats {
    * captured once at mount would be a lie for all but the first few seconds.
    */
   readonly targetWpm: number;
->>>>>>> Stashed changes
+  /** Where the player stands in the race, 1-based. 1 is leading. */
+  readonly placement: number;
+  /**
+   * Where each opponent is, by the side of the road they run on.
+   *
+   * Signed **from the player**: negative means that opponent is behind you, so
+   * `-5 m` reads as "I am five metres up on them". The sign is that way round
+   * because the number is about them, not about you.
+   */
+  readonly rivals: readonly RivalStanding[];
 }
 
 export const EMPTY_LIVE_STATS: LiveRunStats = {
@@ -137,14 +190,14 @@ export const EMPTY_LIVE_STATS: LiveRunStats = {
   shields: 0,
   secretWordsTyped: 0,
   secretWordCount: 0,
-<<<<<<< Updated upstream
-=======
   pursuitPressure: 0,
   targetWpm: 0,
->>>>>>> Stashed changes
+  placement: 1,
+  rivals: [],
   flightRemainingMs: 0,
   magnetRemainingMs: 0,
   elapsedMs: 0,
+  distanceMeters: 0,
 };
 
 export function isRunResult(value: unknown): value is RunResult {
@@ -156,6 +209,9 @@ export function isRunResult(value: unknown): value is RunResult {
     isId(value['mapId']) &&
     isIsoTimestamp(value['startedAt']) &&
     isCount(value['durationMs']) &&
+    isCount(value['distanceMeters']) &&
+    // Present or absent, but never nonsense.
+    (value['keyStats'] === undefined || isRecord(value['keyStats'])) &&
     typeof value['completed'] === 'boolean' &&
     isCount(value['score']) &&
     isCount(value['averageWpm']) &&
@@ -171,6 +227,9 @@ export function isRunResult(value: unknown): value is RunResult {
     isCount(value['longestCombo']) &&
     // Added after the first release: an older stored run has no coins, and is
     // repaired rather than rejected.
+    (value['placement'] === undefined || isIntegerAtLeast(value['placement'], 1)) &&
+    (value['coinsStolen'] === undefined || isCount(value['coinsStolen'])) &&
+    (value['secretId'] === undefined || isNonEmptyString(value['secretId'])) &&
     (value['coinsCollected'] === undefined || isCount(value['coinsCollected'])) &&
     (value['powerupsClaimed'] === undefined || isCount(value['powerupsClaimed'])) &&
     (value['secretUnlocked'] === undefined || typeof value['secretUnlocked'] === 'boolean') &&
@@ -190,6 +249,7 @@ export function emptyRunResult(runId: RunId, mapId: MapId, startedAt: IsoTimesta
     mapId,
     startedAt,
     durationMs: 0,
+    distanceMeters: 0,
     completed: false,
     score: 0,
     averageWpm: 0,

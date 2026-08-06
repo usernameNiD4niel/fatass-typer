@@ -1,7 +1,3 @@
-<<<<<<< Updated upstream
-export { findMap, MAP_1, MAP_2, MAP_3, MAP_4, MAP_5, MAP_6, MAPS } from './maps';
-export { findObstacle, OBSTACLES, obstaclesFor } from './obstacles';
-=======
 export {
   ALL_MAPS,
   findMap,
@@ -14,8 +10,17 @@ export {
   MAP_ENDLESS,
   MAPS,
 } from './maps';
->>>>>>> Stashed changes
-export { findSecret, MAP_SECRETS, secretPrompts, secretWordCount } from './secrets';
+export {
+  findSecret,
+  findSecretById,
+  MAP_SECRETS,
+  pickSecret,
+  secretIdOf,
+  secretPrompts,
+  secretsFor,
+  secretWordCount,
+} from './secrets';
+export { SURGES } from './surges';
 export type { MapSecret } from './secrets';
 export {
   ALL_PROMPTS,

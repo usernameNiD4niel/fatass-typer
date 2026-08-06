@@ -32,24 +32,35 @@ npm run dev        # http://localhost:5173
 | `Tab`                  | reaches every control, including locked map cards    |
 
 There is no typing field. The keyboard is captured while a run is going and the
-word lives out in the world, beside the hazard it applies to.
+word lives out in the world, ahead of the runner.
 
-Typing is forgiving _within_ a word: a wrong character breaks your combo, not
-your run, and you can correct it. What is not forgiving is the hazard. Finish the
-word before the deadline or you hit the thing — and one hit ends the run.
+There is a word in front of you at all times, something behind you, and two
+runners racing you. Finishing a word pushes the chaser back and speeds you up;
+letting one run out of time lets it close. It catching you is the only way to
+lose — nothing on the road can be hit, and the opponents cannot end your run.
 
-Coins work the same way but cost nothing to miss. Their words are shorter, and
-they ask for about what a hazard asks for.
+What the opponents can do is take your coins. Whoever is in front reaches them
+first, so the lead is worth something every few seconds rather than only at the
+finish line.
+
+Typing is forgiving _within_ a word: a wrong character breaks your combo and
+costs a little ground, not your run, and you can correct it. Failure is
+cumulative, which is what lets a run be forgiving per word and still decisive
+over two minutes.
+
+Coins work the same way but cost nothing at all to miss — no score, no combo, no
+ground. They are the only optional thing in the game, and the only thing you can
+be beaten to.
 
 **The maps mean their numbers.** A 20 WPM map is finishable at 20 WPM and at
-about 17; below roughly 15 it will turn you away. There is not much slack, and
+about 17; below roughly 15 it will turn you away, because at that speed the words
+themselves start running out before you finish them. There is not much slack, and
 what there is has to cover hesitation as well as speed — which is why extra
 lives, earned from a powerup, are the way a run survives a bad moment.
 
-Finishing a word does not save you by itself; it _starts_ the move. The lane
-change or the jump still has to complete before you reach the hazard. The game
-places every hazard far enough away for that to be true — see
-`src/game-core/timing/motion-reserve.ts`.
+Finishing a coin word does not collect the coins by itself; it _starts_ the
+swerve, which still has to arrive. Coin lines are placed far enough away for that
+to be true — see `src/game-core/timing/lane-reserve.ts`.
 
 ## Commands
 
@@ -84,12 +95,12 @@ cone. No models, no textures, no fonts, no remote assets of any kind.
 ```
 src/
 ├── game-core/      pure rules — no DOM, no React, no renderer, no clock
-├── game-runtime/   the simulation: fixed timestep, hazards, the run
+├── game-runtime/   the simulation: fixed timestep, the words, the run
 ├── game-bridge/    the seam — commands in, events out, world snapshot
-├── game-scene/     Three.js: the road, the runner, the hazards, the word
+├── game-scene/     Three.js: the road, the runner, the traffic, the word
 ├── audio/          synthesised cues, music, and the danger layer
-├── storage/        StorageAdapter interface + in-memory implementation
-├── content/        maps, obstacles, and every prompt
+├── storage/        StorageAdapter interface + IndexedDB and in-memory impls
+├── content/        maps, secrets, and every prompt
 ├── components/     UI primitives and the run HUD
 ├── screens/        full-screen views
 ├── hooks/          React bindings onto game-core
@@ -127,11 +138,11 @@ Each layer folder carries a `README.md` stating its own contract.
 
 ## Known limits
 
-- **Progress does not survive a reload.** `StorageAdapter` is the seam for a
-  real implementation; the only one today keeps everything in memory.
-- **Adaptive assistance is effectively off** — implemented and wired, but a
-  missed hazard now ends the run, so there is rarely a second failure for it to
-  react to. `src/game-core/assistance/README.md` explains the reasoning.
+- **Adaptive assistance is nearly inert** — implemented and wired, and re-keyed
+  to lapsed words after the hazards it used to watch were removed.
+  `src/game-core/assistance/README.md` explains the reasoning.
+- **Nothing in CI watches GPU time**, and the scene now casts real shadows and
+  shades with physically based materials. See `docs/performance.md`.
 - **`mistakeBehavior` and `caseSensitive` settings are stored and displayed but
   not yet read by the typing engine.**
 - The scene is not screen-reader playable. Everything around it is: the run

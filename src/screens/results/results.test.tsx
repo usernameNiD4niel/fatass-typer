@@ -33,6 +33,7 @@ function progress(overrides: Partial<MapProgress> = {}): MapProgress {
     bestAccuracy: 0,
     bestCompletionTimeMs: null,
     attempts: 0,
+    bestDistanceMeters: 0,
     ...overrides,
   };
 }
@@ -184,7 +185,7 @@ describe('RunResults', () => {
   it('reports a lost run without hiding the numbers', () => {
     setup(resultWith({ completed: false }));
 
-    expect(screen.getByText('Crashed')).toBeInTheDocument();
+    expect(screen.getByText('Caught')).toBeInTheDocument();
     // A player who crashed gets the same detail as one who finished.
     expect(within(runCard()).getByText('1840')).toBeInTheDocument();
     expect(within(runCard()).getByText('94%')).toBeInTheDocument();
@@ -295,5 +296,39 @@ describe('RunResults', () => {
 
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(onReturnToMaps).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('worst keys', () => {
+  function renderWith(result: RunResult) {
+    render(
+      <RunResults
+        result={result}
+        map={MAP_1}
+        profile={profileWith()}
+        maps={MAPS}
+        onRetry={vi.fn()}
+        onReturnToMaps={vi.fn()}
+      />,
+    );
+  }
+
+  it('names the keys worth practising and says the game will drill them', () => {
+    renderWith(resultWith({ keyStats: { e: { attempts: 40, misses: 14 } } }));
+
+    // The only actionable thing on the screen: "88% accurate" does not tell
+    // anybody what to work on.
+    expect(screen.getByText('Worst keys')).toBeInTheDocument();
+    expect(screen.getByText('e')).toBeInTheDocument();
+    expect(screen.getByText('35% missed')).toBeInTheDocument();
+    expect(screen.getByText(/come up more often/)).toBeInTheDocument();
+  });
+
+  it('says nothing at all when there is no evidence yet', () => {
+    // A first run has a handful of keystrokes per character. Naming a
+    // "weakness" off that would be inventing one.
+    renderWith(resultWith({ keyStats: { e: { attempts: 3, misses: 1 } } }));
+
+    expect(screen.queryByText('Worst keys')).not.toBeInTheDocument();
   });
 });

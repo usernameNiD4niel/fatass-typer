@@ -3,18 +3,36 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MAP_1, MAPS } from '../content';
 import { createPlayerProfile, type PlayerProfile, type RunResult } from '../game-core/models';
 import { applyRunResult } from '../game-core/progress';
-import { InMemoryStorage, type StorageAdapter } from '../storage';
+import {
+  InMemoryStorage,
+  IndexedDbStorage,
+  indexedDbAvailable,
+  type StorageAdapter,
+} from '../storage';
 
 /**
  * The player's profile, backed by a `StorageAdapter`.
  *
- * The adapter is in memory today, so progress resets on reload — CLAUDE.md §5
- * records that as intended. Swapping in IndexedDB later means passing a
- * different adapter here and changing nothing else.
+ * IndexedDB by default (plan 2.1), so progress survives a reload. Everything
+ * above this hook was already written against the async interface, which is why
+ * turning the seam on changed nothing else.
  *
  * Screens take a profile as a prop rather than reaching for this hook, so the
  * source stays swappable.
  */
+
+/**
+ * The best store this environment can offer.
+ *
+ * Falls back to memory when the browser will not persist — private-browsing
+ * modes, blocked storage, and the test environment all land here. A player with
+ * no durable storage gets a session's worth of progress rather than a broken
+ * game; the adapter itself already swallows failures, and this avoids opening a
+ * database that was never going to work.
+ */
+function defaultStorage(): StorageAdapter {
+  return indexedDbAvailable() ? new IndexedDbStorage() : new InMemoryStorage();
+}
 
 export interface UsePlayerProfileOptions {
   readonly storage?: StorageAdapter;
@@ -29,7 +47,13 @@ export interface PlayerProfileHandle {
   readonly setProfile: (profile: PlayerProfile) => void;
   /** Folds a finished run into the profile and appends it to run history. */
   readonly recordRun: (result: RunResult) => void;
-  /** Development only, until progress has somewhere durable to live. */
+  /**
+   * Erases the stored profile and run history.
+   *
+   * A real destructive action now that progress persists, rather than the
+   * development convenience it was while everything died on reload. The
+   * settings screen confirms before calling it.
+   */
   readonly resetProgress: () => void;
 }
 
@@ -38,7 +62,7 @@ export function usePlayerProfile(options: UsePlayerProfileOptions = {}): PlayerP
   // throw the player's progress away on every keystroke, and a new clock would
   // re-create every callback that depends on it.
   const now = useMemo(() => options.now ?? (() => new Date().toISOString()), [options.now]);
-  const storage = useMemo(() => options.storage ?? new InMemoryStorage(), [options.storage]);
+  const storage = useMemo(() => options.storage ?? defaultStorage(), [options.storage]);
 
   const [profile, setProfileState] = useState<PlayerProfile>(() =>
     createPlayerProfile(now(), MAP_1.id),

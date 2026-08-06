@@ -1,3 +1,4 @@
+import { coerceKeyStats, EMPTY_KEY_STATS, type KeyStats } from '../keystats';
 import { isCount, isIntegerAtLeast, isNonEmptyString, isRatio, isRecord } from './guards';
 import type { IsoTimestamp, MapId } from './ids';
 import { isIsoTimestamp } from './ids';
@@ -23,6 +24,14 @@ export interface MapProgress {
   /** `null` until the map has been finished at least once. */
   readonly bestCompletionTimeMs: number | null;
   readonly attempts: number;
+  /**
+   * Furthest the player has ever got, in metres.
+   *
+   * Meaningful on every map, but it is the *only* measure of success on an
+   * endless one, where there is no finish line to complete and no completion
+   * time to beat (plan 2.2).
+   */
+  readonly bestDistanceMeters: number;
 }
 
 export const EMPTY_MAP_PROGRESS: MapProgress = {
@@ -33,6 +42,7 @@ export const EMPTY_MAP_PROGRESS: MapProgress = {
   bestAccuracy: 0,
   bestCompletionTimeMs: null,
   attempts: 0,
+  bestDistanceMeters: 0,
 };
 
 export interface PlayerProfile extends Versioned {
@@ -44,6 +54,26 @@ export interface PlayerProfile extends Versioned {
   readonly lifetimeCorrectCharacters: number;
   readonly unlockedMapIds: readonly MapId[];
   readonly mapProgress: Readonly<Record<MapId, MapProgress>>;
+  /**
+   * Which keys the player fumbles, across every run (plan 2.4).
+   *
+   * Lifetime rather than per-map: a weakness is a property of the typist, not of
+   * the road they were on when it showed up.
+   */
+  readonly keyStats: KeyStats;
+  /**
+   * Unspent credits (plan: the race).
+   *
+   * Earned by placing in a race and by collecting coins, spent in the wardrobe.
+   * A single number rather than a per-category purse: three currencies for
+   * three kinds of skin would be arithmetic the player has to do before they
+   * can want anything.
+   */
+  readonly credits: number;
+  /** Skin ids the player owns. Everything free is owned from the start. */
+  readonly ownedSkinIds: readonly string[];
+  /** What they are wearing, by category. A missing entry means the default. */
+  readonly equippedSkinIds: Readonly<Record<string, string>>;
   readonly settings: GameSettings;
 }
 
@@ -63,6 +93,10 @@ export function createPlayerProfile(now: IsoTimestamp, firstMapId: MapId): Playe
     lifetimeCorrectCharacters: 0,
     unlockedMapIds: [firstMapId],
     mapProgress: {},
+    keyStats: EMPTY_KEY_STATS,
+    credits: 0,
+    ownedSkinIds: [],
+    equippedSkinIds: {},
     settings: DEFAULT_SETTINGS,
   };
 }
@@ -95,8 +129,39 @@ export function isMapProgress(value: unknown): value is MapProgress {
     isCount(value['bestPeakWpm']) &&
     isRatio(value['bestAccuracy']) &&
     (completionTime === null || isCount(completionTime)) &&
-    isIntegerAtLeast(value['attempts'], 0)
+    isIntegerAtLeast(value['attempts'], 0) &&
+    isCount(value['bestDistanceMeters'])
   );
+}
+
+/**
+ * Repairs one map's progress field by field.
+ *
+ * The load path uses this rather than `isMapProgress`, and the difference is not
+ * academic. An all-or-nothing check discards the whole record when a single
+ * field is missing — and a field is *always* missing the first time the game
+ * adds one. `bestDistanceMeters` arriving in plan 2.2 would have silently erased
+ * every existing player's bests, unlocks intact but every number back to zero.
+ *
+ * Same principle as `coercePlayerProfile` one level up (spec §17): keep what
+ * reads correctly, default what does not.
+ */
+export function coerceMapProgress(value: unknown): MapProgress | null {
+  if (!isRecord(value)) return null;
+
+  const completionTime = value['bestCompletionTimeMs'];
+  const accuracy = value['bestAccuracy'];
+
+  return {
+    completed: value['completed'] === true,
+    bestScore: isCount(value['bestScore']) ? value['bestScore'] : 0,
+    bestAverageWpm: isCount(value['bestAverageWpm']) ? value['bestAverageWpm'] : 0,
+    bestPeakWpm: isCount(value['bestPeakWpm']) ? value['bestPeakWpm'] : 0,
+    bestAccuracy: isRatio(accuracy) ? accuracy : 0,
+    bestCompletionTimeMs: isCount(completionTime) ? completionTime : null,
+    attempts: isIntegerAtLeast(value['attempts'], 0) ? value['attempts'] : 0,
+    bestDistanceMeters: isCount(value['bestDistanceMeters']) ? value['bestDistanceMeters'] : 0,
+  };
 }
 
 export function isPlayerProfile(value: unknown): value is PlayerProfile {
@@ -120,6 +185,18 @@ export function isPlayerProfile(value: unknown): value is PlayerProfile {
   const mapProgress = value['mapProgress'];
   if (!isRecord(mapProgress)) return false;
   if (!Object.values(mapProgress).every(isMapProgress)) return false;
+
+  // Added with the wardrobe. Validated when present and defaulted when absent,
+  // so a profile stored before it existed still loads.
+  const credits = value['credits'];
+  if (credits !== undefined && !isCount(credits)) return false;
+
+  const owned = value['ownedSkinIds'];
+  if (owned !== undefined && (!Array.isArray(owned) || !owned.every(isNonEmptyString)))
+    return false;
+
+  const equipped = value['equippedSkinIds'];
+  if (equipped !== undefined && !isRecord(equipped)) return false;
 
   return isGameSettings(value['settings']);
 }
@@ -145,7 +222,8 @@ export function coercePlayerProfile(
   const rawProgress = value['mapProgress'];
   if (isRecord(rawProgress)) {
     for (const [mapId, progress] of Object.entries(rawProgress)) {
-      if (isMapProgress(progress)) mapProgress[mapId] = progress;
+      const repaired = coerceMapProgress(progress);
+      if (repaired !== null) mapProgress[mapId] = repaired;
     }
   }
 
@@ -167,6 +245,33 @@ export function coercePlayerProfile(
     // The first map is always playable, whatever the save says.
     unlockedMapIds: unlocked.includes(firstMapId) ? unlocked : [firstMapId, ...unlocked],
     mapProgress,
+    keyStats: coerceKeyStats(value['keyStats']),
+    credits: isCount(value['credits']) ? value['credits'] : 0,
+    ownedSkinIds: coerceIdList(value['ownedSkinIds']),
+    equippedSkinIds: coerceEquipped(value['equippedSkinIds']),
     settings: coerceSettings(value['settings']),
   };
+}
+
+/** A list of ids, keeping the ones that read as ids and dropping the rest. */
+function coerceIdList(value: unknown): readonly string[] {
+  return Array.isArray(value) ? value.filter(isNonEmptyString) : [];
+}
+
+/**
+ * The equipped map, field by field.
+ *
+ * A skin id that no longer exists in the catalogue is left in place rather than
+ * stripped: the wardrobe resolves an unknown id to the default, and removing it
+ * here would silently forget what somebody chose if a build ever renamed a skin.
+ */
+function coerceEquipped(value: unknown): Readonly<Record<string, string>> {
+  if (!isRecord(value)) return {};
+
+  const equipped: Record<string, string> = {};
+  for (const [category, id] of Object.entries(value)) {
+    if (isNonEmptyString(category) && isNonEmptyString(id)) equipped[category] = id;
+  }
+
+  return equipped;
 }

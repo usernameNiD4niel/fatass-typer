@@ -1,0 +1,27 @@
+/*
+ * The label over the best-distance gate.
+ *
+ * Warm rather than red or green: it is a target, not a threat and not a
+ * success. Colour is not the only signal — the text changes too, so the
+ * before and after states are distinguishable without seeing either colour.
+ */
+
+.label {
+  margin: 0;
+  padding: 0.2em 0.6em;
+  border-radius: var(--radius-md);
+  background: rgb(12 15 20 / 68%);
+  color: #ffd166;
+  font-family: var(--font-family-mono);
+  font-size: 1.1rem;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  white-space: nowrap;
+  user-select: none;
+  text-shadow: 0 0 0.25em rgb(0 0 0 / 80%);
+}
+
+.label[data-beaten='true'] {
+  color: var(--status-success-text, #6ee7a8);
+}

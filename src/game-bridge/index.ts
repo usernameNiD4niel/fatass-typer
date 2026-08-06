@@ -16,11 +16,8 @@ export {
   liveCoins,
   MAX_SNAPSHOT_COIN_UNITS,
   MAX_SNAPSHOT_COINS,
-<<<<<<< Updated upstream
-  MAX_SNAPSHOT_HAZARDS,
-=======
   MAX_SNAPSHOT_POPUPS,
->>>>>>> Stashed changes
+  MAX_SNAPSHOT_RACERS,
   MAX_SNAPSHOT_POWERUPS,
 } from './snapshot';
 export type {
@@ -31,6 +28,10 @@ export type {
   EffectsSnapshot,
   PowerupSnapshot,
   ImpulseSnapshot,
+  PopupKind,
+  PopupSnapshot,
+  PursuitSnapshot,
+  RacerSnapshot,
   WorldSnapshot,
 } from './snapshot';
 export { isGameCommand, parseGameCommand } from './validate';

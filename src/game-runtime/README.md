@@ -1,6 +1,6 @@
 # `game-runtime` — the simulation
 
-Owns the run: the fixed-timestep loop, hazard spawning and resolution, and the
+Owns the run: the fixed-timestep loop, the words, the coins and crates, and the
 world snapshot the scene reads. It does **not** draw. Drawing is `game-scene`.
 
 That split is new. The runtime used to own a Canvas 2D renderer as well, and
@@ -39,10 +39,10 @@ per simulation step, with no opinion about pixels.
   returns a new session plus the events it produced, which is what lets the
   whole game be tested without rendering a frame.
 
-  It holds the player's `PlayerMotion`, the hazards on the road, the score, the
+  It holds the player's `PlayerMotion`, what is on the road, the score, the
   statistics, and the phase. `advanceRunSession` is the single step: decay the
   boost, move the player, advance the motion, spawn what is due, run every
-  hazard's clock, then check the finish line.
+  word's clock, then check the chaser and the finish line.
 
 - `session/runtime-host.ts` — the impure boundary. Translates bridge commands
   into rules calls and session events into bridge events, and rewrites the
@@ -57,10 +57,10 @@ per simulation step, with no opinion about pixels.
 
 ## Two channels out, because the game speaks at two rates
 
-Events are coarse and throttled to ~10Hz: a prompt changed, a hazard resolved,
+Events are coarse and throttled to ~10Hz: a prompt changed, a coin collected,
 the run ended. React re-renders on these, so there must not be many.
 
 The snapshot is per-frame and lives in `game-bridge/snapshot.ts`. It is one
 object, mutated in place, holding everything the scene needs to draw: where the
-player is, how far off the ground, which hazards are on the road, what the
+player is, how far off the ground, what is on the road, what the
 current challenge is. React never sees it.

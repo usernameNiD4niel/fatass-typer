@@ -1,14 +1,10 @@
 import { type JSX, lazy, type ReactNode, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { Button } from './components/ui';
-<<<<<<< Updated upstream
-import { findMap, MAP_1, MAPS, obstaclesFor } from './content';
-import type { PlayerProfile, RunResult } from './game-core/models';
-=======
 import { ALL_MAPS, findMap, MAP_1, MAPS } from './content';
+import { effectNameFor, runnerLookFor } from './content/runner-look';
 import { weakCharacters } from './game-core/keystats';
 import { progressFor, type PlayerProfile, type RunResult } from './game-core/models';
->>>>>>> Stashed changes
 import { useAppliedSettings } from './hooks/useAppliedSettings';
 import { useGameAudio } from './hooks/useGameAudio';
 import { useAppMachine } from './hooks/useAppMachine';
@@ -51,6 +47,10 @@ const SettingsScreen = lazy(async () => ({
 }));
 const StatisticsScreen = lazy(async () => ({
   default: (await import('./screens/statistics/StatisticsScreen')).StatisticsScreen,
+}));
+
+const WardrobeScreen = lazy(async () => ({
+  default: (await import('./screens/wardrobe/WardrobeScreen')).WardrobeScreen,
 }));
 const Tutorial = lazy(async () => ({
   default: (await import('./screens/tutorial/Tutorial')).Tutorial,
@@ -183,6 +183,9 @@ export function App(): JSX.Element {
             onStatistics={() => {
               machine.send('OPEN_STATISTICS');
             }}
+            onWardrobe={() => {
+              machine.send('OPEN_WARDROBE');
+            }}
             onSettings={() => {
               machine.send('OPEN_SETTINGS');
             }}
@@ -219,11 +222,25 @@ export function App(): JSX.Element {
         </Shell>
       );
 
+    case 'Wardrobe':
+      return (
+        <Shell>
+          <WardrobeScreen
+            profile={profile}
+            onChange={setProfile}
+            onBack={() => {
+              machine.send('BACK');
+            }}
+          />
+        </Shell>
+      );
+
     case 'MapSelection':
       return (
         <Shell>
+          {/* Endless belongs on this screen but not in the progression. */}
           <MapSelection
-            maps={MAPS}
+            maps={ALL_MAPS}
             profile={profile}
             onSelect={chooseMap}
             onBack={() => {
@@ -255,6 +272,13 @@ export function App(): JSX.Element {
         <Shell>
           <GameScreen
             mapId={selectedMapId}
+            // Read once, as the run starts: a best that updated mid-run would
+            // be a target that moves as you approach it.
+            bestDistanceMeters={progressFor(profile, selectedMapId).bestDistanceMeters}
+            // What the player is known to be bad at, so the run practises it.
+            weakCharacters={weakCharacters(profile.keyStats)}
+            look={runnerLookFor(profile)}
+            effectName={effectNameFor(profile)}
             audio={audio}
             reducedMotion={reducedMotion}
             onRunEnded={endRun}

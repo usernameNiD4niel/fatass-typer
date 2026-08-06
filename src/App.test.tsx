@@ -61,7 +61,9 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: 'Start run' }));
     expect(
-      await screen.findByRole('img', { name: 'The road ahead, the hazards on it, and the runner' }),
+      await screen.findByRole('img', {
+        name: 'The road ahead, the traffic beside it, and the runner',
+      }),
     ).toBeInTheDocument();
   });
 

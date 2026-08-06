@@ -34,6 +34,8 @@ export interface MainMenuProps {
    * that says "not yet".
    */
   readonly onStatistics?: () => void;
+  /** Absent until the wardrobe exists to open. Same reasoning as statistics. */
+  readonly onWardrobe?: () => void;
   readonly onSettings: () => void;
 }
 
@@ -62,6 +64,7 @@ export function MainMenu({
   onContinue,
   onMaps,
   onStatistics,
+  onWardrobe,
   onSettings,
 }: MainMenuProps): JSX.Element {
   const furthest = highestUnlockedMap(profile, maps);
@@ -125,6 +128,14 @@ export function MainMenu({
             : {})}
         >
           Statistics
+        </Button>
+        <Button
+          size="large"
+          onClick={onWardrobe}
+          disabled={onWardrobe === undefined}
+          {...(onWardrobe === undefined ? { 'aria-label': 'Wardrobe — not available yet' } : {})}
+        >
+          Wardrobe
         </Button>
         <Button size="large" onClick={onSettings}>
           Settings

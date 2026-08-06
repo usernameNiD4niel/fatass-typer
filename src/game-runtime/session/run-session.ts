@@ -19,6 +19,7 @@ import type {
   LaneIndex,
   LiveRunStats,
   MapConfig,
+  RivalStanding,
   PromptCategory,
   PromptEntry,
 } from '../../game-core/models';
@@ -33,6 +34,7 @@ import {
   lanePosition,
   momentumMultiplier,
   momentumShare,
+  penaliseMomentum,
   type PlayerMotion,
   rampedSpeed,
   targetLane,
@@ -62,29 +64,22 @@ import {
   isCoinLive,
   placeCoin,
 } from '../../game-core/pickups';
+import { advanceRace, createRace, playerPlacement, type RaceState } from '../../game-core/race';
 import {
-<<<<<<< Updated upstream
-  type ActiveObstacle,
-  advanceObstacles,
-  advanceSpawner,
-  assignLanes,
-  type AvoidanceMove,
-  beginRecovery,
-  commitObstacle,
-  createSpawner,
-  expireObstacle,
-  type FailureReason,
-  moveForOutcome,
-  moveIsDue,
-  type ObstacleOutcome,
-  reserveMsFor,
-  placeObstacle,
-  resolveAtImpact,
-  type ResolvedObstacle,
-  startMove,
-  type SpawnerState,
-} from '../../game-core/obstacles';
-=======
+  type ActiveSurge,
+  breakSurge,
+  completeSurge,
+  FIRST_SURGE_AT_MS,
+  pickSurge,
+  placeSurge,
+  racerSurgeShare,
+  SURGE_COMPLETE_MOMENTUM,
+  SURGE_INTERVAL_MS,
+  SURGE_MOMENTUM,
+  SURGE_REWARD_MS,
+  surgeExpired,
+} from '../../game-core/surge';
+import {
   applyClear as pursuitClear,
   applyFlowMiss as pursuitFlowMiss,
   applyMistake as pursuitMistake,
@@ -96,17 +91,12 @@ import {
   type PursuitState,
 } from '../../game-core/pursuit';
 import { EMPTY_KEY_STATS, recordAttempts, type KeyStats } from '../../game-core/keystats';
->>>>>>> Stashed changes
 import { createRngFromString, type Rng } from '../../game-core/random';
 import {
   awardCoins,
   breakCombo,
   createScoreState,
-<<<<<<< Updated upstream
-  registerCollision as scoreCollision,
-=======
   DEFAULT_SCORING_CONFIG,
->>>>>>> Stashed changes
   registerPromptCompleted as scorePromptCompleted,
   type ScoreState,
 } from '../../game-core/scoring';
@@ -152,7 +142,7 @@ import { applyInput, createTypingState, type TypingState } from '../../game-core
 
 /** Which encounter owns the word currently on screen. */
 export interface ChallengeRef {
-  readonly kind: 'coin' | 'powerup' | 'flow';
+  readonly kind: 'coin' | 'powerup' | 'flow' | 'surge';
   readonly id: string;
 }
 
@@ -215,10 +205,6 @@ export interface RunSession {
   readonly playerMeters: number;
   /** Milliseconds of *simulated* time. A paused run does not advance it. */
   readonly elapsedMs: number;
-<<<<<<< Updated upstream
-  /** Milliseconds of boost left, or 0. Earned by clearing a hazard. */
-  readonly boostRemainingMs: number;
-=======
   /**
    * How fast the player is currently going, as a level from 0 to 1.
    *
@@ -259,7 +245,6 @@ export interface RunSession {
    * it would quietly put every map back on the same ladder rung.
    */
   readonly pursuitConfig: PursuitConfig;
->>>>>>> Stashed changes
   /** Time left on the impact beat before the run ends. */
   readonly impactRemainingMs: number;
   /** Why the run ended, or `null` while it has not. */
@@ -299,6 +284,30 @@ export interface RunSession {
   /** Adaptive assistance (spec §6). Moves the reaction buffer, nothing else. */
   readonly assistance: AssistanceState;
   readonly assistanceConfig: AdaptiveAssistanceConfig;
+  /**
+   * The two opponents (`game-core/race`).
+   *
+   * They do not type and cannot be collided with. What they do is finish before
+   * or after the player, and take coins the player was slower to reach.
+   */
+  readonly race: RaceState;
+  /**
+   * The long sentence, while one is running (`game-core/surge`).
+   *
+   * The catch-up mechanic: everybody gets one a minute, and what the player
+   * gets out of theirs depends on holding it together.
+   */
+  readonly surge: ActiveSurge | null;
+  /** Run time the next surge is due. */
+  readonly nextSurgeAtMs: number;
+  /** Sentences a surge may draw from. Empty means a run with no surges. */
+  readonly surgePool: readonly PromptEntry[];
+  /** Run time the completion reward stops paying, or 0. */
+  readonly surgeRewardUntilMs: number;
+  /** Surges finished clean, for the results screen. */
+  readonly surgesCompleted: number;
+  /** Surges lost to a wrong character. */
+  readonly surgesBroken: number;
   /** Coin lines currently in the world. At most one unresolved. */
   readonly coins: readonly ActiveCoin[];
   /** Powerup crates currently in the world. At most one unresolved. */
@@ -328,6 +337,8 @@ export interface RunSession {
   readonly completedPrompts: number;
   readonly coinsCollected: number;
   readonly coinsMissed: number;
+  /** Coins a rival reached first. Missed, but not by the player's own doing. */
+  readonly coinsStolen: number;
   readonly powerupsClaimed: number;
   readonly powerupsLost: number;
   readonly flowWordsCompleted: number;
@@ -339,28 +350,17 @@ export interface RunSession {
 export type SessionEvent =
   | { readonly type: 'promptChanged'; readonly prompt: PromptEntry | null }
   | { readonly type: 'promptCompleted'; readonly prompt: PromptEntry; readonly points: number }
+  /**
+   * A wrong character was typed.
+   *
+   * Carries the points it will cost so the scene can say so at the moment it
+   * happens. The charge is real but deferred — `scorePrompt` subtracts it when
+   * the prompt is finished — and a penalty the player is told about three
+   * seconds after the keystroke that caused it teaches nothing.
+   */
+  | { readonly type: 'mistyped'; readonly penalty: number }
   | { readonly type: 'boostStarted' }
   | { readonly type: 'boostEnded' }
-<<<<<<< Updated upstream
-  | { readonly type: 'obstacleSpawned'; readonly obstacle: ActiveObstacle }
-  | { readonly type: 'obstacleWarning'; readonly obstacle: ActiveObstacle }
-  | { readonly type: 'obstacleAttached'; readonly obstacle: ActiveObstacle }
-  /** The word was finished and the avoidance move has begun. */
-  | {
-      readonly type: 'obstacleCommitted';
-      readonly obstacle: ActiveObstacle;
-      readonly move: AvoidanceMove;
-      readonly points: number;
-    }
-  | {
-      readonly type: 'obstacleResolved';
-      readonly obstacle: ActiveObstacle;
-      readonly outcome: ObstacleOutcome;
-      readonly move: AvoidanceMove;
-      readonly failureReason: FailureReason | null;
-    }
-=======
->>>>>>> Stashed changes
   | { readonly type: 'coinSpawned'; readonly coin: ActiveCoin }
   | { readonly type: 'coinAttached'; readonly coin: ActiveCoin }
   | {
@@ -369,6 +369,12 @@ export type SessionEvent =
       readonly index: number;
       readonly collected: boolean;
       readonly value: number;
+    }
+  | {
+      readonly type: 'coinStolen';
+      readonly coin: ActiveCoin;
+      readonly index: number;
+      readonly by: string;
     }
   | {
       readonly type: 'coinResolved';
@@ -384,6 +390,13 @@ export type SessionEvent =
       readonly powerup: ActivePowerup;
       /** A mistake, or simply out of time. */
       readonly reason: 'mistake' | 'timeout';
+    }
+  | { readonly type: 'surgeStarted'; readonly surge: ActiveSurge }
+  | {
+      readonly type: 'surgeEnded';
+      readonly surge: ActiveSurge;
+      /** Finished the whole sentence, rather than lapsing or slipping. */
+      readonly completed: boolean;
     }
   | { readonly type: 'flowWordCompleted'; readonly word: ActiveFlowWord; readonly points: number }
   | { readonly type: 'flowWordMissed'; readonly word: ActiveFlowWord }
@@ -407,8 +420,24 @@ export interface CreateRunSessionInput {
    * player running out of anything to type.
    */
   readonly secretWords?: readonly PromptEntry[];
+  /**
+   * Long sentences for the surge (`content/surges.ts`).
+   *
+   * Passed in rather than imported, like every other piece of content: the
+   * rules do not know what the game is about.
+   */
+  readonly surges?: readonly PromptEntry[];
   /** Adaptive assistance. Pass `{ ...config, enabled: false }` to turn it off. */
   readonly assistance?: AdaptiveAssistanceConfig;
+  /**
+   * Characters the player fumbles, from their profile (plan 2.4).
+   *
+   * Passed in rather than derived from `keyStats` as the run goes: the words
+   * the run practises should be chosen from what the player is known to be bad
+   * at, not from the handful of mistakes they have made in the last thirty
+   * seconds. Lifetime evidence, decided once, at the start.
+   */
+  readonly weakCharacters?: readonly string[];
   /** Same seed, same run — the property the whole test suite leans on. */
   readonly seed: string;
 }
@@ -423,15 +452,11 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     phase: 'ready',
     playerMeters: 0,
     elapsedMs: 0,
-<<<<<<< Updated upstream
-    boostRemainingMs: 0,
-=======
     momentum: 0,
     keyStats: EMPTY_KEY_STATS,
     weakCharacters: input.weakCharacters ?? [],
     pursuit: createPursuit(pursuitConfigFor(input.map)),
     pursuitConfig: pursuitConfigFor(input.map),
->>>>>>> Stashed changes
     impactRemainingMs: 0,
     failureReason: null,
     motion: createPlayerMotion(CENTRE_LANE),
@@ -444,6 +469,13 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     stats: createRunStats(),
     score: createScoreState(),
     coinRng: createRngFromString(`${input.seed}:coins`),
+    race: createRace(input.map, createRngFromString(`${input.seed}:race`)),
+    surge: null,
+    nextSurgeAtMs: FIRST_SURGE_AT_MS,
+    surgePool: input.surges ?? [],
+    surgeRewardUntilMs: 0,
+    surgesCompleted: 0,
+    surgesBroken: 0,
     coins: [],
     flow: null,
     flowIndex: 0,
@@ -459,6 +491,7 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     completedPrompts: 0,
     coinsCollected: 0,
     coinsMissed: 0,
+    coinsStolen: 0,
     powerupsClaimed: 0,
     powerupsLost: 0,
     flowWordsCompleted: 0,
@@ -479,11 +512,47 @@ export function currentSpeed(session: RunSession): number {
     session.elapsedMs,
   );
 
-<<<<<<< Updated upstream
-  return session.boostRemainingMs > 0 ? ramped * session.map.boost.speedMultiplier : ramped;
-=======
-  return ramped * momentumMultiplier(session.momentum, session.map.boost.speedMultiplier);
->>>>>>> Stashed changes
+  return ramped * momentumMultiplier(surgedMomentum(session), session.map.boost.speedMultiplier);
+}
+
+/**
+ * Momentum, with a surge's floor applied.
+ *
+ * A surge does not *add* speed — it holds momentum up while it runs, and holds
+ * it at full for a while after it is finished. Adding would let a player bank a
+ * surge on top of already-perfect typing and exceed the ceiling every deadline
+ * in the game is placed against.
+ */
+export function surgedMomentum(session: RunSession): number {
+  if (session.elapsedMs < session.surgeRewardUntilMs) {
+    return Math.max(session.momentum, SURGE_COMPLETE_MOMENTUM);
+  }
+
+  const surge = session.surge;
+  if (surge === null || surge.status !== 'active') return session.momentum;
+
+  /*
+   * Scaled by how far into the sentence the player has got, and that is the
+   * whole of the rule.
+   *
+   * Paying a flat boost for a surge merely being *on screen* was tried and it
+   * handed free speed to somebody typing nothing at all — a player who never
+   * touched the keyboard finished the map on surges alone. What the surge pays
+   * for is holding the sentence together, so the payment has to track how much
+   * of it is being held.
+   */
+  const target = surge.prompt.text.length;
+  const progress = target === 0 ? 0 : Math.min(1, session.typing.correctCharacters / target);
+
+  return Math.max(session.momentum, SURGE_MOMENTUM * progress);
+}
+
+/** True while a surge is carrying the player, for the HUD and the scene. */
+export function isSurging(session: RunSession): boolean {
+  return (
+    session.elapsedMs < session.surgeRewardUntilMs ||
+    (session.surge !== null && session.surge.status === 'active')
+  );
 }
 
 /**
@@ -533,13 +602,13 @@ function marginOf(availableMs: number, remainingMs: number): number {
 
 /** Progress to the finish line, 0..1. */
 export function runProgress(session: RunSession): number {
-  if (session.map.distanceMeters <= 0) return 1;
+  // Endless: there is no proportion of the way there, because there is no
+  // there. The HUD shows distance instead — see `isEndless`.
+  if (session.map.distanceMeters <= 0) return 0;
 
   return Math.min(1, session.playerMeters / session.map.distanceMeters);
 }
 
-<<<<<<< Updated upstream
-=======
 /**
  * The map as it stands *right now*, with escalation applied.
  *
@@ -577,7 +646,6 @@ export function isEndless(map: { readonly distanceMeters: number }): boolean {
   return map.distanceMeters <= 0;
 }
 
->>>>>>> Stashed changes
 /** Which lane the player is committed to. Unchanged mid-transition. */
 export function playerLane(session: RunSession): LaneIndex {
   return session.motion.lane;
@@ -645,6 +713,8 @@ function drawPrompt(
     categories: criteria.categories,
     usage: criteria.usage,
     preferredTags: session.map.content.themeTags,
+    // The run quietly practises what the player is bad at (plan 2.4).
+    weakCharacters: session.weakCharacters,
   });
 
   return { prompt: drawn.prompt, session: { ...session, selector: drawn.selector } };
@@ -774,242 +844,6 @@ function advanceSecret(session: RunSession, prompt: PromptEntry): RunSession {
 /* The typing field                                                          */
 /* -------------------------------------------------------------------------- */
 
-<<<<<<< Updated upstream
-/** Hazards still owed an outcome, answered or not. */
-function unresolvedHazards(session: RunSession): readonly ActiveObstacle[] {
-  return session.obstacles.filter(
-    (entry) =>
-      entry.status === 'approaching' || entry.status === 'active' || entry.status === 'committed',
-  );
-}
-
-/**
- * True while a hazard is unresolved at all.
- *
- * Coins and powerups wait for this: they are optional, and an optional detour
- * that competes with a hazard for the same seconds is a trap.
- */
-function hasLiveHazard(session: RunSession): boolean {
-  return unresolvedHazards(session).length > 0;
-}
-
-/**
- * A hazard the player still owes a *word* for.
- *
- * The distinction the gap word rests on. A committed hazard is answered — the
- * points are paid, the move is under way — and all that is left is the body
- * travelling to the collision plane. Nothing that needs the body can happen in
- * that stretch, which is why coins, crates and the next hazard all wait for it.
- * A word needs no body, so a gap word may run there, anchored to the very
- * obstacle the player is in the middle of dodging.
- *
- * **The spawner does not use this.** Letting the next hazard spawn during the
- * tail was tried twice and ends every run inside fifteen seconds; see
- * `obstacles/README.md` and CLAUDE.md. Bodies stay strictly serialised.
- */
-function hasUnansweredHazard(session: RunSession): boolean {
-  return session.obstacles.some(
-    (entry) => entry.status === 'approaching' || entry.status === 'active',
-  );
-}
-
-/**
- * The nearest hazard still owed an outcome.
- *
- * Moves are strictly serialised through this one. The player has to stay where
- * the nearest hazard demands until its collision plane is behind them — moving
- * early for the *next* hazard would turn one they had already beaten into a
- * crash. Words queue; bodies do not.
- */
-function leadingHazard(session: RunSession): ActiveObstacle | null {
-  let leader: ActiveObstacle | null = null;
-
-  for (const hazard of unresolvedHazards(session)) {
-    if (leader === null || hazard.impactMeters < leader.impactMeters) leader = hazard;
-  }
-
-  return leader;
-}
-
-/**
- * The lane the player will be in once every queued move has happened.
- *
- * Not `targetLane(motion)`, and the difference is the whole reason queued
- * hazards work. A committed hazard's move is *deferred* until the one in front
- * of it resolves, so the motion state does not yet know where the player is
- * going. Assigning the next hazard around their current lane would put its safe
- * lane wherever they happen to be standing now — which is how a faster typist
- * ended up with a worse road than a slow one, because answering early is what
- * queues a move in the first place.
- */
-function predictedLane(session: RunSession): LaneIndex {
-  let lane = targetLane(session.motion);
-
-  const queued = [...unresolvedHazards(session)].sort((a, b) => a.impactMeters - b.impactMeters);
-  for (const hazard of queued) {
-    if (hazard.definition.action === 'lane-change' && hazard.safeLane !== null) {
-      lane = hazard.safeLane;
-    }
-  }
-
-  return lane;
-}
-
-/**
- * Breathing room between two collision planes, on top of the move itself.
- *
- * Enough that a queued move starts, completes, and settles before the next
- * plane arrives — with room for the fixed simulation step to land wherever it
- * lands.
- */
-const PLANE_MARGIN_MS = 500;
-
-/** Spawns whatever the schedule says is due and places it in the world. */
-function spawnDueObstacle(session: RunSession): RunSessionResult {
-  if (session.obstaclePool.length === 0) return { session, events: [] };
-
-  /*
-   * A due coin line or crate outranks a hazard, the same way a due crate already
-   * outranks a coin line.
-   *
-   * Hazards are scheduled every fraction of a second and only ever wait for the
-   * road, so once they stopped waiting for gap words they took every gap there
-   * was and the pickups starved: measured at zero coins and zero crates a run on
-   * Maps 1 and 2. Precedence, not a longer interval, is the fix — a hazard that
-   * yields here is delayed by one encounter, while a coin line that loses its
-   * turn is gone until the next one comes round.
-   */
-  if (session.elapsedMs >= session.nextCoinAtMs) return { session, events: [] };
-  if (session.elapsedMs >= session.nextPowerupAtMs) return { session, events: [] };
-
-  const due = advanceSpawner(session.spawner, session.elapsedMs, {
-    content: session.map.content,
-    mapNumber: session.map.mapNumber,
-    pool: session.obstaclePool,
-    hazardsLive: hasLiveHazard(session),
-    /*
-     * A hazard still waits for anything on the road — a coin line or a crate
-     * owns its stretch from approach to collection, and sharing it does not
-     * work. A car ordered into the middle of a coin run drags the player off the
-     * row; a jump lifts them over it. Both leave coins the player has already
-     * paid for on the tarmac, so both were measured and both were rejected.
-     *
-     * A *gap word* is the one thing it no longer waits for, and that is the
-     * whole change. It has no body, so there is nothing for a hazard to collide
-     * with, and dropping it costs nothing — see `dropFlowWord`. It used to sit in
-     * this condition, which meant the filler invented to cover the gaps was
-     * itself creating them: on Map 1 that was 3.5 seconds of delay per encounter
-     * and 63% of the run spent on filler or empty road.
-     */
-    coinsLive: session.coins.some(isCoinLive) || session.powerups.some(isPowerupLive),
-  });
-
-  const definition = due.spawned;
-  if (definition === null) return { session: { ...session, spawner: due.state }, events: [] };
-
-  // The sentence first; the hazard's own category is the fallback for after it
-  // is finished. A hazard takes whatever word is next rather than choosing one,
-  // which is what keeps the run assembling a single sentence.
-  const drawn = drawPrompt(session, {
-    categories: [definition.promptCategory],
-    usage: 'obstacle',
-  });
-  const withPrompt = drawn.session;
-
-  // No prompt in the pool fits this hazard's category. Skipping it is the
-  // honest failure: spawning something untypeable would be a free collision.
-  if (drawn.prompt === null) {
-    return { session: { ...withPrompt, spawner: due.state }, events: [] };
-  }
-
-  const assigned = assignLanes(session.laneRng, {
-    action: definition.action,
-    // Where they will be once everything already on the road has been answered
-    // — not where they are standing while they answer it.
-    playerLane: predictedLane(session),
-    doubleBlockChance: session.map.content.doubleBlockChance,
-  });
-
-  const index = session.obstaclesFaced + 1;
-  const placed = placeObstacle({
-    instanceId: `obstacle-${String(index)}`,
-    definition,
-    prompt: drawn.prompt,
-    // Assistance enters here and only here: the hazard is placed against a map
-    // whose reaction buffer has been nudged, so the extra time is real distance
-    // on the road rather than a special case in the deadline.
-    map: assistedMap(session.map, session.assistance),
-    playerMeters: session.playerMeters,
-    elapsedMs: session.elapsedMs,
-    assignment: assigned.assignment,
-    speedMetersPerSecond: placementSpeed(session),
-  });
-
-  const obstacle = withClearRoad(placed, session);
-
-  return {
-    session: {
-      ...withPrompt,
-      spawner: due.state,
-      laneRng: assigned.rng,
-      obstacles: [...session.obstacles, obstacle],
-      obstaclesFaced: index,
-    },
-    events: [{ type: 'obstacleSpawned', obstacle }],
-  };
-}
-
-/**
- * Pushes a new hazard back until its collision plane has room.
- *
- * With words queued, two hazards can be in flight at once — and if their planes
- * land within a move of each other the second one is unanswerable: its jump or
- * lane change cannot start until the first is resolved, and by then there is no
- * road left to do it in. That shows up as `late-move` on a hazard the player
- * typed perfectly, which is the worst failure this game can produce.
- *
- * So the planes are spaced by the move the *new* hazard will need, plus a
- * margin. This is the only place placement is adjusted after the timing budget
- * has spoken, and it only ever moves a hazard further away.
- */
-function withClearRoad(obstacle: ActiveObstacle, session: RunSession): ActiveObstacle {
-  const unresolved = unresolvedHazards(session);
-  if (unresolved.length === 0) return obstacle;
-
-  const nearestPlane = Math.max(...unresolved.map((entry) => entry.impactMeters));
-  const separationMs = reserveMsFor(obstacle, session.map) + PLANE_MARGIN_MS;
-  const separationMeters = spawnDistanceMeters(separationMs, placementSpeed(session));
-  const earliest = nearestPlane + separationMeters;
-
-  return obstacle.impactMeters >= earliest ? obstacle : { ...obstacle, impactMeters: earliest };
-}
-
-/**
- * Hands the typing field to a hazard. Its word is mandatory.
- *
- * A coin word on screen is abandoned here, and deliberately: the player has one
- * word to read and it had better be the one that can end their run.
- */
-function attachObstaclePrompt(session: RunSession, obstacle: ActiveObstacle): RunSessionResult {
-  const abandoned = dropFlowWord(abandonUncommittedCoins(session));
-
-  return {
-    session: {
-      ...abandoned,
-      prompt: obstacle.prompt,
-      typing: createTypingState(obstacle.prompt.text),
-      promptStartedMs: session.elapsedMs,
-      challenge: { kind: 'hazard', id: obstacle.instanceId },
-    },
-    events: [
-      { type: 'obstacleAttached', obstacle },
-      { type: 'promptChanged', prompt: obstacle.prompt },
-    ],
-  };
-}
-
-=======
->>>>>>> Stashed changes
 /** Hands the typing field to a coin line. Its word is optional. */
 function attachCoinPrompt(session: RunSession, coin: ActiveCoin): RunSessionResult {
   return {
@@ -1108,6 +942,15 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
     elapsedMs: session.elapsedMs + deltaMs,
     playerMeters: session.playerMeters + speed * seconds,
     momentum,
+    // The opponents run on the same clock. They are not driven by the player
+    // and nothing they do can end the run — see `game-core/race`.
+    race: advanceRace(session.race, {
+      map: session.map,
+      deltaMs,
+      elapsedMs: session.elapsedMs,
+      distanceMeters: session.map.distanceMeters,
+      playerMeters: session.playerMeters,
+    }),
     motion: advanceMotion(session.motion, deltaMs),
     effects: advanceEffects(session.effects, deltaMs),
     // Only time spent with a word on screen counts toward WPM.
@@ -1130,7 +973,16 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
    * three. Coins ask rarely — every few seconds — and when they ask they go
    * first; the hazard spawner waits for whatever they started.
    */
-  const powerupSpawned = spawnDuePowerup(advanced);
+  /*
+   * The surge goes first when one is due.
+   *
+   * It is the only thing in the game on a fixed clock that everybody gets, so
+   * letting a crate or a coin line push it a few seconds later every minute
+   * would slowly drift it out of step with the racers' own surge — and the two
+   * halves of the mechanic have to land together.
+   */
+  const surgeSpawned = spawnDueSurge(advanced);
+  const powerupSpawned = spawnDuePowerup(surgeSpawned.session);
   const coinsSpawned = spawnDueCoins(powerupSpawned.session);
   /*
    * A swerve that was refused when it was asked for gets another chance every
@@ -1143,12 +995,15 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
   const coinLifecycle = advanceCoinLifecycle(powerupLifecycle.session);
   // Last, and only into whatever is left: a flow word takes the field when
   // nothing on the road wants it, and never before.
-  const flowLifecycle = advanceFlowLifecycle(coinLifecycle.session);
+  const surgeLifecycle = advanceSurgeLifecycle(coinLifecycle.session);
+  const flowLifecycle = advanceFlowLifecycle(surgeLifecycle.session);
 
   const current = flowLifecycle.session;
   const allEvents = [
     ...events,
+    ...surgeSpawned.events,
     ...powerupSpawned.events,
+    ...surgeLifecycle.events,
     ...powerupLifecycle.events,
     ...coinsSpawned.events,
     ...coinLifecycle.events,
@@ -1159,9 +1014,6 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
   // rescue a player who has already hit something.
   if (current.phase !== 'running') return { session: current, events: allEvents };
 
-<<<<<<< Updated upstream
-  if (current.playerMeters >= current.map.distanceMeters) {
-=======
   /*
    * Caught — checked before the finish line, and after everything that could
    * have moved the gap this step.
@@ -1212,7 +1064,6 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
   // An endless map has no finish line to cross, so this is the one exit it
   // never takes: the run ends when the player does.
   if (!isEndless(current.map) && current.playerMeters >= current.map.distanceMeters) {
->>>>>>> Stashed changes
     const finished = toPhase(
       { ...current, playerMeters: current.map.distanceMeters },
       'levelComplete',
@@ -1241,7 +1092,14 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
   if (typing === session.typing) return { session, events: [] };
 
   const stats = recordTypingDelta(session.stats, session.typing, typing, session.elapsedMs);
-  const typed: RunSession = { ...session, typing, stats };
+  const typed: RunSession = {
+    ...session,
+    typing,
+    stats,
+    // Every keystroke, right or wrong. Accuracy says how much went wrong; this
+    // is the only thing that says *what*.
+    keyStats: recordAttempts(session.keyStats, typing.lastAttempts),
+  };
 
   const mistyped = typing.incorrectCharacters > session.typing.incorrectCharacters;
 
@@ -1251,26 +1109,36 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
     // one slip cannot measure it.
     if (!mistyped) return { session: typed, events: [] };
 
-<<<<<<< Updated upstream
-    const penalised: RunSession = { ...typed, score: breakCombo(typed.score) };
-=======
     const penalised: RunSession = {
       ...typed,
       score: breakCombo(typed.score),
       // The chaser closes on the keystroke, not at the end of the word. That is
       // the point of having something visible back there.
       pursuit: pursuitMistake(typed.pursuit, typed.pursuitConfig),
+      // And the player loses a little speed with it, so a mistake is felt in
+      // the road as well as in the numbers.
+      momentum: penaliseMomentum(typed.momentum),
     };
     const mistake: SessionEvent = {
       type: 'mistyped',
       penalty: DEFAULT_SCORING_CONFIG.incorrectCharacterPenalty,
     };
->>>>>>> Stashed changes
 
     // The one exception in the whole game: a powerup sentence has to be perfect.
-    return typed.challenge?.kind === 'powerup'
-      ? forfeitActivePowerup(penalised)
-      : { session: penalised, events: [] };
+    if (typed.challenge?.kind === 'powerup') {
+      const forfeited = forfeitActivePowerup(penalised);
+
+      return { session: forfeited.session, events: [mistake, ...forfeited.events] };
+    }
+
+    // And a surge, which is the same bargain over four times the length.
+    if (typed.challenge?.kind === 'surge') {
+      const stopped = breakActiveSurge(penalised);
+
+      return { session: stopped.session, events: [mistake, ...stopped.events] };
+    }
+
+    return { session: penalised, events: [mistake] };
   }
 
   // Completing it *with* a mistake in the history is still a forfeit — the
@@ -1279,119 +1147,20 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
     return forfeitActivePowerup({ ...typed, score: breakCombo(typed.score) });
   }
 
+  if (typed.challenge?.kind === 'surge' && typed.typing.incorrectCharacters > 0) {
+    return breakActiveSurge({ ...typed, score: breakCombo(typed.score) });
+  }
+
   const challenge = typed.challenge;
   if (challenge === null) return { session: typed, events: [] };
 
   if (challenge.kind === 'powerup') return claimActivePowerup(typed, challenge.id);
+  if (challenge.kind === 'surge') return completeActiveSurge(typed, challenge.id);
   if (challenge.kind === 'flow') return completeFlow(typed, challenge.id);
 
   return commitToCoins(typed, challenge.id);
 }
 
-<<<<<<< Updated upstream
-/**
- * The word was finished in time. Start the move and pay out.
- *
- * Points, combo, and boost land here rather than at the collision plane,
- * because this is the moment the player earned them and the moment they expect
- * the feedback. What is still outstanding is only whether their body gets clear
- * — and the reserve is what makes that a formality rather than a gamble.
- */
-function commitToAvoidance(session: RunSession, instanceId: string): RunSessionResult {
-  const obstacle = session.obstacles.find((entry) => entry.instanceId === instanceId);
-
-  // Expired on the same step, or already resolved.
-  if (obstacle === undefined || obstacle.status !== 'active') {
-    return { session, events: [] };
-  }
-
-  const committed = commitObstacle(obstacle, session.elapsedMs);
-
-  const scored = scorePromptCompleted(session.score, {
-    correctCharacters: session.typing.correctCharacters,
-    incorrectCharacters: session.typing.incorrectCharacters,
-    isObstacle: true,
-    expectedTypingMs: obstacle.timing.expectedTypingMs,
-    actualTypingMs: session.elapsedMs - session.promptStartedMs,
-    // Finishing early is worth something: it is the difference between clearing
-    // a hazard and scraping past it.
-    remainingMs:
-      obstacle.deadlineAtMs === null ? 0 : Math.max(0, obstacle.deadlineAtMs - session.elapsedMs),
-  });
-
-  /*
-   * The word is answered. Whether the *body* moves yet is a separate question.
-   *
-   * A jump always waits for its moment, or it lands before the obstacle
-   * arrives. A lane change waits only if an earlier hazard is still unresolved
-   * — leaving that hazard's safe lane early would turn a hazard the player had
-   * beaten into a crash. `startDueMoves` picks either of them up.
-   */
-  const isJump = obstacle.definition.action === 'jump';
-  /*
-   * A lane change can be *refused*: the motion layer will not steer a player out
-   * of a jump, whoever is asking. With hazards this close together the previous
-   * hazard's jump is often still in the air when this word is finished, and
-   * marking the move as started when it did not start was a `late-move` on a
-   * hazard the player answered instantly — the worst failure the game can
-   * produce. So the move is only recorded as begun if the body actually moved;
-   * otherwise `startDueMoves` picks it up on a later step, once the jump lands.
-   */
-  const motion = isJump ? session.motion : startAvoidanceMove(session, committed);
-  const began = !isJump && motion !== session.motion;
-  const moved = began ? startMove(committed) : committed;
-
-  const next: RunSession = {
-    ...advanceSecret(session, obstacle.prompt),
-    obstacles: session.obstacles.map((entry) => (entry.instanceId === instanceId ? moved : entry)),
-    motion,
-    score: scored,
-    completedPrompts: session.completedPrompts + 1,
-    // Clearing a hazard is what earns speed. There are no other prompts to earn
-    // it from any more.
-    boostRemainingMs: Math.max(
-      session.boostRemainingMs,
-      boostDurationMs(session.map.boost, obstacle.prompt.normalizedText.length),
-    ),
-  };
-
-  const move = moveForOutcome('avoided', obstacle.definition.action);
-  const points = scored.score - session.score.score;
-
-  const events: SessionEvent[] = [
-    { type: 'promptCompleted', prompt: obstacle.prompt, points },
-    { type: 'obstacleCommitted', obstacle: moved, move, points },
-    { type: 'boostStarted' },
-  ];
-
-  /*
-   * The word is done, so it comes off the screen now rather than at the
-   * collision plane.
-   *
-   * It used to stay up for the whole of the move — several seconds of a word
-   * the player had already finished, which is both a lie about what is being
-   * asked of them and the single largest silence in a run. Releasing it here is
-   * what lets a gap word fill the tail.
-   */
-  const cleared = clearPrompt(next);
-  events.push(...cleared.events);
-
-  const filled = spawnFlowWord(cleared.session);
-
-  return { session: filled.session, events: [...events, ...filled.events] };
-}
-
-/** Starts the lane change the hazard asks for. */
-function startAvoidanceMove(session: RunSession, obstacle: ActiveObstacle): PlayerMotion {
-  if (obstacle.safeLane === null) return session.motion;
-
-  // Preempt: a coin swerve may be in flight, and a player who typed their way
-  // out of a car must never be refused because they were collecting.
-  return beginLaneChange(session.motion, obstacle.safeLane, session.map.motion, { preempt: true });
-}
-
-=======
->>>>>>> Stashed changes
 /* -------------------------------------------------------------------------- */
 /* Coins                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -1435,13 +1204,8 @@ function spawnDueCoins(session: RunSession): RunSessionResult {
   const placed = placeCoin({
     instanceId: `coin-${String(session.coins.length + 1)}`,
     prompt: drawn.prompt,
-<<<<<<< Updated upstream
-    map: session.map,
-    playerLane: predictedLane(session),
-=======
     map: activeMap(session),
     playerLane: targetLane(session.motion),
->>>>>>> Stashed changes
     playerMeters: session.playerMeters,
     elapsedMs: session.elapsedMs,
     speedMetersPerSecond: placementSpeed(session),
@@ -1476,6 +1240,12 @@ function advanceCoinLifecycle(session: RunSession): RunSessionResult {
       magnet: hasMagnet(session.effects),
       playerLane: session.motion.lane,
       settled: isSettled(session.motion),
+      // Whoever is in front gets there first.
+      rivals: session.race.racers.map((racer) => ({
+        id: racer.id,
+        name: racer.name,
+        meters: racer.meters,
+      })),
     });
 
     let latest = result.coin;
@@ -1498,6 +1268,20 @@ function advanceCoinLifecycle(session: RunSession): RunSessionResult {
           nextCoinAtMs: current.elapsedMs + current.map.content.coinIntervalSeconds * 1_000,
         };
         current = releaseCoinField(current, latest.instanceId, events);
+        continue;
+      }
+
+      if (event.type === 'coinUnitStolen') {
+        /*
+         * Gone, and not to the player. Counted apart from `coinsMissed`
+         * because the two mean different things to a player reading their
+         * results: one is a coin they declined, the other is a coin they were
+         * beaten to.
+         */
+        latest = event.coin;
+        current = { ...current, coinsStolen: current.coinsStolen + 1 };
+
+        events.push({ type: 'coinStolen', coin: latest, index: event.index, by: event.by });
         continue;
       }
 
@@ -1564,6 +1348,200 @@ function releaseCoinField(
 }
 
 /* -------------------------------------------------------------------------- */
+/* Surges                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Puts the long sentence up, when one is due and the road will allow it.
+ *
+ * It outranks a flow word — which costs nothing to drop — and waits for
+ * anything with a body. A surge arriving in the middle of a coin swerve would
+ * mean choosing between the coins already paid for and the sentence, which is
+ * not a choice anybody can make in the half second available.
+ */
+function spawnDueSurge(session: RunSession): RunSessionResult {
+  if (session.elapsedMs < session.nextSurgeAtMs) return { session, events: [] };
+  if (session.surgePool.length === 0) return { session, events: [] };
+  if (session.surge !== null) return { session, events: [] };
+  if (session.coins.some(isCoinLive)) return { session, events: [] };
+  if (session.powerups.some(isPowerupLive)) return { session, events: [] };
+
+  const index = session.surgesCompleted + session.surgesBroken;
+  // Long *for this map*: a twelve-word sentence on a 20 WPM map cannot be
+  // finished inside the cap, and an unfinishable reward is a punishment.
+  const prompt = pickSurge(session.surgePool, activeMap(session), index);
+  if (prompt === undefined) return { session, events: [] };
+
+  const surge = placeSurge({
+    instanceId: `surge-${String(index + 1)}`,
+    prompt,
+    map: activeMap(session),
+    elapsedMs: session.elapsedMs,
+  });
+
+  /*
+   * Every racer surges at the same moment, weighted to whoever is behind.
+   *
+   * This is the half of the mechanic the player never sees directly, and it is
+   * why the race stays close: a surge only the player got would turn a catch-up
+   * tool into a way for a strong typist to leave the field for good.
+   */
+  const boosted = surgeRacers(session);
+
+  return {
+    session: {
+      ...dropFlowWord({ ...session, race: boosted }),
+      surge,
+      nextSurgeAtMs: session.elapsedMs + SURGE_INTERVAL_MS,
+      prompt: surge.prompt,
+      typing: createTypingState(surge.prompt.text),
+      promptStartedMs: session.elapsedMs,
+      challenge: { kind: 'surge', id: surge.instanceId },
+    },
+    events: [
+      { type: 'surgeStarted', surge },
+      { type: 'promptChanged', prompt: surge.prompt },
+    ],
+  };
+}
+
+/** Moves every racer forward by their share of a surge. */
+function surgeRacers(session: RunSession): RaceState {
+  return {
+    ...session.race,
+    racers: session.race.racers.map((racer) => ({
+      ...racer,
+      // A one-off shove rather than a speed change, so it cannot compound with
+      // the pace they are already drifting toward.
+      meters:
+        racer.meters + SURGE_RACER_METERS * racerSurgeShare(session.playerMeters - racer.meters),
+    })),
+  };
+}
+
+/**
+ * How far a full racer surge is worth, in metres.
+ *
+ * Sized against the gap a race is actually decided by rather than against the
+ * player's own surge: what the player gets is time at a higher speed, and
+ * converting that into an equivalent shove would tie two dials together that
+ * want to be tuned apart.
+ */
+const SURGE_RACER_METERS = 18;
+
+/** Runs the surge's clock. Lapsing costs the sentence and nothing else. */
+function advanceSurgeLifecycle(session: RunSession): RunSessionResult {
+  const surge = session.surge;
+  if (surge === null) return { session, events: [] };
+
+  if (surge.status !== 'active') {
+    return { session: { ...session, surge: null }, events: [] };
+  }
+
+  if (!surgeExpired(surge, session.elapsedMs)) return { session, events: [] };
+
+  const events: SessionEvent[] = [{ type: 'surgeEnded', surge, completed: false }];
+  let next: RunSession = {
+    ...session,
+    surge: null,
+    surgesBroken: session.surgesBroken + 1,
+    /*
+     * A lapsed surge costs ground, exactly as a lapsed gap word does.
+     *
+     * Without this, a surge was a free pass: it holds the field, so no gap word
+     * is on screen, so a player who typed nothing for its whole length was
+     * never penalised for the silence. The road going quiet costs the same
+     * whichever prompt was supposed to be filling it.
+     */
+    pursuit: pursuitFlowMiss(session.pursuit, session.pursuitConfig),
+  };
+
+  if (next.challenge?.kind === 'surge' && next.challenge.id === surge.instanceId) {
+    const cleared = clearPrompt(next);
+    next = cleared.session;
+    events.push(...cleared.events);
+  }
+
+  const filled = spawnFlowWord(next);
+
+  return { session: filled.session, events: [...events, ...filled.events] };
+}
+
+/** One wrong character. The sentence goes, and the speed with it. */
+function breakActiveSurge(session: RunSession): RunSessionResult {
+  const surge = session.surge;
+  if (surge === null || surge.status !== 'active') return { session, events: [] };
+
+  const broken = breakSurge(surge);
+  const events: SessionEvent[] = [{ type: 'surgeEnded', surge: broken, completed: false }];
+
+  let next: RunSession = {
+    ...session,
+    surge: null,
+    surgesBroken: session.surgesBroken + 1,
+    // The reward stops too. A surge that kept paying after it was broken would
+    // make breaking one on the last word the best way to play it.
+    surgeRewardUntilMs: 0,
+  };
+
+  if (next.challenge?.kind === 'surge' && next.challenge.id === surge.instanceId) {
+    const cleared = clearPrompt(next);
+    next = cleared.session;
+    events.push(...cleared.events);
+  }
+
+  const filled = spawnFlowWord(next);
+
+  return { session: filled.session, events: [...events, ...filled.events] };
+}
+
+/** The whole sentence, clean. Full pace, held. */
+function completeActiveSurge(session: RunSession, instanceId: string): RunSessionResult {
+  const surge = session.surge;
+  if (surge === null || surge.instanceId !== instanceId || surge.status !== 'active') {
+    return { session, events: [] };
+  }
+
+  const finished = completeSurge(surge);
+  const scored = scorePromptCompleted(session.score, {
+    correctCharacters: session.typing.correctCharacters,
+    incorrectCharacters: 0,
+    isObstacle: false,
+    expectedTypingMs: surge.timing.expectedTypingMs,
+    actualTypingMs: session.elapsedMs - session.promptStartedMs,
+    remainingMs: Math.max(0, surge.deadlineAtMs - session.elapsedMs),
+    marginFraction: 0,
+  });
+
+  const points = scored.score - session.score.score;
+  const events: SessionEvent[] = [
+    { type: 'promptCompleted', prompt: finished.prompt, points },
+    { type: 'surgeEnded', surge: finished, completed: true },
+  ];
+
+  let next: RunSession = {
+    ...session,
+    surge: null,
+    score: scored,
+    completedPrompts: session.completedPrompts + 1,
+    surgesCompleted: session.surgesCompleted + 1,
+    surgeRewardUntilMs: session.elapsedMs + SURGE_REWARD_MS,
+    momentum: earnMomentum(session, 1, events),
+    // A whole sentence held together is the strongest thing the player can do
+    // to the chaser, and it should feel like it.
+    pursuit: pursuitClear(session.pursuit, 1, session.pursuitConfig),
+  };
+
+  const cleared = clearPrompt(next);
+  next = cleared.session;
+  events.push(...cleared.events);
+
+  const filled = spawnFlowWord(next);
+
+  return { session: filled.session, events: [...events, ...filled.events] };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Flow words                                                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -1588,6 +1566,11 @@ function spawnFlowWord(session: RunSession): RunSessionResult {
     return { session, events: [] };
   }
   if (session.powerups.some(isPowerupLive)) return { session, events: [] };
+  // A surge owns the field outright while it runs: it is the longest and most
+  // valuable thing the game ever puts on screen.
+  if (session.surge !== null && session.surge.status === 'active') {
+    return { session, events: [] };
+  }
 
   /*
    * A gap word used to be allowed only in a *tail* — the stretch after a hazard
@@ -1617,11 +1600,7 @@ function spawnFlowWord(session: RunSession): RunSessionResult {
   const word = placeFlowWord({
     instanceId: `flow-${String(index)}`,
     prompt: drawn.prompt,
-<<<<<<< Updated upstream
-    map: session.map,
-=======
     map: activeMap(session),
->>>>>>> Stashed changes
     elapsedMs: session.elapsedMs,
   });
 
@@ -1671,8 +1650,6 @@ function advanceFlowLifecycle(session: RunSession): RunSessionResult {
       flow: null,
       flowWordsMissed: current.flowWordsMissed + 1,
       score: breakCombo(current.score),
-<<<<<<< Updated upstream
-=======
       // The first real cost a lapsed gap word has ever had. Declining a coin
       // line is still free; letting the road go quiet is not.
       pursuit: pursuitFlowMiss(current.pursuit, current.pursuitConfig),
@@ -1684,7 +1661,6 @@ function advanceFlowLifecycle(session: RunSession): RunSessionResult {
        * failure. A lapsed word is the failure the game still has.
        */
       assistance: registerFailure(current.assistance, current.assistanceConfig),
->>>>>>> Stashed changes
     };
 
     events.push({ type: 'flowWordMissed', word: missed });
@@ -1726,6 +1702,16 @@ function completeFlow(session: RunSession, instanceId: string): RunSessionResult
     expectedTypingMs: word.timing.expectedTypingMs,
     actualTypingMs: session.elapsedMs - session.promptStartedMs,
     remainingMs: Math.max(0, word.deadlineAtMs - session.elapsedMs),
+    /*
+     * No margin bonus for a gap word, deliberately.
+     *
+     * It is the largest single term on offer, and a gap word costs nothing to
+     * miss. Paying it here would hand the biggest reward in the game to the one
+     * prompt with no stake — which is the exact complaint the density work was
+     * fixing. The margin bonus is for beating something that could have killed
+     * you.
+     */
+    marginFraction: 0,
   });
 
   const points = scored.score - session.score.score;
@@ -1812,13 +1798,8 @@ function spawnDuePowerup(session: RunSession): RunSessionResult {
   const placed = placePowerup({
     instanceId: `powerup-${String(session.powerups.length + 1)}`,
     prompt: drawn.prompt,
-<<<<<<< Updated upstream
-    map: session.map,
-    playerLane: predictedLane(session),
-=======
     map: activeMap(session),
     playerLane: targetLane(session.motion),
->>>>>>> Stashed changes
     playerMeters: session.playerMeters,
     elapsedMs: session.elapsedMs,
     speedMetersPerSecond: placementSpeed(session),
@@ -2028,15 +2009,38 @@ export function liveStats(session: RunSession): LiveRunStats {
     flightRemainingMs: session.effects.flightRemainingMs,
     magnetRemainingMs: session.effects.magnetRemainingMs,
     elapsedMs: session.elapsedMs,
+    distanceMeters: session.playerMeters,
     secretWordsTyped: session.secretIndex,
     secretWordCount: session.secretWords.length,
-<<<<<<< Updated upstream
-=======
     pursuitPressure: pursuitPressure(session.pursuit, session.pursuitConfig),
     // Paced, not the raw config: the endless map raises its own target.
     targetWpm: pacedMap(session).targetWpm,
->>>>>>> Stashed changes
+    placement: playerPlacement(session.race, session.playerMeters),
+    rivals: rivalStandings(session),
   };
+}
+
+/**
+ * Where each opponent is, by the side of the road they run on.
+ *
+ * Both of them, rather than only the nearest. The nearest one is the one the
+ * standing is about to change on, but a player watching a rival on their left
+ * wants to know about *that* rival — and with two of them in fixed lanes, the
+ * side is the name the player already has for them.
+ *
+ * Signed from the player: negative means behind. See `RivalStanding`.
+ */
+export function rivalStandings(session: RunSession): readonly RivalStanding[] {
+  return (
+    session.race.racers
+      .map((racer) => ({
+        side: racer.lane < CENTRE_LANE ? ('left' as const) : ('right' as const),
+        gapMeters: racer.meters - session.playerMeters,
+      }))
+      // Left before right, always. The HUD reads left to right and a pair of
+      // readouts that swap places between runs is a pair nobody can glance at.
+      .sort((left, right) => (left.side === right.side ? 0 : left.side === 'left' ? -1 : 1))
+  );
 }
 
 /** The powerup crate currently holding the typing field, if any. */
@@ -2045,6 +2049,13 @@ export function activePowerup(session: RunSession): ActivePowerup | null {
   const id = session.challenge.id;
 
   return session.powerups.find((entry) => entry.instanceId === id) ?? null;
+}
+
+/** The surge currently holding the typing field, if any. */
+export function activeSurge(session: RunSession): ActiveSurge | null {
+  if (session.challenge?.kind !== 'surge') return null;
+
+  return session.surge;
 }
 
 /** The flow word currently holding the typing field, if any. */

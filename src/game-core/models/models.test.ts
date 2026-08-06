@@ -290,8 +290,20 @@ describe('player profile recovery — spec §17', () => {
     expect(repaired?.sustainablePeakWpm).toBe(32);
     expect(repaired?.mapProgress['map-1']?.bestScore).toBe(900);
     expect(repaired?.settings.theme).toBe('dark');
-    // Only the unreadable parts are dropped.
-    expect(repaired?.mapProgress['map-2']).toBeUndefined();
+    /*
+     * Map 2's record is repaired rather than dropped, and the difference is not
+     * academic.
+     *
+     * An all-or-nothing check discards a whole map's bests when one field is
+     * unreadable — and a field is *always* unreadable the first time the game
+     * adds one. `bestDistanceMeters` arriving in plan 2.2 would have zeroed
+     * every existing player's records under the old rule.
+     *
+     * Nothing is invented by repairing: an entry whose only content was
+     * `completed: 'yes'` becomes an entry with no records, which is what it
+     * already was.
+     */
+    expect(repaired?.mapProgress['map-2']).toEqual(EMPTY_MAP_PROGRESS);
     expect(repaired?.updatedAt).toBe(NOW);
   });
 

@@ -3,11 +3,8 @@ import {
   createWorldSnapshot,
   MAX_SNAPSHOT_COIN_UNITS,
   MAX_SNAPSHOT_COINS,
-<<<<<<< Updated upstream
-  MAX_SNAPSHOT_HAZARDS,
-=======
   MAX_SNAPSHOT_POPUPS,
->>>>>>> Stashed changes
+  MAX_SNAPSHOT_RACERS,
   MAX_SNAPSHOT_POWERUPS,
 } from '../../game-bridge';
 import type {
@@ -24,15 +21,13 @@ import { type DeadlinePressure, deadlinePressure } from '../../game-core/timing'
 import { FixedStepDriver } from '../loop';
 import { distanceToCoins } from '../../game-core/pickups';
 import { distanceToPowerup, hasMagnet, isFlying } from '../../game-core/powerups';
-<<<<<<< Updated upstream
-import { flowUrgency } from '../../game-core/flow';
-=======
 import { pursuitPressure } from '../../game-core/pursuit';
 import { flowRemainingMs, flowUrgency } from '../../game-core/flow';
->>>>>>> Stashed changes
+import { surgeProgress } from '../../game-core/surge';
 import {
   activeCoin,
   activeFlowWord,
+  activeSurge,
   activePowerup,
   advanceRunSession,
   applyRunInput,
@@ -69,6 +64,12 @@ export interface RuntimeHostOptions {
   readonly prompts: readonly PromptEntry[];
   /** The map's secret, as words in order. Every prompt comes from here first. */
   readonly secretWords?: readonly PromptEntry[];
+  /** Which of the map's secrets this run drew. Recorded on the result. */
+  readonly secretId?: string;
+  /** Long sentences for the surge (`content/surges.ts`). */
+  readonly surges?: readonly PromptEntry[];
+  /** Characters the player fumbles. The run's vocabulary leans toward them. */
+  readonly weakCharacters?: readonly string[];
   readonly seed: string;
   readonly emit: (event: GameEvent) => void;
   /** Offers a stats sample; the bridge decides whether it leaves. */
@@ -83,11 +84,30 @@ export interface RuntimeHostOptions {
   readonly now?: () => number;
 }
 
+/**
+ * What finishing in front is worth.
+ *
+ * Paid on the run's score, so it flows into the same total everything else
+ * does — the race is a way of scoring a run rather than a second currency
+ * bolted beside it.
+ *
+ * Only paid on a run that *reached the finish line*. A player caught by the
+ * chaser in first place did not win a race, they lost a run; paying them for
+ * the standing they held at the moment they died would make being caught early
+ * while leading worth more than being caught late while second.
+ */
+export function placementBonus(placement: number, completed: boolean): number {
+  if (!completed) return 0;
+
+  return PLACEMENT_BONUS[placement - 1] ?? 0;
+}
+
+/** First, second, third. Third is not zero: turning up and finishing is worth something. */
+const PLACEMENT_BONUS = [1_200, 600, 200] as const;
+
 /** How quickly a camera shake impulse decays, per second. */
 const SHAKE_DECAY_PER_SECOND = 3.2;
 
-<<<<<<< Updated upstream
-=======
 /**
  * Degrees of field of view a finished word kicks in, before it decays.
  *
@@ -107,7 +127,6 @@ const MISTAKE_SHAKE = 0.22;
 /** How long a floating score label lives. */
 const POPUP_LIFETIME_MS = 950;
 
->>>>>>> Stashed changes
 /** Degrees of extra field of view at the top of the speed range. */
 const MAX_FOV_BIAS_DEGREES = 6;
 
@@ -126,6 +145,10 @@ export class RuntimeHost implements GameHost {
   /** Position at the last completed step, for render interpolation. */
   private previousMeters = 0;
   private shake = 0;
+  private punch = 0;
+  /** Ring buffer over the snapshot's fixed popup pool. */
+  private popupCursor = 0;
+  private popupSequence = 0;
 
   constructor(options: RuntimeHostOptions) {
     this.options = options;
@@ -134,6 +157,8 @@ export class RuntimeHost implements GameHost {
       map: options.map,
       pool: options.prompts,
       secretWords: options.secretWords ?? [],
+      surges: options.surges ?? [],
+      weakCharacters: options.weakCharacters ?? [],
       seed: options.seed,
     });
 
@@ -238,12 +263,19 @@ export class RuntimeHost implements GameHost {
       map: this.options.map,
       pool: this.options.prompts,
       secretWords: this.options.secretWords ?? [],
+      // A restart is a fresh run in every respect, surges included. Leaving
+      // this out gave a restarted run no surges at all, which is the kind of
+      // difference nobody would think to look for.
+      surges: this.options.surges ?? [],
+      weakCharacters: this.options.weakCharacters ?? [],
       assistance: this.assistanceConfig,
       // A restart is a fresh run, not a replay: a new seed means new prompts.
       seed: `${this.options.seed}:${String(Math.round(this.now()))}`,
     });
     this.previousMeters = 0;
     this.shake = 0;
+    this.punch = 0;
+    this.clearPopups();
 
     emit({ type: 'stateChanged', state: 'ready' });
     this.emitPrompt(this.session.prompt, emit);
@@ -293,12 +325,6 @@ export class RuntimeHost implements GameHost {
 
         case 'promptCompleted':
         case 'flowWordCompleted':
-<<<<<<< Updated upstream
-        case 'flowWordMissed':
-        case 'obstacleCommitted':
-        case 'obstacleSpawned':
-        case 'obstacleAttached':
-=======
           // Every word that pays says what it paid, at the moment it pays it.
           if (event.points > 0) this.pushPopup(event.points, 'gain');
           // The kick used to come from committing to a hazard, scaled by the
@@ -316,7 +342,6 @@ export class RuntimeHost implements GameHost {
           break;
 
         case 'flowWordMissed':
->>>>>>> Stashed changes
         case 'boostEnded':
           break;
       }
@@ -360,8 +385,10 @@ export class RuntimeHost implements GameHost {
       mapId: this.session.map.id,
       startedAt: new Date().toISOString(),
       durationMs: this.session.elapsedMs,
+      distanceMeters: this.session.playerMeters,
+      keyStats: this.session.keyStats,
       completed,
-      score: stats.score,
+      score: stats.score + placementBonus(stats.placement, completed),
       averageWpm: stats.averageWpm,
       // The headline lifetime figure (spec §7): a rolling window with minimum
       // characters, minimum accuracy, and a maximum idle gap, so a one-second
@@ -375,6 +402,9 @@ export class RuntimeHost implements GameHost {
       completedPrompts: this.session.completedPrompts,
       missedPrompts: this.session.flowWordsMissed,
       obstacleSuccessRate: promptSuccessRate(this.session),
+      placement: stats.placement,
+      ...(this.options.secretId === undefined ? {} : { secretId: this.options.secretId }),
+      coinsStolen: this.session.coinsStolen,
       longestCombo: this.session.score.longestCombo,
       coinsCollected: this.session.coinsCollected,
       powerupsClaimed: this.session.powerupsClaimed,
@@ -435,6 +465,24 @@ export class RuntimeHost implements GameHost {
     world.jumpHeightMeters = jumpHeightMeters(session.motion);
     world.crouch = crouchDepth(session.motion);
     world.boosting = isBoosting(session);
+
+    let racerCount = 0;
+    for (const racer of session.race.racers) {
+      if (racerCount >= MAX_SNAPSHOT_RACERS) break;
+
+      const slot = world.racers[racerCount];
+      if (slot === undefined) break;
+
+      slot.instanceId = racer.id;
+      // Relative to the player, like everything else the scene draws: the
+      // player is pinned at the origin and the world moves past them.
+      slot.aheadMeters = racer.meters - world.playerMeters;
+      slot.lane = racer.lane;
+      slot.finished = racer.finished;
+
+      racerCount += 1;
+    }
+    world.racerCount = racerCount;
 
     let coinCount = 0;
     for (const coin of session.coins) {
@@ -499,8 +547,82 @@ export class RuntimeHost implements GameHost {
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - (frameDeltaMs / 1000) * SHAKE_DECAY_PER_SECOND);
     }
+    if (this.punch > 0) {
+      this.punch = Math.max(0, this.punch - (frameDeltaMs / 1000) * PUNCH_DECAY_PER_SECOND);
+    }
     world.impulse.shake = this.shake;
     world.impulse.fovBias = fovBias(session);
+    world.impulse.punch = this.punch;
+
+    world.pursuit.gapMeters = session.pursuit.gapMeters;
+    world.pursuit.pressure = pursuitPressure(session.pursuit);
+
+    this.agePopups(frameDeltaMs);
+  }
+
+  /**
+   * Ages the floating labels and drops the expired ones.
+   *
+   * Wall-clock, like the shake, so labels still finish their rise while the
+   * rules are frozen on the impact beat — a run that ends on a mistake should
+   * not leave its last penalty frozen mid-air.
+   */
+  private agePopups(frameDeltaMs: number): void {
+    const popups = this.world.popups;
+    let live = 0;
+
+    for (let index = 0; index < MAX_SNAPSHOT_POPUPS; index += 1) {
+      const popup = popups[index];
+      if (popup === undefined || popup.id === '') continue;
+
+      popup.ageMs += frameDeltaMs;
+      if (popup.ageMs >= POPUP_LIFETIME_MS) {
+        popup.id = '';
+        continue;
+      }
+      live += 1;
+    }
+
+    // The scene reads the whole pool and skips empty slots, so this is a count
+    // for the HUD's benefit rather than a bound on iteration.
+    this.world.popupCount = live;
+  }
+
+  /**
+   * Empties the label pool.
+   *
+   * A restart is a fresh run, and a label from the previous one hanging over the
+   * new road is both wrong and confusing — it was seen doing exactly that. The
+   * labels age on wall-clock time, so a run that ends leaves its last few frozen
+   * mid-rise until something clears them.
+   */
+  private clearPopups(): void {
+    for (const popup of this.world.popups) popup.id = '';
+    this.world.popupCount = 0;
+  }
+
+  /**
+   * Puts a floating score label over the road.
+   *
+   * The oldest slot is recycled rather than the label being dropped: mistyping
+   * quickly can outrun the pool, and the newest number is the one the player
+   * needs to see.
+   */
+  private pushPopup(points: number, kind: 'gain' | 'loss'): void {
+    const popup = this.world.popups[this.popupCursor % MAX_SNAPSHOT_POPUPS];
+    this.popupCursor += 1;
+    if (popup === undefined) return;
+
+    this.popupSequence += 1;
+    popup.id = `popup-${String(this.popupSequence)}`;
+    // Rounded here rather than in the scene. The score is carried as a float —
+    // speed and accuracy bonuses are fractions — and a label reading
+    // "+654.4791532272574" is not a number anybody can read at speed. The HUD
+    // rounds the running total for the same reason; the two must agree.
+    popup.points = Math.round(points);
+    popup.kind = kind;
+    popup.ageMs = 0;
+    popup.lane = this.world.lanePosition;
   }
 
   private buildChallenge(): WorldSnapshot['challenge'] {
@@ -516,6 +638,27 @@ export class RuntimeHost implements GameHost {
         DEFAULT_TYPING_OPTIONS,
       ),
     };
+
+    /*
+     * The surge first: it is the longest and most valuable thing on screen, and
+     * while one is running nothing else holds the field.
+     */
+    const surge = activeSurge(session);
+    if (surge !== null) {
+      return {
+        ...typed,
+        kind: 'surge',
+        safeSide: null,
+        safeLane: null,
+        hazardId: surge.instanceId,
+        // Not optional in the sense that matters: losing it costs the speed it
+        // was giving. But ignoring it never ends a run.
+        optional: true,
+        // One wrong character ends it, which is exactly what `perfect` means.
+        perfect: true,
+        urgency: surgeProgress(surge, session.elapsedMs),
+      };
+    }
 
     const flow = activeFlowWord(session);
     if (flow !== null) {

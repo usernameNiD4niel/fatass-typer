@@ -52,7 +52,7 @@ without that the HUD would freeze for the length of the previous run.
 out immediately, whatever the window says. A countdown crossing into "critical" is the
 moment the player most needs the HUD to react, and holding it back 90ms would be exactly
 wrong. It is a separate event rather than a field on `LiveRunStats` because the deadline
-exists only while an obstacle prompt is attached — folding a mostly-null field into every
+exists only while a word is attached — folding a mostly-null field into every
 tick would make the common case pay for the rare one.
 
 **Lifetime.** `destroy()` clears every listener and turns all further calls into no-ops —

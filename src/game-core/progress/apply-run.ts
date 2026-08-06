@@ -1,4 +1,6 @@
 import type { IsoTimestamp, MapConfig, MapProgress, PlayerProfile, RunResult } from '../models';
+import { mergeKeyStats } from '../keystats';
+import { creditsFor } from '../wardrobe';
 import { progressFor } from '../models';
 
 /**
@@ -25,6 +27,10 @@ function betterProgress(previous: MapProgress, result: RunResult): MapProgress {
       ? Math.min(previous.bestCompletionTimeMs ?? Number.POSITIVE_INFINITY, result.durationMs)
       : previous.bestCompletionTimeMs,
     attempts: previous.attempts + 1,
+    // Unlike a completion time, distance counts whether or not the run was
+    // finished — on an endless map failing *is* how every run ends, and how far
+    // you got before it is the entire score.
+    bestDistanceMeters: Math.max(previous.bestDistanceMeters, result.distanceMeters),
   };
 }
 
@@ -81,5 +87,17 @@ export function applyRunResult(input: ApplyRunInput): PlayerProfile {
       ...profile.mapProgress,
       [result.mapId]: betterProgress(previous, result),
     },
+    // Lifetime, across every run: a weakness is a property of the typist rather
+    // than of the road they were on when it showed up.
+    keyStats: mergeKeyStats(profile.keyStats, result.keyStats),
+    // What the run paid into the wardrobe. See `game-core/wardrobe`: a run the
+    // chaser ended pays nothing, so the shortest run is never the best earner.
+    credits:
+      profile.credits +
+      creditsFor({
+        placement: result.placement ?? 3,
+        coinsCollected: result.coinsCollected,
+        completed: result.completed,
+      }).total,
   };
 }

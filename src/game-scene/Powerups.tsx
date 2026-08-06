@@ -5,6 +5,8 @@ import type { Group } from 'three';
 import type { WorldSnapshot } from '../game-bridge';
 import { MAX_SNAPSHOT_POWERUPS } from '../game-bridge';
 import { laneCenterX } from './scene-config';
+import { shiftAt } from './curve-state';
+import { Glow } from './Glow';
 
 /**
  * Powerup crates.
@@ -51,7 +53,7 @@ export function Powerups({ snapshot, reducedMotion }: PowerupsProps): JSX.Elemen
       }
 
       group.visible = true;
-      group.position.x = laneCenterX(powerup.lane);
+      group.position.x = laneCenterX(powerup.lane) + shiftAt(powerup.distanceMeters);
       group.position.z = -powerup.distanceMeters;
       group.position.y = CRATE_HEIGHT + (reducedMotion ? 0 : Math.sin(spin.current * 2) * 0.22);
       group.rotation.y = reducedMotion ? 0.6 : spin.current * 1.4;
@@ -92,14 +94,22 @@ function kindIndex(kind: WorldSnapshot['powerups'][number]['kind']): number {
 function Crate({ color }: { color: string }): JSX.Element {
   return (
     <group>
-      <mesh>
+      <mesh castShadow>
         <boxGeometry args={[1.3, 1.3, 1.3]} />
-        <meshLambertMaterial color={color} emissive={color} emissiveIntensity={0.4} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={0.35}
+          roughness={0.45}
+          metalness={0.25}
+        />
       </mesh>
+      {/* The crate is the rarest thing on the road, and it should look it. */}
+      <Glow color={color} size={3.4} opacity={0.45} />
       {/* A band, so the crate reads as a container rather than a coloured cube. */}
-      <mesh position={[0, 0, 0]}>
+      <mesh castShadow position={[0, 0, 0]}>
         <boxGeometry args={[1.42, 0.26, 1.42]} />
-        <meshLambertMaterial color="#1c1f24" />
+        <meshStandardMaterial color="#1c1f24" roughness={0.6} metalness={0.3} />
       </mesh>
     </group>
   );

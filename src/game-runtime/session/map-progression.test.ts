@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ALL_PROMPTS, MAPS } from '../../content';
 import { flowBufferFor } from '../../game-core/flow';
+import { playerPlacement } from '../../game-core/race';
 import { finishRate, playtest, type PlaytestInput } from './playtest-harness';
 
 /**
@@ -45,6 +46,11 @@ import { finishRate, playtest, type PlaytestInput } from './playtest-harness';
 
 const SEEDS = 24;
 
+/** Where the player finished, from the session the harness hands back. */
+function placementOf(result: ReturnType<typeof playtest>): number {
+  return playerPlacement(result.session.race, result.session.playerMeters);
+}
+
 function base(map: (typeof MAPS)[number]): Omit<PlaytestInput, 'wpm' | 'seed'> {
   return { map, prompts: ALL_PROMPTS };
 }
@@ -84,8 +90,9 @@ describe.each(MAPS.map((map) => [map.id, map] as const))('%s', (_id, map) => {
     const { coinsCollected, coinsMissed } = result.session;
 
     // Coins are the only thing left on the road with a body, and the only
-    // optional thing in the game. A run should offer a real number of them.
-    expect(coinsCollected + coinsMissed).toBeGreaterThanOrEqual(4);
+    // optional thing in the game. A run should offer a real number of them —
+    // whoever ends up with them.
+    expect(coinsCollected + coinsMissed + result.session.coinsStolen).toBeGreaterThanOrEqual(4);
   });
 
   it('never loses a powerup to a typist who makes no mistakes', () => {
@@ -170,13 +177,43 @@ describe.each(MAPS.map((map) => [map.id, map] as const))('%s', (_id, map) => {
     expect(result.session.pursuit.gapMeters).toBeGreaterThan(0);
   });
 
-  it('lets a typist at its advertised speed take every coin offered', () => {
-    // Coins ask for the map's speed with very little slack. Someone who has
-    // earned the map should still get them all.
+  it('lets a typist at its advertised speed take a real share of the coins', () => {
+    /*
+     * Not *all* of them any more, and that is the race working.
+     *
+     * A player at exactly the map's advertised speed runs neck and neck with
+     * the two opponents, so some lines are reached by a rival first. What they
+     * must never do is lose the lot: a coin the player was quick enough for is
+     * still theirs.
+     */
     const result = playtest({ ...base(map), wpm: map.targetWpm, seed: 'coins' });
 
+    // Nothing is lost by driving past — only to somebody faster.
     expect(result.session.coinsMissed).toBe(0);
     expect(result.session.coinsCollected).toBeGreaterThan(0);
+  });
+
+  it('gives the coins to a typist who pulls clear of the field', () => {
+    /*
+     * The lead is what buys the coins, and a fast typist takes nearly all of
+     * them — but not always every one.
+     *
+     * Everybody starts from a standstill and the opponents are already at pace,
+     * so the first seconds of a run belong to them however fast the player
+     * eventually types. Losing the opening line and then taking the rest is the
+     * race working, not a leak.
+     */
+    const result = playtest({ ...base(map), wpm: Math.round(map.targetWpm * 1.7), seed: 'coins' });
+    const { coinsCollected, coinsStolen } = result.session;
+
+    expect(coinsCollected).toBeGreaterThan(coinsStolen * 4);
+  });
+
+  it('puts a typist at the advertised speed in the race, not out of it', () => {
+    const result = playtest({ ...base(map), wpm: map.targetWpm, seed: 'race' });
+
+    // First or second. The map's own audience is not there to lose to a bot.
+    expect(placementOf(result)).toBeLessThanOrEqual(2);
   });
 
   it('is a run, not a marathon or a sprint', () => {

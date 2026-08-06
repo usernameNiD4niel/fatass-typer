@@ -24,7 +24,7 @@ describe('GameScreen', () => {
     render(<GameScreen />);
 
     expect(
-      screen.getByRole('img', { name: 'The road ahead, the hazards on it, and the runner' }),
+      screen.getByRole('img', { name: 'The road ahead, the traffic beside it, and the runner' }),
     ).toBeInTheDocument();
 
     for (const label of ['WPM', 'Accuracy', 'Combo', 'Score']) {
@@ -59,21 +59,33 @@ describe('GameScreen', () => {
     }).not.toThrow();
   });
 
-  it('shows pause as unavailable outside a run rather than hiding it', () => {
+  it('starts the run without asking a second time', () => {
+    render(<GameScreen />);
+
+    // The player pressed "Start run" on the briefing to get here. Asking again,
+    // on a screen that looks exactly like the game, is a click that answers a
+    // question nobody asked.
+    expect(screen.queryByRole('button', { name: 'Start run' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeEnabled();
+  });
+
+  it('keeps the pause control in place rather than hiding it', () => {
     render(<GameScreen />);
 
     // The HUD keeps a stable shape: a control that appears and disappears as the
     // run starts and stops would shift everything around it.
-    expect(screen.getByRole('button', { name: 'Pause' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
   });
 
-  it('ignores Escape when nothing is running', async () => {
+  it('pauses on Escape once the run is under way', async () => {
     const user = userEvent.setup();
     render(<GameScreen />);
 
     await user.keyboard('{Escape}');
 
-    expect(screen.queryByText(/Paused/)).not.toBeInTheDocument();
+    // Two of them: the HUD control flips to "Resume" and the overlay offers its
+    // own. Both are deliberate, so this asserts the state rather than the count.
+    expect((await screen.findAllByRole('button', { name: 'Resume' })).length).toBeGreaterThan(0);
   });
 
   it('stops listening to the keyboard on unmount', () => {
@@ -159,7 +171,7 @@ describe('GameScreen accessibility (spec §12, §21)', () => {
     render(<GameScreen />);
 
     expect(
-      screen.getByRole('img', { name: 'The road ahead, the hazards on it, and the runner' }),
+      screen.getByRole('img', { name: 'The road ahead, the traffic beside it, and the runner' }),
     ).toBeInTheDocument();
   });
 });

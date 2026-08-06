@@ -36,20 +36,21 @@ typed clean.
 
 ## Why the sentence gets a generous budget
 
-`POWERUP_BUFFER` is 1.45 — more slack than a hazard and far more than a coin.
+`POWERUP_BUFFER` is 1.45 — more slack than a flow word and far more than a coin.
 Asking for speed _and_ perfection at once would put powerups out of reach of
 anyone but the top of the ladder, and the no-mistake rule is already the hard
 part.
 
 ## Why they are worth a whole gap
 
-A crate needs a clear road: no hazard, no coins, nothing else being collected.
-The run gives it **first refusal** on the next gap, ahead of the hazard
-scheduler — which is always hungry and would otherwise take every gap there is,
-leaving the crate to never appear at all.
+A crate needs the road to itself: no coins, nothing else being collected. It
+does **not** wait for the flow word, and that is a deliberate change — a word is
+on screen essentially all of the time now, so a crate that waited for a clear
+field would simply never appear. It takes the field the way a coin line does,
+and dropping a flow word costs nothing.
 
 The first crate is a full interval in, like every one after it. Bringing it
 forward to half an interval was tried and dropped a perfect typist's finish rate
-from 100% to as low as 31%: a sentence early in a run displaces the hazard
-schedule exactly when the player has the least speed banked. Powerups turn out
+from 100% to as low as 31%: a long sentence early in a run arrives exactly when
+the player has the least speed banked and the least ground on the chaser. Powerups turn out
 to be a reward for surviving a while, and the tuning agrees.

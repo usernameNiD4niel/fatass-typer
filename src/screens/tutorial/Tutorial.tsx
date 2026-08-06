@@ -27,20 +27,20 @@ interface Step {
 
 const STEPS: readonly Step[] = [
   {
-    title: 'Type the word to get past',
-    body: 'A car blocks your lane and a word appears on the open side; type it and you pull into that lane. A barrier blocks it and the word sits above; type it and you jump.',
+    title: 'There is always a word',
+    body: 'One word sits in front of you at all times, and the next appears the moment you finish it. Typing is the only control you have.',
+  },
+  {
+    title: 'Something is chasing you',
+    body: 'Every word you finish pushes it back, and the faster you finish the further it falls. Let a word run out of time and it closes. It catching you is the only way to lose.',
   },
   {
     title: 'Coins are optional',
-    body: 'Between hazards, coins appear one lane over with a word of their own. Type it and you swerve across and take them. Ignore it and you just drive past — missing coins costs you nothing.',
-  },
-  {
-    title: 'Obstacles come with a timer',
-    body: 'When something is in the way, its word appears with a deadline. Finish it in time and you clear it cleanly; run out and you hit it, and one hit ends the run.',
+    body: 'Now and then coins appear one lane over with a word of their own. Type it and you swerve across and take them. Ignore it and you just drive past — missing coins costs you nothing at all.',
   },
   {
     title: 'Mistakes cost ground, not the run',
-    body: 'A wrong character breaks your combo, not your run. Fix it and keep going — but the hazard is still coming.',
+    body: 'A wrong character breaks your combo and lets the chaser gain a little. Fix it and keep going — a run is never lost on one slip.',
   },
   {
     title: 'Powerups need a clean sentence',

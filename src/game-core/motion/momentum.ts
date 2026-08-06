@@ -68,17 +68,49 @@ export function momentumShare(marginFraction: number): number {
 }
 
 /**
+ * What a single wrong character costs.
+ *
+ * Small, and deliberately so: a mistake already breaks the combo and hands the
+ * chaser ground. This is a third cost on the same keystroke, so it has to be
+ * felt as a dip rather than as a punishment — a run of four or five mistakes
+ * drops the player a whole band, one does not.
+ */
+export const MISTAKE_COST = 0.06;
+
+/**
  * Momentum after `deltaMs` of not typing.
  *
- * `fullDecayMs` is how long a full bar takes to reach nothing — the map's
- * `boost.durationMs`, which used to be the length of a single boost and is now
- * the length of the whole drain. Same dial, same units, a meaning that fits
- * what it now controls.
+ * **Speed is kept, not leaked.** It used to drain continuously toward zero, so
+ * a player who typed well and then paused for breath watched the road slow
+ * under them for no reason they had control over. What is left is a floor: a
+ * player who has stopped typing altogether coasts back to the pace the map's
+ * own audience holds, and no further.
+ *
+ * `fullDecayMs` is how long it takes to fall back to that floor — the map's
+ * `boost.durationMs`, same dial, same units.
  */
 export function decayMomentum(momentum: number, deltaMs: number, fullDecayMs: number): number {
-  if (fullDecayMs <= 0) return 0;
+  // Never *raises* momentum. The floor is something a player falls back to,
+  // not something they are handed — a run opens at base speed and the first
+  // word is what lifts it.
+  if (momentum <= COASTING_FLOOR) return momentum;
+  if (fullDecayMs <= 0) return COASTING_FLOOR;
 
-  return Math.max(0, momentum - deltaMs / fullDecayMs);
+  return Math.max(COASTING_FLOOR, momentum - deltaMs / fullDecayMs);
+}
+
+/**
+ * The pace a player holds while typing nothing at all.
+ *
+ * Not zero, because base speed with nothing on top is slower than the map was
+ * ever tuned around, and because a player who is reading rather than typing
+ * should not feel the world sag. It is the same floor a scraped-in word pays.
+ */
+export const COASTING_FLOOR = MARGIN_FLOOR_SHARE;
+
+/** Momentum after a wrong character. Slightly slower, never stopped. */
+export function penaliseMomentum(momentum: number): number {
+  return Math.max(0, momentum - MISTAKE_COST);
 }
 
 /**
@@ -86,7 +118,8 @@ export function decayMomentum(momentum: number, deltaMs: number, fullDecayMs: nu
  *
  * The better of the two, not the sum. Momentum is how well the player is
  * *currently* typing, and adding would let a burst of easy words bank speed
- * that outlives the typing that earned it.
+ * that outlives the typing that earned it — while taking the better of the two
+ * means a good word is never undone by an easy one that followed it.
  */
 export function topUpMomentum(momentum: number, share: number): number {
   return Math.min(1, Math.max(momentum, Math.max(0, share)));

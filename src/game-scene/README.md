@@ -57,8 +57,8 @@ consumers, no drift.
   they hover, they turn, and their colour says which of the three is inside
   before the sentence is read.
 - `Hazards.tsx` — cars and jump barriers, from a fixed pool of groups holding
-  both silhouettes. Hazards are never mounted mid-run: a hazard that pops into
-  existence is a hazard that was not readable early.
+  both silhouettes. Nothing is mounted mid-run: an object that pops into
+  existence is an object that was not readable early.
 - `Player.tsx` — the runner, from behind, in boxes.
 - `WorldPrompt.tsx` — the word, the lane glow, and the arrow.
 - `ChaseCamera.tsx` — smooth follow, a slight lead toward the safe lane, field of
@@ -66,6 +66,11 @@ consumers, no drift.
   disabled by reduced motion; the follow is not an effect, and without it there
   is no game to look at.
 - `scene-config.ts` — geometry constants and one palette per map theme.
+- `biome.ts` — what each map is built out of: roadside shapes, what moves on the
+  outer tracks, and the landmark it gets. A palette makes a map a different
+  colour; a biome makes it a different place.
+- `Landmarks.tsx` — the rare large thing (waterfall, butte, crane, lava flow).
+  Separate from scenery because scenery is a rhythm and this is an event.
 
 ## Why the prompt is HTML and not 3D text
 

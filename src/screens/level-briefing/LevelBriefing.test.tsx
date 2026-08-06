@@ -60,6 +60,7 @@ describe('LevelBriefing', () => {
             bestAccuracy: 0.912,
             bestCompletionTimeMs: 51_000,
             attempts: 4,
+            bestDistanceMeters: 0,
           },
         },
       }),

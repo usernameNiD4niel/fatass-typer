@@ -34,6 +34,7 @@ const PLAYED = profileWith({
       bestAccuracy: 0.951,
       bestCompletionTimeMs: 51_000,
       attempts: 5,
+      bestDistanceMeters: 0,
     },
   },
 });

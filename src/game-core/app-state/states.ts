@@ -21,6 +21,13 @@ export const APP_STATES = [
   'Results',
   'Settings',
   'Statistics',
+  /**
+   * The wardrobe (plan: the race).
+   *
+   * Same reasoning as `Statistics`: a screen the player can open is a state,
+   * and the alternative was a menu entry that leads nowhere.
+   */
+  'Wardrobe',
 ] as const;
 
 export type AppState = (typeof APP_STATES)[number];

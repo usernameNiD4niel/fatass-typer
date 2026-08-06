@@ -11,7 +11,7 @@
  *   1. **Never per keystroke.** A live region that updates on every character
  *      is a screen reader that never stops talking. The prompt text itself is
  *      already the field's accessible name.
- *   2. **Only on change.** A hazard appearing is worth one sentence when it
+ *   2. **Only on change.** A word appearing is worth one sentence when it
  *      happens, not one every 100ms while it remains true.
  *
  * The word itself is a special case. It used to be the typing field's accessible
@@ -25,7 +25,6 @@ export type RunMoment =
   | { readonly kind: 'started' }
   | { readonly kind: 'paused' }
   | { readonly kind: 'resumed' }
-  | { readonly kind: 'obstacleWarning' }
   | { readonly kind: 'challenge'; readonly word: string }
   | { readonly kind: 'hit'; readonly reason: 'collided' | 'timedOut' }
   | {
@@ -38,22 +37,18 @@ export type RunMoment =
 export function announcementFor(moment: RunMoment): string {
   switch (moment.kind) {
     case 'started':
-      return 'Run started. Type the word beside each hazard.';
+      return 'Run started. Type the word in front of you.';
     case 'paused':
       return 'Paused. Press Escape to resume.';
     case 'resumed':
       return 'Resumed.';
-    case 'obstacleWarning':
-      return 'Hazard ahead. Type the word before you reach it.';
     case 'challenge':
       return `Type ${moment.word}.`;
     case 'hit':
-      return moment.reason === 'timedOut'
-        ? 'Out of time. You hit the hazard.'
-        : 'You hit the hazard.';
+      return moment.reason === 'timedOut' ? 'Out of time. It caught you.' : 'It caught you.';
     case 'finished':
       return moment.completed
         ? `Finished. Score ${String(Math.round(moment.score))}, ${String(Math.round(moment.wpm))} words per minute.`
-        : `Crashed. Score ${String(Math.round(moment.score))}.`;
+        : `Caught. Score ${String(Math.round(moment.score))}.`;
   }
 }

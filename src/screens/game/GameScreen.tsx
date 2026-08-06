@@ -8,6 +8,7 @@ import type { GameAudio } from '../../hooks/useGameAudio';
 import { useTypingCapture } from '../../hooks/useTypingCapture';
 import { findMap, MAP_1 } from '../../content';
 import { EMPTY_LIVE_STATS, type LiveRunStats, type RunResult } from '../../game-core/models';
+import type { RunnerLook } from '../../game-core/wardrobe';
 import styles from './GameScreen.module.css';
 
 /**
@@ -15,7 +16,7 @@ import styles from './GameScreen.module.css';
  *
  * The run fills the viewport: a Three.js scene with the HUD and the pause
  * overlay floating on glass above it. There is no typing box and no prompt
- * console — the word lives in the world beside the hazard it applies to, and
+ * console — the word lives out in the world ahead of the runner, and
  * the keyboard is captured globally while the run is going (spec §2, §15).
  *
  * The component knows no game rules. It attaches a bridge, renders the events
@@ -54,6 +55,22 @@ export interface GameScreenProps {
   /** Which map to run. Defaults to Map 1 when the caller has not chosen. */
   readonly mapId?: string;
   /**
+   * Furthest the player has ever got on this map, in metres.
+   *
+   * Passed in rather than read here: the HUD shows it beside the live distance
+   * and the scene draws it on the road, and both want the number the profile
+   * held when the run *started* — a best that updated mid-run would be a target
+   * that moves as you approach it.
+   */
+  readonly bestDistanceMeters?: number;
+  /**
+   * Characters the player fumbles, from their profile (plan 2.4).
+   *
+   * The run's vocabulary leans toward them, so the game practises what they are
+   * bad at without their having to choose to.
+   */
+  readonly weakCharacters?: readonly string[];
+  /**
    * Fixes the run's prompt sequence. Omitted in play, where every run gets a
    * fresh seed — otherwise the second attempt at a map is word-for-word the
    * first. Tests and bug reports pass one to get a run back.
@@ -63,6 +80,10 @@ export interface GameScreenProps {
   readonly audio?: GameAudio;
   /** Stills the decoration and the camera effects (spec §12). */
   readonly reducedMotion?: boolean;
+  /** What the player is wearing (`content/runner-look.ts`). Colours only. */
+  readonly look?: RunnerLook;
+  /** Which typing flourish is equipped. */
+  readonly effectName?: string;
   /**
    * The run ended. The shell decides what happens next — this screen reports the
    * outcome and stops there, so navigation stays with the state machine.
@@ -84,9 +105,13 @@ export interface GameScreenProps {
 
 export function GameScreen({
   mapId,
+  bestDistanceMeters = 0,
+  weakCharacters,
   seed,
   audio,
   reducedMotion = false,
+  look,
+  effectName,
   onRunEnded,
   onQuit,
   onRestart,
@@ -101,8 +126,36 @@ export function GameScreen({
   audioRef.current = audio;
   const pauseChangeRef = useRef(onPauseChange);
   pauseChangeRef.current = onPauseChange;
+  /*
+   * Held in a ref so a fresh array identity from the parent cannot re-run the
+   * mount effect and tear the runtime down mid-run. The value is fixed for the
+   * run by design anyway — see `CreateRunSessionInput.weakCharacters`.
+   */
+  const weakRef = useRef(weakCharacters);
+  weakRef.current = weakCharacters;
   /** Whether the shell has been told the run is paused. */
   const pausedRef = useRef(false);
+
+  /**
+   * The seed this run was attached with.
+   *
+   * Held so the scene can derive the things that vary run to run — the weather,
+   * the shape of the road — from the same value the rules used. A fresh random
+   * value here would make the look disagree with the run it belongs to.
+   */
+  const seedRef = useRef<string>('');
+  if (seedRef.current === '') {
+    /*
+     * A fresh seed per mounted run, read from the clock here at the edge —
+     * `game-core` may not read one (CLAUDE.md §3).
+     *
+     * It has to be *one* value: the rules draw the map's sentence from it and
+     * the scene draws the weather and the shape of the road from it, and two
+     * seeds would mean a run whose look disagreed with the run itself. It also
+     * has to be *new* each time, or every run of a map is the same run.
+     */
+    seedRef.current = seed ?? `run-${String(Date.now())}`;
+  }
 
   const [game, setGame] = useState<AttachedGame | null>(null);
   const [ready, setReady] = useState(false);
@@ -127,12 +180,11 @@ export function GameScreen({
     const chosen = mapId === undefined ? undefined : findMap(mapId);
 
     const attached = attachGame({
-      // A new seed per run. The clock is read here, at the edge, because
-      // `game-core` may not read one (CLAUDE.md §3).
-      seed: seed ?? `run-${String(Date.now())}`,
+      seed: seedRef.current,
       // An unknown id falls back to the default map rather than failing to
       // start: the run matters more than the routing mistake behind it.
       ...(chosen === undefined ? {} : { map: chosen }),
+      ...(weakRef.current === undefined ? {} : { weakCharacters: weakRef.current }),
     });
 
     bridgeRef.current = attached.bridge;
@@ -238,6 +290,31 @@ export function GameScreen({
   }, [finished, send, announce]);
 
   /**
+   * The run begins as soon as the scene can draw it.
+   *
+   * The player already pressed "Start run" on the briefing; asking a second time
+   * on a screen that looks exactly like the game is a click that answers a
+   * question nobody asked. The button stays for the cases where the run is
+   * genuinely stopped — after a crash, or after finishing — because those are
+   * moments the player has to choose to leave.
+   *
+   * Once per mount, guarded by a ref rather than by `state`: a run that ends
+   * returns the machine to a stopped state, and keying off that would restart
+   * the run under a player reading their own results.
+   *
+   * Audio still unlocks, because the briefing click gave the document sticky
+   * user activation — `resume()` from here is allowed on the strength of it.
+   */
+  const autoStarted = useRef(false);
+
+  useEffect(() => {
+    if (!ready || autoStarted.current) return;
+
+    autoStarted.current = true;
+    start();
+  }, [ready, start]);
+
+  /**
    * Restart, from the keyboard, from anywhere on the screen (spec §12).
    *
    * Ctrl or Cmd with Enter rather than a bare letter: every printable key is a
@@ -330,18 +407,14 @@ export function GameScreen({
     };
   }, [state, send]);
 
-<<<<<<< Updated upstream
-  const topSpeed = map.speed.maxMetersPerSecond * map.boost.speedMultiplier;
-=======
   const endless = map.distanceMeters <= 0;
->>>>>>> Stashed changes
 
   return (
     <section className={styles.screen} aria-label="Typing Runner">
       <div
         className={styles.stage}
         role="img"
-        aria-label="The road ahead, the hazards on it, and the runner"
+        aria-label="The road ahead, the traffic beside it, and the runner"
       >
         <Suspense fallback={<div className={styles.loading}>Loading the road…</div>}>
           {game !== null && (
@@ -349,6 +422,10 @@ export function GameScreen({
               snapshot={game.snapshot}
               advance={game.advance}
               theme={map.theme}
+              {...(look === undefined ? {} : { look })}
+              {...(effectName === undefined ? {} : { effectName })}
+              lookSeed={seedRef.current}
+              bestDistanceMeters={bestDistanceMeters}
               reducedMotion={reducedMotion}
             />
           )}
@@ -363,12 +440,8 @@ export function GameScreen({
         <div className={styles.topBar}>
           <Hud
             stats={stats}
-<<<<<<< Updated upstream
-            topSpeedMetersPerSecond={topSpeed}
-=======
             endless={endless}
             bestDistanceMeters={bestDistanceMeters}
->>>>>>> Stashed changes
             onPause={togglePause}
             paused={state === 'paused'}
             canPause={running || state === 'paused'}
@@ -381,7 +454,7 @@ export function GameScreen({
             <p className={styles.outcome}>
               {result.completed
                 ? `Finished! Score ${String(Math.round(result.score))} at ${formatWpm(result.averageWpm)} WPM.`
-                : `Crashed. Score ${String(Math.round(result.score))}.`}
+                : `Caught. Score ${String(Math.round(result.score))}.`}
             </p>
           )}
         </div>

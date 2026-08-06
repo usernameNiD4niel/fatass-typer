@@ -24,7 +24,7 @@ export interface SettingsScreenProps {
   readonly settings: GameSettings;
   readonly onChange: (settings: GameSettings) => void;
   readonly onClose: () => void;
-  /** Wipes local progress. Development only — see the note on the control. */
+  /** Wipes stored progress. Real now that progress persists — see plan 2.1. */
   readonly onResetProgress?: () => void;
 }
 
@@ -214,11 +214,11 @@ export function SettingsScreen({
       </Card>
 
       {onResetProgress !== undefined && (
-        <Card title="Development" titleLevel={2}>
+        <Card title="Progress" titleLevel={2}>
           <div className={styles.danger}>
             <p className={styles.description}>
-              Progress currently lives in memory and is lost on reload anyway. This clears it now,
-              for testing the first-run experience.
+              Your progress is saved in this browser and survives closing the tab. Resetting erases
+              every unlock, best score and recorded run, and cannot be undone.
             </p>
             <Button
               variant="danger"

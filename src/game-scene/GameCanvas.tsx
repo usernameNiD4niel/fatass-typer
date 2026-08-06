@@ -1,20 +1,35 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useMemo, type JSX } from 'react';
+import { ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 
 import type { WorldSnapshot } from '../game-bridge';
 import type { MapTheme } from '../game-core/models';
+import { AmbientTraffic } from './AmbientTraffic';
 import { ChaseCamera } from './ChaseCamera';
 import { Coins } from './Coins';
+import { lightingRig, SHADOW_BIAS, SHADOW_BOX } from './lighting';
 import { Player } from './Player';
 import { Powerups } from './Powerups';
+import { Racers } from './Racers';
+import { RivalBadges } from './RivalBadges';
+import { Landmarks } from './Landmarks';
 import { Road } from './Road';
 import {
   BASE_FOV_DEGREES,
   CAMERA_BEHIND_METERS,
   CAMERA_HEIGHT_METERS,
   DRAW_DISTANCE_METERS,
+  type RunnerLook,
   scenePalette,
 } from './scene-config';
+import { BestLine } from './BestLine';
+import { setRoadShape, setTravelled } from './curve-state';
+import { roadShapeFor } from './road-curve';
+import { Sky } from './Sky';
+import { WeatherLayer } from './WeatherLayer';
+import { weatherFor, weatherLook, weatheredPalette } from './weather';
+import { Pursuer } from './Pursuer';
+import { ScorePopups } from './ScorePopups';
 import { WorldPrompt } from './WorldPrompt';
 
 /**
@@ -41,6 +56,24 @@ export interface GameCanvasProps {
   readonly advance: (frameDeltaMs: number) => void;
   readonly theme: MapTheme;
   readonly reducedMotion: boolean;
+  /** What the player is wearing. Colours only — see `RunnerLook`. */
+  readonly look?: RunnerLook;
+  /** Which typing flourish is equipped. A name the prompt's stylesheet switches on. */
+  readonly effectName?: string;
+  /**
+   * The run's seed, for the parts of the *look* that vary run to run.
+   *
+   * Weather and the road's curve are chosen from it, so the same seed gives the
+   * same road twice — and two runs of a map look like two different days.
+   */
+  readonly lookSeed?: string;
+  /**
+   * Furthest the player has ever got on this map, in metres.
+   *
+   * Drawn as a gate across the road. Zero draws nothing — a first run has
+   * nothing to chase (plan 2.2).
+   */
+  readonly bestDistanceMeters?: number;
   /** Rendered instead of the scene when WebGL is unavailable. */
   readonly fallback?: JSX.Element;
 }
@@ -48,9 +81,22 @@ export interface GameCanvasProps {
 /** Longest frame the simulation will believe, in seconds. */
 const MAX_FRAME_SECONDS = 0.25;
 
-function Driver({ advance }: { advance: (frameDeltaMs: number) => void }): null {
+function Driver({
+  advance,
+  snapshot,
+}: {
+  advance: (frameDeltaMs: number) => void;
+  snapshot: WorldSnapshot;
+}): null {
   useFrame((_, delta) => {
     advance(Math.min(delta, MAX_FRAME_SECONDS) * 1000);
+    /*
+     * The road's shape for this frame, written once, before anything reads it.
+     *
+     * Priority -1 is what makes that true — see `curve-state.ts` for why nine
+     * components share a number instead of being handed one each.
+     */
+    setTravelled(snapshot.playerMeters);
   }, -1);
 
   return null;
@@ -61,15 +107,57 @@ export function GameCanvas({
   advance,
   theme,
   reducedMotion,
+  look,
+  effectName,
+  lookSeed = 'default',
+  bestDistanceMeters = 0,
 }: GameCanvasProps): JSX.Element {
-  const palette = useMemo(() => scenePalette(theme), [theme]);
+  const basePalette = useMemo(() => scenePalette(theme), [theme]);
+  // Cosmetic only — see `weather.ts` for why the rules never read this.
+  const weather = useMemo(() => weatherLook(weatherFor(lookSeed)), [lookSeed]);
+  const palette = useMemo(() => weatheredPalette(basePalette, weather), [basePalette, weather]);
+  /*
+   * The shape of the road, fixed for the run.
+   *
+   * Set during render rather than in an effect because the first frame draws
+   * before effects run, and a road that snapped into shape one frame in would
+   * be visible on every single run.
+   */
+  const shape = useMemo(() => roadShapeFor(lookSeed), [lookSeed]);
+  setRoadShape(shape);
+
+  const rig = useMemo(() => {
+    const base = lightingRig(palette, reducedMotion);
+
+    return { ...base, hemisphereIntensity: base.hemisphereIntensity * weather.fillScale };
+  }, [palette, reducedMotion, weather]);
 
   return (
     <Canvas
       // Capped device pixel ratio, so a 3× display does not cost 9× the pixels
       // (spec §20).
       dpr={[1, 2]}
-      gl={{ antialias: true, powerPreference: 'high-performance' }}
+      /*
+       * Soft shadows, not hard ones.
+       *
+       * PCF-soft costs a few extra taps and hides the fact that the shadow map
+       * is only 1024 across. VSM is sharper and leaks light through the runner's
+       * own limbs, which is exactly where anybody would be looking.
+       */
+      shadows="soft"
+      gl={{
+        antialias: true,
+        powerPreference: 'high-performance',
+        /*
+         * ACES filmic tone mapping is the single largest quality gain available
+         * here, and it costs nothing. Without it, a physically based material lit
+         * by a bright sun clips to flat white wherever it faces the light; with
+         * it, the highlights roll off and the road keeps its shading.
+         */
+        toneMapping: ACESFilmicToneMapping,
+        toneMappingExposure: 1.05,
+        outputColorSpace: SRGBColorSpace,
+      }}
       camera={{
         fov: BASE_FOV_DEGREES,
         near: 0.1,
@@ -79,20 +167,93 @@ export function GameCanvas({
       style={{ position: 'absolute', inset: 0 }}
     >
       <color attach="background" args={[palette.sky]} />
-      {/* Fog hides the recycling seam and keeps the horizon clean (spec §13). */}
-      <fog attach="fog" args={[palette.fog, DRAW_DISTANCE_METERS * 0.35, DRAW_DISTANCE_METERS]} />
+      {/*
+        Fog hides the recycling seam and keeps the horizon clean (spec §13).
 
-      <ambientLight intensity={palette.lightIntensity * 0.75} />
-      <directionalLight position={[12, 24, 8]} intensity={palette.lightIntensity} />
+        It starts further out than it used to. With a real sky behind it, fog
+        beginning a third of the way down the road ate the view the sky was
+        added to provide — and the two met in a visible band.
+      */}
+      <fog
+        attach="fog"
+        args={[palette.fog, DRAW_DISTANCE_METERS * weather.fogNear, DRAW_DISTANCE_METERS]}
+      />
 
-      <Driver advance={advance} />
+      <Sky palette={palette} reducedMotion={reducedMotion} />
+      <WeatherLayer look={weather} reducedMotion={reducedMotion} />
+
+      {/*
+        Sky above, road bounce below. See `lighting.ts` for why this replaced the
+        ambient light rather than joining it.
+      */}
+      <hemisphereLight
+        args={[rig.skyColor, rig.groundColor, rig.hemisphereIntensity]}
+        position={[0, 30, 0]}
+      />
+      <directionalLight
+        position={[...rig.sunPosition]}
+        intensity={rig.sunIntensity}
+        castShadow
+        shadow-mapSize={[rig.shadowMapSize, rig.shadowMapSize]}
+        shadow-bias={SHADOW_BIAS}
+        shadow-camera-left={SHADOW_BOX.left}
+        shadow-camera-right={SHADOW_BOX.right}
+        shadow-camera-top={SHADOW_BOX.top}
+        shadow-camera-bottom={SHADOW_BOX.bottom}
+        shadow-camera-near={SHADOW_BOX.near}
+        shadow-camera-far={SHADOW_BOX.far}
+      />
+
+      <Driver advance={advance} snapshot={snapshot} />
       <ChaseCamera snapshot={snapshot} reducedMotion={reducedMotion} />
 
-      <Road snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
+      <Road snapshot={snapshot} palette={palette} theme={theme} reducedMotion={reducedMotion} />
+      {/*
+        Traffic on the flanking carriageways. It is scenery — nothing here can
+        be hit or typed at — but it is what makes speed legible now that
+        nothing comes at the player. See `AmbientTraffic.tsx`.
+      */}
+      <AmbientTraffic
+        snapshot={snapshot}
+        palette={palette}
+        theme={theme}
+        reducedMotion={reducedMotion}
+      />
+
+      {/* The one big thing this map has and no other map does. */}
+      <Landmarks
+        snapshot={snapshot}
+        palette={palette}
+        theme={theme}
+        reducedMotion={reducedMotion}
+      />
       <Coins snapshot={snapshot} reducedMotion={reducedMotion} />
       <Powerups snapshot={snapshot} reducedMotion={reducedMotion} />
-      <Player snapshot={snapshot} reducedMotion={reducedMotion} />
-      <WorldPrompt snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
+      <Player
+        snapshot={snapshot}
+        reducedMotion={reducedMotion}
+        {...(look === undefined ? {} : { look })}
+      />
+      {/*
+        The two opponents. Drawn from the snapshot like everything else — see
+        `Racers.tsx` for why they can be run through.
+      */}
+      <Racers snapshot={snapshot} reducedMotion={reducedMotion} />
+      {/*
+        How far each opponent is, beside the runner rather than in the top bar
+        — see `RivalBadges.tsx` for why the HUD was the wrong place for it.
+      */}
+      <RivalBadges snapshot={snapshot} />
+      <Pursuer snapshot={snapshot} reducedMotion={reducedMotion} />
+      <BestLine snapshot={snapshot} bestDistanceMeters={bestDistanceMeters} />
+      <WorldPrompt
+        snapshot={snapshot}
+        palette={palette}
+        reducedMotion={reducedMotion}
+        {...(look === undefined ? {} : { look })}
+        {...(effectName === undefined ? {} : { effectName })}
+      />
+      <ScorePopups snapshot={snapshot} reducedMotion={reducedMotion} />
     </Canvas>
   );
 }

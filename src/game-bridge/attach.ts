@@ -1,4 +1,4 @@
-import { MAP_1, ALL_PROMPTS, findSecret, secretPrompts } from '../content';
+import { MAP_1, ALL_PROMPTS, pickSecret, secretIdOf, secretPrompts, SURGES } from '../content';
 import type { MapConfig, PromptEntry } from '../game-core/models';
 import { liveStats, RuntimeHost } from '../game-runtime/session';
 import { GameBridge } from './bridge';
@@ -22,6 +22,13 @@ export interface AttachGameOptions {
   readonly prompts?: readonly PromptEntry[];
   /** Fixing the seed makes a run reproducible — used by tests and bug reports. */
   readonly seed?: string;
+  /**
+   * Characters the player fumbles, from their profile (plan 2.4).
+   *
+   * The run's vocabulary is weighted toward them, so the game practises what
+   * the player is bad at without their having to choose to.
+   */
+  readonly weakCharacters?: readonly string[];
 }
 
 export interface AttachedGame {
@@ -45,13 +52,19 @@ export function attachGame(options: AttachGameOptions = {}): AttachedGame {
   // Every prompt of a run is the next word of the map's secret. A map without
   // one simply falls back to its own vocabulary, which is what the sentence
   // does anyway once it is finished.
-  const secret = findSecret(map.id);
+  // Chosen from the run's own seed, so replaying a map is a different sentence
+  // rather than the same words in the same order. See `content/secrets.ts`.
+  const seed = options.seed ?? 'typing-chase';
+  const secret = pickSecret(map.id, seed);
 
   const host = new RuntimeHost({
     map,
     prompts: options.prompts ?? ALL_PROMPTS,
     secretWords: secret === undefined ? [] : secretPrompts(secret),
-    seed: options.seed ?? 'typing-chase',
+    ...(secret === undefined ? {} : { secretId: secretIdOf(secret) }),
+    surges: SURGES,
+    seed,
+    ...(options.weakCharacters === undefined ? {} : { weakCharacters: options.weakCharacters }),
     emit: (event) => {
       bridge.emit(event);
     },
