@@ -1,5 +1,6 @@
 import type { IsoTimestamp, MapConfig, MapProgress, PlayerProfile, RunResult } from '../models';
 import { mergeKeyStats } from '../keystats';
+import { creditsFor } from '../wardrobe';
 import { progressFor } from '../models';
 
 /**
@@ -89,5 +90,14 @@ export function applyRunResult(input: ApplyRunInput): PlayerProfile {
     // Lifetime, across every run: a weakness is a property of the typist rather
     // than of the road they were on when it showed up.
     keyStats: mergeKeyStats(profile.keyStats, result.keyStats),
+    // What the run paid into the wardrobe. See `game-core/wardrobe`: a run the
+    // chaser ended pays nothing, so the shortest run is never the best earner.
+    credits:
+      profile.credits +
+      creditsFor({
+        placement: result.placement ?? 3,
+        coinsCollected: result.coinsCollected,
+        completed: result.completed,
+      }).total,
   };
 }

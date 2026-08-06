@@ -3,7 +3,7 @@ import { useRef, type JSX } from 'react';
 import type { Group } from 'three';
 
 import type { WorldSnapshot } from '../../game-bridge';
-import { laneCenterX } from '../scene-config';
+import { laneCenterX, type RunnerLook } from '../scene-config';
 import { pose } from './gait';
 import { RIG, RUNNER_COLORS } from './runner-rig';
 
@@ -33,6 +33,8 @@ import { RIG, RUNNER_COLORS } from './runner-rig';
 export interface RunnerProps {
   readonly snapshot: WorldSnapshot;
   readonly reducedMotion: boolean;
+  /** What the player chose in the wardrobe. Colours only — never a rule. */
+  readonly look?: RunnerLook;
 }
 
 /** Strides per second at six metres a second. Scaled by actual speed. */
@@ -42,16 +44,26 @@ const STRIDE_REFERENCE_SPEED = 6;
 /** How high flight holds the runner. Well clear of the road, and visibly so. */
 const FLIGHT_HEIGHT_METERS = 4.2;
 
-function Joint({ radius }: { radius: number }): JSX.Element {
+/** What the figure wears when nobody has chosen anything. */
+const DEFAULT_LOOK: RunnerLook = {
+  shirt: RUNNER_COLORS.shirt,
+  shorts: RUNNER_COLORS.shorts,
+  skin: RUNNER_COLORS.skin,
+  shoe: RUNNER_COLORS.shoe,
+  effect: '#ffffff',
+};
+
+function Joint({ radius, color }: { radius: number; color: string }): JSX.Element {
   return (
     <mesh castShadow>
       <sphereGeometry args={[radius, 12, 8]} />
-      <meshStandardMaterial color={RUNNER_COLORS.skin} roughness={0.8} metalness={0} />
+      <meshStandardMaterial color={color} roughness={0.8} metalness={0} />
     </mesh>
   );
 }
 
-export function Runner({ snapshot, reducedMotion }: RunnerProps): JSX.Element {
+export function Runner({ snapshot, reducedMotion, look }: RunnerProps): JSX.Element {
+  const kit = look ?? DEFAULT_LOOK;
   const rootRef = useRef<Group>(null);
   const bodyRef = useRef<Group>(null);
   const torsoRef = useRef<Group>(null);
@@ -141,23 +153,23 @@ export function Runner({ snapshot, reducedMotion }: RunnerProps): JSX.Element {
       <group ref={bodyRef}>
         {legs.map(({ side, hip, knee, ankle }) => (
           <group key={side} ref={hip} position={[side * RIG.hipHalfWidth, RIG.hipHeight, 0]}>
-            <Joint radius={RIG.jointRadius} />
+            <Joint radius={RIG.jointRadius} color={kit.skin} />
             <mesh castShadow position={[0, -RIG.thighLength / 2, 0]}>
               <capsuleGeometry args={[RIG.thighRadius, RIG.thighLength * 0.7, 4, 10]} />
-              <meshStandardMaterial color={RUNNER_COLORS.shorts} roughness={0.85} metalness={0} />
+              <meshStandardMaterial color={kit.shorts} roughness={0.85} metalness={0} />
             </mesh>
 
             <group ref={knee} position={[0, -RIG.thighLength, 0]}>
-              <Joint radius={RIG.jointRadius * 0.85} />
+              <Joint radius={RIG.jointRadius * 0.85} color={kit.skin} />
               <mesh castShadow position={[0, -RIG.shinLength / 2, 0]}>
                 <capsuleGeometry args={[RIG.shinRadius, RIG.shinLength * 0.7, 4, 10]} />
-                <meshStandardMaterial color={RUNNER_COLORS.skin} roughness={0.8} metalness={0} />
+                <meshStandardMaterial color={kit.skin} roughness={0.8} metalness={0} />
               </mesh>
 
               <group ref={ankle} position={[0, -RIG.shinLength, 0]}>
                 <mesh castShadow position={[0, -RIG.footHeight / 2, RIG.footLength * 0.22]}>
                   <boxGeometry args={[RIG.footWidth, RIG.footHeight, RIG.footLength]} />
-                  <meshStandardMaterial color={RUNNER_COLORS.shoe} roughness={0.6} metalness={0} />
+                  <meshStandardMaterial color={kit.shoe} roughness={0.6} metalness={0} />
                 </mesh>
               </group>
             </group>
@@ -167,7 +179,7 @@ export function Runner({ snapshot, reducedMotion }: RunnerProps): JSX.Element {
         <group ref={torsoRef} position={[0, RIG.hipHeight, 0]}>
           <mesh castShadow position={[0, RIG.torsoHeight / 2, 0]}>
             <capsuleGeometry args={[RIG.torsoRadius, RIG.torsoHeight * 0.6, 6, 14]} />
-            <meshStandardMaterial color={RUNNER_COLORS.shirt} roughness={0.75} metalness={0} />
+            <meshStandardMaterial color={kit.shirt} roughness={0.75} metalness={0} />
           </mesh>
 
           {/*
@@ -180,7 +192,7 @@ export function Runner({ snapshot, reducedMotion }: RunnerProps): JSX.Element {
             scale={[1, 0.82, 0.95]}
           >
             <sphereGeometry args={[RIG.bellyRadius, 16, 12]} />
-            <meshStandardMaterial color={RUNNER_COLORS.shirtDark} roughness={0.75} metalness={0} />
+            <meshStandardMaterial color={kit.shirt} roughness={0.75} metalness={0} />
           </mesh>
 
           {arms.map(({ side, shoulder, elbow }) => (
@@ -189,17 +201,17 @@ export function Runner({ snapshot, reducedMotion }: RunnerProps): JSX.Element {
               ref={shoulder}
               position={[side * RIG.shoulderHalfWidth, RIG.shoulderHeight, 0]}
             >
-              <Joint radius={RIG.jointRadius * 0.8} />
+              <Joint radius={RIG.jointRadius * 0.8} color={kit.skin} />
               <mesh castShadow position={[0, -RIG.upperArmLength / 2, 0]}>
                 <capsuleGeometry args={[RIG.upperArmRadius, RIG.upperArmLength * 0.7, 4, 10]} />
-                <meshStandardMaterial color={RUNNER_COLORS.shirt} roughness={0.75} metalness={0} />
+                <meshStandardMaterial color={kit.shirt} roughness={0.75} metalness={0} />
               </mesh>
 
               <group ref={elbow} position={[0, -RIG.upperArmLength, 0]}>
-                <Joint radius={RIG.jointRadius * 0.65} />
+                <Joint radius={RIG.jointRadius * 0.65} color={kit.skin} />
                 <mesh castShadow position={[0, -RIG.forearmLength / 2, 0]}>
                   <capsuleGeometry args={[RIG.forearmRadius, RIG.forearmLength * 0.7, 4, 10]} />
-                  <meshStandardMaterial color={RUNNER_COLORS.skin} roughness={0.8} metalness={0} />
+                  <meshStandardMaterial color={kit.skin} roughness={0.8} metalness={0} />
                 </mesh>
               </group>
             </group>
@@ -207,7 +219,7 @@ export function Runner({ snapshot, reducedMotion }: RunnerProps): JSX.Element {
 
           <mesh castShadow position={[0, RIG.torsoHeight + RIG.neckHeight + RIG.headRadius, 0]}>
             <sphereGeometry args={[RIG.headRadius, 16, 12]} />
-            <meshStandardMaterial color={RUNNER_COLORS.skin} roughness={0.8} metalness={0} />
+            <meshStandardMaterial color={kit.skin} roughness={0.8} metalness={0} />
           </mesh>
           <mesh
             castShadow

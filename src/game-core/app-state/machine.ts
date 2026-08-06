@@ -25,6 +25,12 @@ export const TRANSITIONS: Readonly<Record<AppState, StateTransitions>> = {
     OPEN_MAP_SELECTION: 'MapSelection',
     OPEN_SETTINGS: 'Settings',
     OPEN_STATISTICS: 'Statistics',
+    OPEN_WARDROBE: 'Wardrobe',
+  },
+
+  Wardrobe: {
+    BACK: 'MainMenu',
+    RETURN_TO_MENU: 'MainMenu',
   },
 
   Statistics: {

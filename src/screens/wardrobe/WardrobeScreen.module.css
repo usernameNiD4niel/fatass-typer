@@ -1,0 +1,170 @@
+/*
+ * The wardrobe.
+ *
+ * Every value below is a semantic token. Nothing here invents a colour: a skin's
+ * own colours arrive as inline styles from the catalogue, which is the one place
+ * raw hex belongs.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: var(--space-10) var(--layout-gutter);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+}
+
+.credits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-end;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.creditsLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.creditsValue {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.tab {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.tab:hover {
+  background: var(--surface-glass-strong);
+}
+
+.tab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.tabActive {
+  background: var(--accent-default);
+  color: var(--accent-contrast);
+}
+
+.blurb {
+  margin: 0 0 var(--space-4);
+  color: var(--text-secondary);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+}
+
+/* The border says it, and so does the word "Worn" — never colour alone (spec §12). */
+.itemWorn {
+  border-color: var(--accent-default);
+}
+
+.swatch {
+  display: flex;
+  flex: none;
+  overflow: hidden;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.swatchPrimary {
+  flex: 2;
+}
+
+.swatchSecondary {
+  flex: 1;
+}
+
+.itemText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.itemName {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.itemDescription {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.itemAction {
+  flex: none;
+}
+
+.wornTag {
+  display: inline-block;
+  padding: 0.15em 0.7em;
+  border-radius: var(--radius-pill);
+  background: var(--accent-default);
+  color: var(--accent-contrast);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}

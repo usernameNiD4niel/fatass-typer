@@ -147,6 +147,15 @@ export function windowGlow(palette: ScenePalette): number {
   return Math.max(0, Math.min(0.9, 1.05 - palette.lightIntensity));
 }
 
+/**
+ * What the runner is wearing.
+ *
+ * Re-exported from `game-core/wardrobe`, which owns the shape: the scene may
+ * not read the profile or the catalogue, so the look is resolved elsewhere and
+ * handed over as colours.
+ */
+export type { RunnerLook } from '../game-core/wardrobe';
+
 /** Lateral position of a lane centre, in metres. Accepts a fractional lane. */
 export function laneCenterX(lane: number): number {
   return (lane - 1) * LANE_WIDTH_METERS;

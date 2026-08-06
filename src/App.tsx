@@ -2,6 +2,7 @@ import { type JSX, lazy, type ReactNode, Suspense, useCallback, useEffect, useSt
 
 import { Button } from './components/ui';
 import { ALL_MAPS, findMap, MAP_1, MAPS } from './content';
+import { effectNameFor, runnerLookFor } from './content/runner-look';
 import { weakCharacters } from './game-core/keystats';
 import { progressFor, type PlayerProfile, type RunResult } from './game-core/models';
 import { useAppliedSettings } from './hooks/useAppliedSettings';
@@ -46,6 +47,10 @@ const SettingsScreen = lazy(async () => ({
 }));
 const StatisticsScreen = lazy(async () => ({
   default: (await import('./screens/statistics/StatisticsScreen')).StatisticsScreen,
+}));
+
+const WardrobeScreen = lazy(async () => ({
+  default: (await import('./screens/wardrobe/WardrobeScreen')).WardrobeScreen,
 }));
 const Tutorial = lazy(async () => ({
   default: (await import('./screens/tutorial/Tutorial')).Tutorial,
@@ -178,6 +183,9 @@ export function App(): JSX.Element {
             onStatistics={() => {
               machine.send('OPEN_STATISTICS');
             }}
+            onWardrobe={() => {
+              machine.send('OPEN_WARDROBE');
+            }}
             onSettings={() => {
               machine.send('OPEN_SETTINGS');
             }}
@@ -207,6 +215,19 @@ export function App(): JSX.Element {
           <StatisticsScreen
             profile={profile}
             maps={MAPS}
+            onBack={() => {
+              machine.send('BACK');
+            }}
+          />
+        </Shell>
+      );
+
+    case 'Wardrobe':
+      return (
+        <Shell>
+          <WardrobeScreen
+            profile={profile}
+            onChange={setProfile}
             onBack={() => {
               machine.send('BACK');
             }}
@@ -256,6 +277,8 @@ export function App(): JSX.Element {
             bestDistanceMeters={progressFor(profile, selectedMapId).bestDistanceMeters}
             // What the player is known to be bad at, so the run practises it.
             weakCharacters={weakCharacters(profile.keyStats)}
+            look={runnerLookFor(profile)}
+            effectName={effectNameFor(profile)}
             audio={audio}
             reducedMotion={reducedMotion}
             onRunEnded={endRun}

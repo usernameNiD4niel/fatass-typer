@@ -168,3 +168,58 @@ describe('what it leaves alone', () => {
     expect(JSON.stringify(profile)).toBe(before);
   });
 });
+
+describe('credits', () => {
+  it('pays for placing and for coins', () => {
+    const profile = createPlayerProfile(NOW, 'map-1');
+    const after = applyRunResult({
+      profile,
+      result: resultWith({ completed: true, placement: 1, coinsCollected: 8 }),
+      maps: MAPS,
+      now: NOW,
+    });
+
+    expect(after.credits).toBeGreaterThan(0);
+  });
+
+  it('pays more for winning the race than for losing it', () => {
+    const profile = createPlayerProfile(NOW, 'map-1');
+    const base = { profile, maps: MAPS, now: NOW };
+
+    const won = applyRunResult({
+      ...base,
+      result: resultWith({ completed: true, placement: 1, coinsCollected: 0 }),
+    });
+    const third = applyRunResult({
+      ...base,
+      result: resultWith({ completed: true, placement: 3, coinsCollected: 0 }),
+    });
+
+    expect(won.credits).toBeGreaterThan(third.credits);
+  });
+
+  it('pays nothing for a run the chaser ended', () => {
+    // Otherwise the shortest possible run is the most efficient way to earn.
+    const profile = createPlayerProfile(NOW, 'map-1');
+    const after = applyRunResult({
+      profile,
+      result: resultWith({ completed: false, placement: 1, coinsCollected: 20 }),
+      maps: MAPS,
+      now: NOW,
+    });
+
+    expect(after.credits).toBe(profile.credits);
+  });
+
+  it('adds to the purse rather than replacing it', () => {
+    const profile = { ...createPlayerProfile(NOW, 'map-1'), credits: 500 };
+    const after = applyRunResult({
+      profile,
+      result: resultWith({ completed: true, placement: 2, coinsCollected: 3 }),
+      maps: MAPS,
+      now: NOW,
+    });
+
+    expect(after.credits).toBeGreaterThan(500);
+  });
+});

@@ -2,6 +2,7 @@ import type { JSX } from 'react';
 
 import type { WorldSnapshot } from '../game-bridge';
 import { Runner } from './runner/Runner';
+import type { RunnerLook } from './scene-config';
 
 /**
  * The runner.
@@ -14,8 +15,15 @@ import { Runner } from './runner/Runner';
 export interface PlayerProps {
   readonly snapshot: WorldSnapshot;
   readonly reducedMotion: boolean;
+  readonly look?: RunnerLook;
 }
 
-export function Player({ snapshot, reducedMotion }: PlayerProps): JSX.Element {
-  return <Runner snapshot={snapshot} reducedMotion={reducedMotion} />;
+export function Player({ snapshot, reducedMotion, look }: PlayerProps): JSX.Element {
+  return (
+    <Runner
+      snapshot={snapshot}
+      reducedMotion={reducedMotion}
+      {...(look === undefined ? {} : { look })}
+    />
+  );
 }

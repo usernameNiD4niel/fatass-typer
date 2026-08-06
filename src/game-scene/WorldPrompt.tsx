@@ -1,10 +1,10 @@
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useRef, type JSX } from 'react';
+import { type CSSProperties, useRef, type JSX } from 'react';
 import type { Group, Mesh, MeshBasicMaterial } from 'three';
 
 import type { WorldSnapshot } from '../game-bridge';
-import { laneCenterX, LANE_WIDTH_METERS, type ScenePalette } from './scene-config';
+import { laneCenterX, LANE_WIDTH_METERS, type RunnerLook, type ScenePalette } from './scene-config';
 import styles from './WorldPrompt.module.css';
 
 /**
@@ -37,7 +37,14 @@ export interface WorldPromptProps {
   readonly snapshot: WorldSnapshot;
   readonly palette: ScenePalette;
   readonly reducedMotion: boolean;
+  /** The equipped look. Only its `effect` tint is read here. */
+  readonly look?: RunnerLook;
+  /** Which flourish is equipped, as a name the stylesheet switches on. */
+  readonly effectName?: string;
 }
+
+/** How much the word swells at full flourish. Small: it must stay readable. */
+const EFFECT_SWELL = 0.08;
 
 /** Height the word floats at, in metres. Above a car, clear of the runner. */
 const PROMPT_HEIGHT_METERS = 2.9;
@@ -51,11 +58,19 @@ const PROMPT_HEIGHT_METERS = 2.9;
  */
 const FLOW_PROMPT_DISTANCE_METERS = 22;
 
-export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptProps): JSX.Element {
+export function WorldPrompt({
+  snapshot,
+  palette,
+  reducedMotion,
+  look,
+  effectName = 'plain',
+}: WorldPromptProps): JSX.Element {
   const rootRef = useRef<Group>(null);
   const cueRef = useRef<Mesh>(null);
   const arrowRef = useRef<Group>(null);
   const wordRef = useRef<HTMLParagraphElement>(null);
+  /** How lit the word is, 0..1. Rises as it is typed and falls once it is gone. */
+  const flourish = useRef(0);
 
   useFrame(({ clock }) => {
     const root = rootRef.current;
@@ -119,7 +134,22 @@ export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptPro
       word.dataset['flow'] = challenge.kind === 'flow' ? 'true' : 'false';
       const beat =
         reducedMotion || !urgent ? 1 : 1 + Math.abs(Math.sin(clock.elapsedTime * 6)) * 0.06;
-      word.style.transform = `scale(${String(beat)})`;
+
+      /*
+       * The wardrobe's typing effect.
+       *
+       * Driven by how much of the word is typed rather than by an event,
+       * because the scene has no events — it reads a snapshot. The value rises
+       * with the word and decays once the word is gone, which is what makes a
+       * finished word flare rather than simply vanish.
+       *
+       * Purely a look. The same word, on the same deadline, whatever is worn.
+       */
+      const typed = challenge.word.length === 0 ? 0 : challenge.typedLength / challenge.word.length;
+      flourish.current = reducedMotion ? 0 : Math.max(flourish.current * 0.9, typed * typed);
+      word.style.setProperty('--effect-strength', flourish.current.toFixed(3));
+
+      word.style.transform = `scale(${String(beat * (1 + flourish.current * EFFECT_SWELL))})`;
     }
   });
 
@@ -166,6 +196,8 @@ export function WorldPrompt({ snapshot, palette, reducedMotion }: WorldPromptPro
           data-optional="false"
           data-perfect="false"
           data-flow="false"
+          data-effect={effectName}
+          style={{ '--effect-tint': look?.effect ?? '#ffffff' } as CSSProperties}
           aria-hidden="true"
         >
           {challenge === null

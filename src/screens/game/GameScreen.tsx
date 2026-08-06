@@ -8,6 +8,7 @@ import type { GameAudio } from '../../hooks/useGameAudio';
 import { useTypingCapture } from '../../hooks/useTypingCapture';
 import { findMap, MAP_1 } from '../../content';
 import { EMPTY_LIVE_STATS, type LiveRunStats, type RunResult } from '../../game-core/models';
+import type { RunnerLook } from '../../game-core/wardrobe';
 import styles from './GameScreen.module.css';
 
 /**
@@ -79,6 +80,10 @@ export interface GameScreenProps {
   readonly audio?: GameAudio;
   /** Stills the decoration and the camera effects (spec §12). */
   readonly reducedMotion?: boolean;
+  /** What the player is wearing (`content/runner-look.ts`). Colours only. */
+  readonly look?: RunnerLook;
+  /** Which typing flourish is equipped. */
+  readonly effectName?: string;
   /**
    * The run ended. The shell decides what happens next — this screen reports the
    * outcome and stops there, so navigation stays with the state machine.
@@ -105,6 +110,8 @@ export function GameScreen({
   seed,
   audio,
   reducedMotion = false,
+  look,
+  effectName,
   onRunEnded,
   onQuit,
   onRestart,
@@ -396,6 +403,8 @@ export function GameScreen({
               snapshot={game.snapshot}
               advance={game.advance}
               theme={map.theme}
+              {...(look === undefined ? {} : { look })}
+              {...(effectName === undefined ? {} : { effectName })}
               bestDistanceMeters={bestDistanceMeters}
               reducedMotion={reducedMotion}
             />

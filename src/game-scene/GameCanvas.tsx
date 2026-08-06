@@ -17,6 +17,7 @@ import {
   CAMERA_BEHIND_METERS,
   CAMERA_HEIGHT_METERS,
   DRAW_DISTANCE_METERS,
+  type RunnerLook,
   scenePalette,
 } from './scene-config';
 import { BestLine } from './BestLine';
@@ -49,6 +50,10 @@ export interface GameCanvasProps {
   readonly advance: (frameDeltaMs: number) => void;
   readonly theme: MapTheme;
   readonly reducedMotion: boolean;
+  /** What the player is wearing. Colours only — see `RunnerLook`. */
+  readonly look?: RunnerLook;
+  /** Which typing flourish is equipped. A name the prompt's stylesheet switches on. */
+  readonly effectName?: string;
   /**
    * Furthest the player has ever got on this map, in metres.
    *
@@ -76,6 +81,8 @@ export function GameCanvas({
   advance,
   theme,
   reducedMotion,
+  look,
+  effectName,
   bestDistanceMeters = 0,
 }: GameCanvasProps): JSX.Element {
   const palette = useMemo(() => scenePalette(theme), [theme]);
@@ -161,7 +168,11 @@ export function GameCanvas({
       <AmbientTraffic snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
       <Coins snapshot={snapshot} reducedMotion={reducedMotion} />
       <Powerups snapshot={snapshot} reducedMotion={reducedMotion} />
-      <Player snapshot={snapshot} reducedMotion={reducedMotion} />
+      <Player
+        snapshot={snapshot}
+        reducedMotion={reducedMotion}
+        {...(look === undefined ? {} : { look })}
+      />
       {/*
         The two opponents. Drawn from the snapshot like everything else — see
         `Racers.tsx` for why they can be run through.
@@ -169,7 +180,13 @@ export function GameCanvas({
       <Racers snapshot={snapshot} reducedMotion={reducedMotion} />
       <Pursuer snapshot={snapshot} reducedMotion={reducedMotion} />
       <BestLine snapshot={snapshot} bestDistanceMeters={bestDistanceMeters} />
-      <WorldPrompt snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
+      <WorldPrompt
+        snapshot={snapshot}
+        palette={palette}
+        reducedMotion={reducedMotion}
+        {...(look === undefined ? {} : { look })}
+        {...(effectName === undefined ? {} : { effectName })}
+      />
       <ScorePopups snapshot={snapshot} reducedMotion={reducedMotion} />
     </Canvas>
   );

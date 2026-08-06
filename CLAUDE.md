@@ -156,7 +156,7 @@ describe systems that no longer exist.
 
 | | |
 |---|---|
-| **Last completed** | **the race** — two seeded opponents who contest the coins, placement scored on the results screen, and speed that is kept rather than leaked |
+| **Last completed** | **the wardrobe** — credits earned by placing and by coins, spent on characters, shoes and typing effects, none of which change a rule |
 | **Next up** | nothing scheduled — awaiting direction |
 | **In progress** | none |
 | **Blocked** | none |
@@ -202,6 +202,17 @@ re-drawn every few seconds, so a lead has to be held rather than established
 once. At the map's advertised speed the player is neck and neck with them; above
 it they pull clear and keep every coin. `race/README.md` records the tuning and
 what was tried first.
+
+### The wardrobe
+
+Placing in a race and collecting coins pay **credits**, spent on the `Wardrobe`
+screen for a character, shoes, and what a finished word does. **None of it
+changes a rule** — see `game-core/wardrobe/README.md`, which is where that
+promise is written down and why it matters. A run the chaser ended pays nothing.
+
+The seam: `game-scene` may not read the profile or the catalogue, and
+`game-core/wardrobe` may not know what a shirt is, so `content/runner-look.ts`
+translates a profile into five colours and hands them over.
 
 ### Speed, and the chaser
 
