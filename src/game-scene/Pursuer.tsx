@@ -100,7 +100,13 @@ export function Pursuer({ snapshot, reducedMotion }: PursuerProps): JSX.Element 
         />
       </mesh>
 
-      {/* A shadow slab, so it does not look like it is floating. */}
+      {/*
+        A painted shadow slab, kept even though the scene casts real shadows now.
+        The chaser sits behind the camera's shadow box for most of a run, so its
+        real shadow would flick in and out as it closed — and a contact shadow
+        that appears only when you are about to lose is worse than a fake one
+        that is always there.
+      */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -HEIGHT_METERS + 0.02, 0]}>
         <planeGeometry args={[2.8, 3.6]} />
         <meshBasicMaterial color="#000000" transparent opacity={0.28} />

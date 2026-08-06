@@ -16,6 +16,16 @@ export const ROAD_HALF_WIDTH = (LANE_WIDTH_METERS * 3) / 2;
 /** How far ahead the camera can see. Fog hides the recycling seam beyond it. */
 export const DRAW_DISTANCE_METERS = 190;
 
+/**
+ * The carriageways either side of the player's road.
+ *
+ * Shared, because two files have to agree on them: `Road` draws the surface and
+ * `AmbientTraffic` puts vehicles on it. Held apart, the traffic ends up driving
+ * on the grass beside its own road.
+ */
+export const CARRIAGEWAY_CENTRE = ROAD_HALF_WIDTH + 5.1;
+export const CARRIAGEWAY_WIDTH = 7;
+
 /** Roadside scenery slots per side. Recycled the same way segments are. */
 export const SCENERY_PER_SIDE = 14;
 export const SCENERY_SPACING_METERS = 14;

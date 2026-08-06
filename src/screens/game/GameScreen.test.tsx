@@ -24,7 +24,7 @@ describe('GameScreen', () => {
     render(<GameScreen />);
 
     expect(
-      screen.getByRole('img', { name: 'The road ahead, the hazards on it, and the runner' }),
+      screen.getByRole('img', { name: 'The road ahead, the traffic beside it, and the runner' }),
     ).toBeInTheDocument();
 
     for (const label of ['WPM', 'Accuracy', 'Combo', 'Score']) {
@@ -171,7 +171,7 @@ describe('GameScreen accessibility (spec §12, §21)', () => {
     render(<GameScreen />);
 
     expect(
-      screen.getByRole('img', { name: 'The road ahead, the hazards on it, and the runner' }),
+      screen.getByRole('img', { name: 'The road ahead, the traffic beside it, and the runner' }),
     ).toBeInTheDocument();
   });
 });

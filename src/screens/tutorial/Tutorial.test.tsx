@@ -15,8 +15,8 @@ describe('Tutorial', () => {
     render(<Tutorial open onDismiss={vi.fn()} />);
 
     expect(screen.getByRole('dialog', { name: 'How Typing Chase works' })).toBeInTheDocument();
-    expect(screen.getByText(/type it and you pull into that lane/)).toBeInTheDocument();
-    expect(screen.getByText(/deadline/)).toBeInTheDocument();
+    expect(screen.getByText(/one word sits in front of you/i)).toBeInTheDocument();
+    expect(screen.getByText(/only way to lose/)).toBeInTheDocument();
     expect(screen.getByText(/breaks your combo/)).toBeInTheDocument();
     expect(screen.getByText(/The run freezes/)).toBeInTheDocument();
   });

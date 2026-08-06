@@ -15,7 +15,7 @@ import styles from './GameScreen.module.css';
  *
  * The run fills the viewport: a Three.js scene with the HUD and the pause
  * overlay floating on glass above it. There is no typing box and no prompt
- * console — the word lives in the world beside the hazard it applies to, and
+ * console — the word lives out in the world ahead of the runner, and
  * the keyboard is captured globally while the run is going (spec §2, §15).
  *
  * The component knows no game rules. It attaches a bridge, renders the events
@@ -388,7 +388,7 @@ export function GameScreen({
       <div
         className={styles.stage}
         role="img"
-        aria-label="The road ahead, the hazards on it, and the runner"
+        aria-label="The road ahead, the traffic beside it, and the runner"
       >
         <Suspense fallback={<div className={styles.loading}>Loading the road…</div>}>
           {game !== null && (
@@ -425,7 +425,7 @@ export function GameScreen({
             <p className={styles.outcome}>
               {result.completed
                 ? `Finished! Score ${String(Math.round(result.score))} at ${formatWpm(result.averageWpm)} WPM.`
-                : `Crashed. Score ${String(Math.round(result.score))}.`}
+                : `Caught. Score ${String(Math.round(result.score))}.`}
             </p>
           )}
         </div>

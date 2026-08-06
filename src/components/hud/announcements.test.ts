@@ -4,7 +4,7 @@ import { announcementFor } from './announcements';
 
 describe('announcementFor', () => {
   it('says what happened, in a sentence', () => {
-    expect(announcementFor({ kind: 'obstacleWarning' })).toMatch(/hazard ahead/i);
+    expect(announcementFor({ kind: 'started' })).toMatch(/type the word/i);
     expect(announcementFor({ kind: 'paused' })).toMatch(/paused/i);
   });
 
@@ -14,7 +14,7 @@ describe('announcementFor', () => {
     expect(announcementFor({ kind: 'challenge', word: 'river' })).toContain('river');
   });
 
-  it('distinguishes running out of time from driving into something', () => {
+  it('distinguishes running out of time from being caught outright', () => {
     const timedOut = announcementFor({ kind: 'hit', reason: 'timedOut' });
     const collided = announcementFor({ kind: 'hit', reason: 'collided' });
 
@@ -35,14 +35,14 @@ describe('announcementFor', () => {
   it('says plainly that the run was lost', () => {
     const text = announcementFor({ kind: 'finished', completed: false, score: 400, wpm: 18 });
 
-    expect(text).toMatch(/crashed/i);
+    expect(text).toMatch(/caught/i);
     expect(text).toContain('400');
   });
 
   it('never announces a keystroke', () => {
     // There is deliberately no moment for one: a live region that updates per
     // character is a screen reader that never stops talking.
-    const kinds = ['started', 'paused', 'resumed', 'obstacleWarning'] as const;
+    const kinds = ['started', 'paused', 'resumed'] as const;
 
     for (const kind of kinds) {
       expect(announcementFor({ kind })).not.toMatch(/character|letter|key/i);

@@ -1,10 +1,13 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useMemo, type JSX } from 'react';
+import { ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 
 import type { WorldSnapshot } from '../game-bridge';
 import type { MapTheme } from '../game-core/models';
+import { AmbientTraffic } from './AmbientTraffic';
 import { ChaseCamera } from './ChaseCamera';
 import { Coins } from './Coins';
+import { lightingRig, SHADOW_BIAS, SHADOW_BOX } from './lighting';
 import { Player } from './Player';
 import { Powerups } from './Powerups';
 import { Road } from './Road';
@@ -16,6 +19,7 @@ import {
   scenePalette,
 } from './scene-config';
 import { BestLine } from './BestLine';
+import { Sky } from './Sky';
 import { Pursuer } from './Pursuer';
 import { ScorePopups } from './ScorePopups';
 import { WorldPrompt } from './WorldPrompt';
@@ -74,13 +78,34 @@ export function GameCanvas({
   bestDistanceMeters = 0,
 }: GameCanvasProps): JSX.Element {
   const palette = useMemo(() => scenePalette(theme), [theme]);
+  const rig = useMemo(() => lightingRig(palette, reducedMotion), [palette, reducedMotion]);
 
   return (
     <Canvas
       // Capped device pixel ratio, so a 3× display does not cost 9× the pixels
       // (spec §20).
       dpr={[1, 2]}
-      gl={{ antialias: true, powerPreference: 'high-performance' }}
+      /*
+       * Soft shadows, not hard ones.
+       *
+       * PCF-soft costs a few extra taps and hides the fact that the shadow map
+       * is only 1024 across. VSM is sharper and leaks light through the runner's
+       * own limbs, which is exactly where anybody would be looking.
+       */
+      shadows="soft"
+      gl={{
+        antialias: true,
+        powerPreference: 'high-performance',
+        /*
+         * ACES filmic tone mapping is the single largest quality gain available
+         * here, and it costs nothing. Without it, a physically based material lit
+         * by a bright sun clips to flat white wherever it faces the light; with
+         * it, the highlights roll off and the road keeps its shading.
+         */
+        toneMapping: ACESFilmicToneMapping,
+        toneMappingExposure: 1.05,
+        outputColorSpace: SRGBColorSpace,
+      }}
       camera={{
         fov: BASE_FOV_DEGREES,
         near: 0.1,
@@ -90,16 +115,49 @@ export function GameCanvas({
       style={{ position: 'absolute', inset: 0 }}
     >
       <color attach="background" args={[palette.sky]} />
-      {/* Fog hides the recycling seam and keeps the horizon clean (spec §13). */}
-      <fog attach="fog" args={[palette.fog, DRAW_DISTANCE_METERS * 0.35, DRAW_DISTANCE_METERS]} />
+      {/*
+        Fog hides the recycling seam and keeps the horizon clean (spec §13).
 
-      <ambientLight intensity={palette.lightIntensity * 0.75} />
-      <directionalLight position={[12, 24, 8]} intensity={palette.lightIntensity} />
+        It starts further out than it used to. With a real sky behind it, fog
+        beginning a third of the way down the road ate the view the sky was
+        added to provide — and the two met in a visible band.
+      */}
+      <fog attach="fog" args={[palette.fog, DRAW_DISTANCE_METERS * 0.5, DRAW_DISTANCE_METERS]} />
+
+      <Sky palette={palette} reducedMotion={reducedMotion} />
+
+      {/*
+        Sky above, road bounce below. See `lighting.ts` for why this replaced the
+        ambient light rather than joining it.
+      */}
+      <hemisphereLight
+        args={[rig.skyColor, rig.groundColor, rig.hemisphereIntensity]}
+        position={[0, 30, 0]}
+      />
+      <directionalLight
+        position={[...rig.sunPosition]}
+        intensity={rig.sunIntensity}
+        castShadow
+        shadow-mapSize={[rig.shadowMapSize, rig.shadowMapSize]}
+        shadow-bias={SHADOW_BIAS}
+        shadow-camera-left={SHADOW_BOX.left}
+        shadow-camera-right={SHADOW_BOX.right}
+        shadow-camera-top={SHADOW_BOX.top}
+        shadow-camera-bottom={SHADOW_BOX.bottom}
+        shadow-camera-near={SHADOW_BOX.near}
+        shadow-camera-far={SHADOW_BOX.far}
+      />
 
       <Driver advance={advance} />
       <ChaseCamera snapshot={snapshot} reducedMotion={reducedMotion} />
 
       <Road snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
+      {/*
+        Traffic on the flanking carriageways. It is scenery — nothing here can
+        be hit or typed at — but it is what makes speed legible now that
+        nothing comes at the player. See `AmbientTraffic.tsx`.
+      */}
+      <AmbientTraffic snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />
       <Coins snapshot={snapshot} reducedMotion={reducedMotion} />
       <Powerups snapshot={snapshot} reducedMotion={reducedMotion} />
       <Player snapshot={snapshot} reducedMotion={reducedMotion} />

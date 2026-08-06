@@ -57,8 +57,8 @@ consumers, no drift.
   they hover, they turn, and their colour says which of the three is inside
   before the sentence is read.
 - `Hazards.tsx` — cars and jump barriers, from a fixed pool of groups holding
-  both silhouettes. Hazards are never mounted mid-run: a hazard that pops into
-  existence is a hazard that was not readable early.
+  both silhouettes. Nothing is mounted mid-run: an object that pops into
+  existence is an object that was not readable early.
 - `Player.tsx` — the runner, from behind, in boxes.
 - `WorldPrompt.tsx` — the word, the lane glow, and the arrow.
 - `ChaseCamera.tsx` — smooth follow, a slight lead toward the safe lane, field of

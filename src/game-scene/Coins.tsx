@@ -172,9 +172,20 @@ export function Coins({ snapshot, reducedMotion }: CoinsProps): JSX.Element {
         >
           {Array.from({ length: MAX_SNAPSHOT_COIN_UNITS }, (_, slot) => (
             <group key={slot} position={[0, COIN_HEIGHT, 0]}>
-              <mesh rotation={[Math.PI / 2, 0, 0]}>
+              {/*
+                Actually metal, now that the lighting can show it: full metalness
+                and a low roughness is what makes a coin catch the sun as it
+                spins rather than simply being yellow.
+              */}
+              <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
                 <cylinderGeometry args={[0.42, 0.42, 0.08, 14]} />
-                <meshLambertMaterial color={GOLD} emissive={GOLD_EDGE} emissiveIntensity={0.35} />
+                <meshStandardMaterial
+                  color={GOLD}
+                  emissive={GOLD_EDGE}
+                  emissiveIntensity={0.3}
+                  roughness={0.25}
+                  metalness={1}
+                />
               </mesh>
             </group>
           ))}

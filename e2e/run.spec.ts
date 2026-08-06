@@ -13,7 +13,7 @@ import { expect, type Page, test } from '@playwright/test';
  * asserting on the seed.
  */
 
-const STAGE = 'The road ahead, the hazards on it, and the runner';
+const STAGE = 'The road ahead, the traffic beside it, and the runner';
 
 async function startRun(page: Page): Promise<void> {
   await page.goto('/');
@@ -49,13 +49,35 @@ async function currentWord(page: Page): Promise<string> {
   return text?.replace(/^Current word:\s*/, '') ?? '';
 }
 
-/** Waits for a hazard's challenge to appear, and returns its word. */
+/** Waits for a word to appear, and returns it. */
 async function waitForWord(page: Page): Promise<string> {
   await expect
     .poll(async () => (await currentWord(page)).length, { timeout: 30_000 })
     .toBeGreaterThan(0);
 
   return currentWord(page);
+}
+
+/**
+ * Plays badly on purpose, until the chaser arrives.
+ *
+ * A wrong character costs ground immediately and a lapsed word costs more, so
+ * holding down nonsense loses a run in a fraction of the time idling does —
+ * which keeps this inside a sane test timeout.
+ */
+async function mistypeUntilCaught(page: Page): Promise<void> {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (
+      await page
+        .getByText('Caught')
+        .first()
+        .isVisible()
+        .catch(() => false)
+    )
+      return;
+    await page.keyboard.type('qqqq', { delay: 15 });
+    await page.waitForTimeout(150);
+  }
 }
 
 test('starts a run and renders the scene', async ({ page }) => {
@@ -77,7 +99,7 @@ test('there is no typing box to click', async ({ page }) => {
   await expect(page.getByText(/just type/i)).toBeVisible();
 });
 
-test('typing the word clears the hazard and the road goes quiet', async ({ page }) => {
+test('typing the word replaces it with the next one', async ({ page }) => {
   await startRun(page);
 
   const word = await waitForWord(page);
@@ -85,7 +107,7 @@ test('typing the word clears the hazard and the road goes quiet', async ({ page 
 
   await page.keyboard.type(word, { delay: 40 });
 
-  // The challenge is over, so there is nothing to type until the next hazard.
+  // Finishing one puts the next one up immediately: the road is never silent.
   await expect.poll(async () => currentWord(page), { timeout: 15_000 }).not.toBe(word);
 });
 
@@ -139,21 +161,31 @@ test('quitting a run returns to map selection', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Choose a map' })).toBeVisible();
 });
 
-test('a player who types nothing crashes into the first hazard', async ({ page }) => {
+test('a player who cannot type is caught', async ({ page }) => {
+  test.setTimeout(120_000);
   await startRun(page);
 
-  // Doing nothing has to end the run, or the hazards mean nothing. The shell
-  // routes to the results screen the moment it does, so that is where the
-  // outcome is read from rather than from the run itself.
-  await expect(page.getByText('Crashed').first()).toBeVisible({ timeout: 40_000 });
+  /*
+   * Typing badly has to end the run, or the chaser means nothing. It is the
+   * only way to lose now, and it is cumulative rather than instant — so this
+   * mistypes steadily rather than idling, which is both faster and closer to
+   * what losing actually looks like.
+   */
+  await mistypeUntilCaught(page);
+
+  // The shell routes to the results screen the moment the run ends, so that is
+  // where the outcome is read from rather than from the run itself.
+  await expect(page.getByText('Caught').first()).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
 });
 
 test('progress survives a reload', async ({ page }) => {
+  test.setTimeout(120_000);
   await startRun(page);
 
-  // Crash, which is what records a run against the profile.
-  await expect(page.getByText('Crashed').first()).toBeVisible({ timeout: 40_000 });
+  // Lose the run, which is what records it against the profile.
+  await mistypeUntilCaught(page);
+  await expect(page.getByText('Caught').first()).toBeVisible({ timeout: 60_000 });
 
   /*
    * The reload is the assertion.

@@ -17,8 +17,8 @@ import { paceBand, PACE_HEADROOM, PACE_WORD, type PaceBand } from './pace';
  * *how far to go*, *how much trouble am I in*, and *am I typing fast enough for
  * this map* — the last being the one the player can actually act on.
  *
- * The active word is never here. It belongs beside the hazard it applies to
- * (spec §16), out in the world where the player is already looking.
+ * The active word is never here. It belongs out in the world ahead of the
+ * runner (spec §16), where the player is already looking.
  */
 
 export interface HudProps {

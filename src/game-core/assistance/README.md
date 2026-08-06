@@ -5,7 +5,7 @@ Pure rules. Counts what happened in a run and returns a multiplier.
 ## What it may touch
 
 **The reaction buffer, and nothing else.** Not the target speed, not the road, not the
-score. A player who keeps missing the same obstacle is usually a few hundred milliseconds
+score. A player who keeps letting words lapse is usually a few hundred milliseconds
 short, and this gives them those milliseconds — more time to _see_ a prompt, never a slower
 game.
 
@@ -33,8 +33,8 @@ before assistance could help them. Now it is dormant because the run is simply
 over.
 
 Which arguably makes it worse than useless: the one moment it could fire is the
-first hazard of the _next_ run, when the player has already been reset. Making
-it meaningful again would mean triggering on near-misses — hazards cleared with
+first word of the _next_ run, when the player has already been reset. Making
+it meaningful again would mean triggering on near-misses — words finished with
 very little time left — rather than on misses. That is a design decision, not an
 implementation one.
 

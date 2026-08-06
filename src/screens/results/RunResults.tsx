@@ -81,7 +81,7 @@ export function RunResults({
     <section className={styles.screen} aria-label="Run results">
       <header className={styles.header}>
         <p className={classes(styles.outcome, result.completed ? styles.completed : styles.caught)}>
-          {result.completed ? 'Finished' : 'Crashed'}
+          {result.completed ? 'Finished' : 'Caught'}
         </p>
         <h1 className={styles.title}>{map.name}</h1>
         <p className={styles.subtitle}>
@@ -145,10 +145,10 @@ export function RunResults({
       {/*
         The secret.
 
-        The run's sentence, assembled a word at a time by every hazard, coin and
-        gap word in it. Finishing it is the only way to read what the map was
-        about, and it is deliberately not tied to reaching the finish line: a
-        player caught on the last hazard still typed every word.
+        The run's sentence, assembled a word at a time by every prompt in it.
+        Finishing it is the only way to read what the map was about, and it is
+        deliberately not tied to reaching the finish line: a player caught a
+        metre short still typed every word of it.
       */}
       {secret !== undefined && result.secretUnlocked && (
         <Card title={secret.title} titleLevel={2}>
