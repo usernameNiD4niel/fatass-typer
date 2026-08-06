@@ -11,6 +11,7 @@ export {
   MAPS,
 } from './maps';
 export { findSecret, MAP_SECRETS, secretPrompts, secretWordCount } from './secrets';
+export { SURGES } from './surges';
 export type { MapSecret } from './secrets';
 export {
   ALL_PROMPTS,

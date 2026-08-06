@@ -3,6 +3,7 @@ import { useRef, type JSX } from 'react';
 import type { Group } from 'three';
 
 import { MAX_SNAPSHOT_RACERS, type WorldSnapshot } from '../game-bridge';
+import { racerKit } from './racer-kits';
 import { pose } from './runner/gait';
 import { RIG } from './runner/runner-rig';
 import { laneCenterX } from './scene-config';
@@ -33,12 +34,6 @@ export interface RacersProps {
   readonly snapshot: WorldSnapshot;
   readonly reducedMotion: boolean;
 }
-
-/** Their kit. Deliberately not the player's blue — telling them apart matters. */
-const KITS = [
-  { shirt: '#d1503f', shorts: '#3a2b2b', skin: '#c98f6b' },
-  { shirt: '#2fa36b', shorts: '#26332c', skin: '#e3c39a' },
-] as const;
 
 /** Strides per second at six metres a second, matching the player's rig. */
 const STRIDE_RATE = 1.6;
@@ -105,7 +100,7 @@ export function Racers({ snapshot, reducedMotion }: RacersProps): JSX.Element {
   return (
     <group>
       {Array.from({ length: MAX_SNAPSHOT_RACERS }, (_, index) => {
-        const kit = KITS[index] ?? KITS[0];
+        const kit = racerKit(index);
 
         return (
           <group

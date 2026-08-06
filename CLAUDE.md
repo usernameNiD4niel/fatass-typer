@@ -203,6 +203,27 @@ once. At the map's advertised speed the player is neck and neck with them; above
 it they pull clear and keep every coin. `race/README.md` records the tuning and
 what was tried first.
 
+### The rival badges
+
+How far each opponent is, drawn **beside the runner** rather than in the top bar
+(`game-scene/RivalBadges.tsx`): a ring in that opponent's own colours with the
+gap under it in the same colour, signed from them — `-5 m` means they are five
+metres behind you. Written into the DOM from `useFrame`, so it is per-frame
+rather than the bridge's 10Hz.
+
+The same numbers stay in the HUD as visually-hidden text. The scene is drawn and
+unlabelled, so moving them into the world would otherwise have removed them for
+anybody not looking at it.
+
+### The surge
+
+Every minute, everybody gets one: a long sentence for the player, and a shove
+for the two opponents weighted to whoever is behind. Typing it holds the
+player's momentum up as they go, and finishing it clean pays a full-pace boost
+for twelve seconds — **one wrong character ends it**. It is the game's only
+catch-up mechanic, and `game-core/surge/README.md` records the two ways the
+first build of it was wrong.
+
 ### The wardrobe
 
 Placing in a race and collecting coins pay **credits**, spent on the `Wardrobe`

@@ -11,6 +11,7 @@ import { lightingRig, SHADOW_BIAS, SHADOW_BOX } from './lighting';
 import { Player } from './Player';
 import { Powerups } from './Powerups';
 import { Racers } from './Racers';
+import { RivalBadges } from './RivalBadges';
 import { Road } from './Road';
 import {
   BASE_FOV_DEGREES,
@@ -178,6 +179,11 @@ export function GameCanvas({
         `Racers.tsx` for why they can be run through.
       */}
       <Racers snapshot={snapshot} reducedMotion={reducedMotion} />
+      {/*
+        How far each opponent is, beside the runner rather than in the top bar
+        — see `RivalBadges.tsx` for why the HUD was the wrong place for it.
+      */}
+      <RivalBadges snapshot={snapshot} />
       <Pursuer snapshot={snapshot} reducedMotion={reducedMotion} />
       <BestLine snapshot={snapshot} bestDistanceMeters={bestDistanceMeters} />
       <WorldPrompt

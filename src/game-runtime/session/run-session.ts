@@ -19,6 +19,7 @@ import type {
   LaneIndex,
   LiveRunStats,
   MapConfig,
+  RivalStanding,
   PromptCategory,
   PromptEntry,
 } from '../../game-core/models';
@@ -64,6 +65,20 @@ import {
   placeCoin,
 } from '../../game-core/pickups';
 import { advanceRace, createRace, playerPlacement, type RaceState } from '../../game-core/race';
+import {
+  type ActiveSurge,
+  breakSurge,
+  completeSurge,
+  FIRST_SURGE_AT_MS,
+  pickSurge,
+  placeSurge,
+  racerSurgeShare,
+  SURGE_COMPLETE_MOMENTUM,
+  SURGE_INTERVAL_MS,
+  SURGE_MOMENTUM,
+  SURGE_REWARD_MS,
+  surgeExpired,
+} from '../../game-core/surge';
 import {
   applyClear as pursuitClear,
   applyFlowMiss as pursuitFlowMiss,
@@ -127,7 +142,7 @@ import { applyInput, createTypingState, type TypingState } from '../../game-core
 
 /** Which encounter owns the word currently on screen. */
 export interface ChallengeRef {
-  readonly kind: 'coin' | 'powerup' | 'flow';
+  readonly kind: 'coin' | 'powerup' | 'flow' | 'surge';
   readonly id: string;
 }
 
@@ -276,6 +291,23 @@ export interface RunSession {
    * or after the player, and take coins the player was slower to reach.
    */
   readonly race: RaceState;
+  /**
+   * The long sentence, while one is running (`game-core/surge`).
+   *
+   * The catch-up mechanic: everybody gets one a minute, and what the player
+   * gets out of theirs depends on holding it together.
+   */
+  readonly surge: ActiveSurge | null;
+  /** Run time the next surge is due. */
+  readonly nextSurgeAtMs: number;
+  /** Sentences a surge may draw from. Empty means a run with no surges. */
+  readonly surgePool: readonly PromptEntry[];
+  /** Run time the completion reward stops paying, or 0. */
+  readonly surgeRewardUntilMs: number;
+  /** Surges finished clean, for the results screen. */
+  readonly surgesCompleted: number;
+  /** Surges lost to a wrong character. */
+  readonly surgesBroken: number;
   /** Coin lines currently in the world. At most one unresolved. */
   readonly coins: readonly ActiveCoin[];
   /** Powerup crates currently in the world. At most one unresolved. */
@@ -359,6 +391,13 @@ export type SessionEvent =
       /** A mistake, or simply out of time. */
       readonly reason: 'mistake' | 'timeout';
     }
+  | { readonly type: 'surgeStarted'; readonly surge: ActiveSurge }
+  | {
+      readonly type: 'surgeEnded';
+      readonly surge: ActiveSurge;
+      /** Finished the whole sentence, rather than lapsing or slipping. */
+      readonly completed: boolean;
+    }
   | { readonly type: 'flowWordCompleted'; readonly word: ActiveFlowWord; readonly points: number }
   | { readonly type: 'flowWordMissed'; readonly word: ActiveFlowWord }
   | { readonly type: 'shieldSpent'; readonly remaining: number }
@@ -381,6 +420,13 @@ export interface CreateRunSessionInput {
    * player running out of anything to type.
    */
   readonly secretWords?: readonly PromptEntry[];
+  /**
+   * Long sentences for the surge (`content/surges.ts`).
+   *
+   * Passed in rather than imported, like every other piece of content: the
+   * rules do not know what the game is about.
+   */
+  readonly surges?: readonly PromptEntry[];
   /** Adaptive assistance. Pass `{ ...config, enabled: false }` to turn it off. */
   readonly assistance?: AdaptiveAssistanceConfig;
   /**
@@ -424,6 +470,12 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     score: createScoreState(),
     coinRng: createRngFromString(`${input.seed}:coins`),
     race: createRace(input.map, createRngFromString(`${input.seed}:race`)),
+    surge: null,
+    nextSurgeAtMs: FIRST_SURGE_AT_MS,
+    surgePool: input.surges ?? [],
+    surgeRewardUntilMs: 0,
+    surgesCompleted: 0,
+    surgesBroken: 0,
     coins: [],
     flow: null,
     flowIndex: 0,
@@ -460,7 +512,47 @@ export function currentSpeed(session: RunSession): number {
     session.elapsedMs,
   );
 
-  return ramped * momentumMultiplier(session.momentum, session.map.boost.speedMultiplier);
+  return ramped * momentumMultiplier(surgedMomentum(session), session.map.boost.speedMultiplier);
+}
+
+/**
+ * Momentum, with a surge's floor applied.
+ *
+ * A surge does not *add* speed — it holds momentum up while it runs, and holds
+ * it at full for a while after it is finished. Adding would let a player bank a
+ * surge on top of already-perfect typing and exceed the ceiling every deadline
+ * in the game is placed against.
+ */
+export function surgedMomentum(session: RunSession): number {
+  if (session.elapsedMs < session.surgeRewardUntilMs) {
+    return Math.max(session.momentum, SURGE_COMPLETE_MOMENTUM);
+  }
+
+  const surge = session.surge;
+  if (surge === null || surge.status !== 'active') return session.momentum;
+
+  /*
+   * Scaled by how far into the sentence the player has got, and that is the
+   * whole of the rule.
+   *
+   * Paying a flat boost for a surge merely being *on screen* was tried and it
+   * handed free speed to somebody typing nothing at all — a player who never
+   * touched the keyboard finished the map on surges alone. What the surge pays
+   * for is holding the sentence together, so the payment has to track how much
+   * of it is being held.
+   */
+  const target = surge.prompt.text.length;
+  const progress = target === 0 ? 0 : Math.min(1, session.typing.correctCharacters / target);
+
+  return Math.max(session.momentum, SURGE_MOMENTUM * progress);
+}
+
+/** True while a surge is carrying the player, for the HUD and the scene. */
+export function isSurging(session: RunSession): boolean {
+  return (
+    session.elapsedMs < session.surgeRewardUntilMs ||
+    (session.surge !== null && session.surge.status === 'active')
+  );
 }
 
 /**
@@ -880,7 +972,16 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
    * three. Coins ask rarely — every few seconds — and when they ask they go
    * first; the hazard spawner waits for whatever they started.
    */
-  const powerupSpawned = spawnDuePowerup(advanced);
+  /*
+   * The surge goes first when one is due.
+   *
+   * It is the only thing in the game on a fixed clock that everybody gets, so
+   * letting a crate or a coin line push it a few seconds later every minute
+   * would slowly drift it out of step with the racers' own surge — and the two
+   * halves of the mechanic have to land together.
+   */
+  const surgeSpawned = spawnDueSurge(advanced);
+  const powerupSpawned = spawnDuePowerup(surgeSpawned.session);
   const coinsSpawned = spawnDueCoins(powerupSpawned.session);
   /*
    * A swerve that was refused when it was asked for gets another chance every
@@ -893,12 +994,15 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
   const coinLifecycle = advanceCoinLifecycle(powerupLifecycle.session);
   // Last, and only into whatever is left: a flow word takes the field when
   // nothing on the road wants it, and never before.
-  const flowLifecycle = advanceFlowLifecycle(coinLifecycle.session);
+  const surgeLifecycle = advanceSurgeLifecycle(coinLifecycle.session);
+  const flowLifecycle = advanceFlowLifecycle(surgeLifecycle.session);
 
   const current = flowLifecycle.session;
   const allEvents = [
     ...events,
+    ...surgeSpawned.events,
     ...powerupSpawned.events,
+    ...surgeLifecycle.events,
     ...powerupLifecycle.events,
     ...coinsSpawned.events,
     ...coinLifecycle.events,
@@ -1026,6 +1130,13 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
       return { session: forfeited.session, events: [mistake, ...forfeited.events] };
     }
 
+    // And a surge, which is the same bargain over four times the length.
+    if (typed.challenge?.kind === 'surge') {
+      const stopped = breakActiveSurge(penalised);
+
+      return { session: stopped.session, events: [mistake, ...stopped.events] };
+    }
+
     return { session: penalised, events: [mistake] };
   }
 
@@ -1035,10 +1146,15 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
     return forfeitActivePowerup({ ...typed, score: breakCombo(typed.score) });
   }
 
+  if (typed.challenge?.kind === 'surge' && typed.typing.incorrectCharacters > 0) {
+    return breakActiveSurge({ ...typed, score: breakCombo(typed.score) });
+  }
+
   const challenge = typed.challenge;
   if (challenge === null) return { session: typed, events: [] };
 
   if (challenge.kind === 'powerup') return claimActivePowerup(typed, challenge.id);
+  if (challenge.kind === 'surge') return completeActiveSurge(typed, challenge.id);
   if (challenge.kind === 'flow') return completeFlow(typed, challenge.id);
 
   return commitToCoins(typed, challenge.id);
@@ -1231,6 +1347,200 @@ function releaseCoinField(
 }
 
 /* -------------------------------------------------------------------------- */
+/* Surges                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Puts the long sentence up, when one is due and the road will allow it.
+ *
+ * It outranks a flow word — which costs nothing to drop — and waits for
+ * anything with a body. A surge arriving in the middle of a coin swerve would
+ * mean choosing between the coins already paid for and the sentence, which is
+ * not a choice anybody can make in the half second available.
+ */
+function spawnDueSurge(session: RunSession): RunSessionResult {
+  if (session.elapsedMs < session.nextSurgeAtMs) return { session, events: [] };
+  if (session.surgePool.length === 0) return { session, events: [] };
+  if (session.surge !== null) return { session, events: [] };
+  if (session.coins.some(isCoinLive)) return { session, events: [] };
+  if (session.powerups.some(isPowerupLive)) return { session, events: [] };
+
+  const index = session.surgesCompleted + session.surgesBroken;
+  // Long *for this map*: a twelve-word sentence on a 20 WPM map cannot be
+  // finished inside the cap, and an unfinishable reward is a punishment.
+  const prompt = pickSurge(session.surgePool, activeMap(session), index);
+  if (prompt === undefined) return { session, events: [] };
+
+  const surge = placeSurge({
+    instanceId: `surge-${String(index + 1)}`,
+    prompt,
+    map: activeMap(session),
+    elapsedMs: session.elapsedMs,
+  });
+
+  /*
+   * Every racer surges at the same moment, weighted to whoever is behind.
+   *
+   * This is the half of the mechanic the player never sees directly, and it is
+   * why the race stays close: a surge only the player got would turn a catch-up
+   * tool into a way for a strong typist to leave the field for good.
+   */
+  const boosted = surgeRacers(session);
+
+  return {
+    session: {
+      ...dropFlowWord({ ...session, race: boosted }),
+      surge,
+      nextSurgeAtMs: session.elapsedMs + SURGE_INTERVAL_MS,
+      prompt: surge.prompt,
+      typing: createTypingState(surge.prompt.text),
+      promptStartedMs: session.elapsedMs,
+      challenge: { kind: 'surge', id: surge.instanceId },
+    },
+    events: [
+      { type: 'surgeStarted', surge },
+      { type: 'promptChanged', prompt: surge.prompt },
+    ],
+  };
+}
+
+/** Moves every racer forward by their share of a surge. */
+function surgeRacers(session: RunSession): RaceState {
+  return {
+    ...session.race,
+    racers: session.race.racers.map((racer) => ({
+      ...racer,
+      // A one-off shove rather than a speed change, so it cannot compound with
+      // the pace they are already drifting toward.
+      meters:
+        racer.meters + SURGE_RACER_METERS * racerSurgeShare(session.playerMeters - racer.meters),
+    })),
+  };
+}
+
+/**
+ * How far a full racer surge is worth, in metres.
+ *
+ * Sized against the gap a race is actually decided by rather than against the
+ * player's own surge: what the player gets is time at a higher speed, and
+ * converting that into an equivalent shove would tie two dials together that
+ * want to be tuned apart.
+ */
+const SURGE_RACER_METERS = 18;
+
+/** Runs the surge's clock. Lapsing costs the sentence and nothing else. */
+function advanceSurgeLifecycle(session: RunSession): RunSessionResult {
+  const surge = session.surge;
+  if (surge === null) return { session, events: [] };
+
+  if (surge.status !== 'active') {
+    return { session: { ...session, surge: null }, events: [] };
+  }
+
+  if (!surgeExpired(surge, session.elapsedMs)) return { session, events: [] };
+
+  const events: SessionEvent[] = [{ type: 'surgeEnded', surge, completed: false }];
+  let next: RunSession = {
+    ...session,
+    surge: null,
+    surgesBroken: session.surgesBroken + 1,
+    /*
+     * A lapsed surge costs ground, exactly as a lapsed gap word does.
+     *
+     * Without this, a surge was a free pass: it holds the field, so no gap word
+     * is on screen, so a player who typed nothing for its whole length was
+     * never penalised for the silence. The road going quiet costs the same
+     * whichever prompt was supposed to be filling it.
+     */
+    pursuit: pursuitFlowMiss(session.pursuit, session.pursuitConfig),
+  };
+
+  if (next.challenge?.kind === 'surge' && next.challenge.id === surge.instanceId) {
+    const cleared = clearPrompt(next);
+    next = cleared.session;
+    events.push(...cleared.events);
+  }
+
+  const filled = spawnFlowWord(next);
+
+  return { session: filled.session, events: [...events, ...filled.events] };
+}
+
+/** One wrong character. The sentence goes, and the speed with it. */
+function breakActiveSurge(session: RunSession): RunSessionResult {
+  const surge = session.surge;
+  if (surge === null || surge.status !== 'active') return { session, events: [] };
+
+  const broken = breakSurge(surge);
+  const events: SessionEvent[] = [{ type: 'surgeEnded', surge: broken, completed: false }];
+
+  let next: RunSession = {
+    ...session,
+    surge: null,
+    surgesBroken: session.surgesBroken + 1,
+    // The reward stops too. A surge that kept paying after it was broken would
+    // make breaking one on the last word the best way to play it.
+    surgeRewardUntilMs: 0,
+  };
+
+  if (next.challenge?.kind === 'surge' && next.challenge.id === surge.instanceId) {
+    const cleared = clearPrompt(next);
+    next = cleared.session;
+    events.push(...cleared.events);
+  }
+
+  const filled = spawnFlowWord(next);
+
+  return { session: filled.session, events: [...events, ...filled.events] };
+}
+
+/** The whole sentence, clean. Full pace, held. */
+function completeActiveSurge(session: RunSession, instanceId: string): RunSessionResult {
+  const surge = session.surge;
+  if (surge === null || surge.instanceId !== instanceId || surge.status !== 'active') {
+    return { session, events: [] };
+  }
+
+  const finished = completeSurge(surge);
+  const scored = scorePromptCompleted(session.score, {
+    correctCharacters: session.typing.correctCharacters,
+    incorrectCharacters: 0,
+    isObstacle: false,
+    expectedTypingMs: surge.timing.expectedTypingMs,
+    actualTypingMs: session.elapsedMs - session.promptStartedMs,
+    remainingMs: Math.max(0, surge.deadlineAtMs - session.elapsedMs),
+    marginFraction: 0,
+  });
+
+  const points = scored.score - session.score.score;
+  const events: SessionEvent[] = [
+    { type: 'promptCompleted', prompt: finished.prompt, points },
+    { type: 'surgeEnded', surge: finished, completed: true },
+  ];
+
+  let next: RunSession = {
+    ...session,
+    surge: null,
+    score: scored,
+    completedPrompts: session.completedPrompts + 1,
+    surgesCompleted: session.surgesCompleted + 1,
+    surgeRewardUntilMs: session.elapsedMs + SURGE_REWARD_MS,
+    momentum: earnMomentum(session, 1, events),
+    // A whole sentence held together is the strongest thing the player can do
+    // to the chaser, and it should feel like it.
+    pursuit: pursuitClear(session.pursuit, 1, session.pursuitConfig),
+  };
+
+  const cleared = clearPrompt(next);
+  next = cleared.session;
+  events.push(...cleared.events);
+
+  const filled = spawnFlowWord(next);
+
+  return { session: filled.session, events: [...events, ...filled.events] };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Flow words                                                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -1255,6 +1565,11 @@ function spawnFlowWord(session: RunSession): RunSessionResult {
     return { session, events: [] };
   }
   if (session.powerups.some(isPowerupLive)) return { session, events: [] };
+  // A surge owns the field outright while it runs: it is the longest and most
+  // valuable thing the game ever puts on screen.
+  if (session.surge !== null && session.surge.status === 'active') {
+    return { session, events: [] };
+  }
 
   /*
    * A gap word used to be allowed only in a *tail* — the stretch after a hazard
@@ -1700,30 +2015,31 @@ export function liveStats(session: RunSession): LiveRunStats {
     // Paced, not the raw config: the endless map raises its own target.
     targetWpm: pacedMap(session).targetWpm,
     placement: playerPlacement(session.race, session.playerMeters),
-    rivalGapMeters: rivalGapMeters(session),
+    rivals: rivalStandings(session),
   };
 }
 
 /**
- * Metres to the nearest rival: positive when the player is ahead of them.
+ * Where each opponent is, by the side of the road they run on.
  *
- * The nearest one rather than the leader, because that is the one the standing
- * is about to change on — a player in second wants to know how far the runner
- * in front is, and a player in first wants to know who is closing.
+ * Both of them, rather than only the nearest. The nearest one is the one the
+ * standing is about to change on, but a player watching a rival on their left
+ * wants to know about *that* rival — and with two of them in fixed lanes, the
+ * side is the name the player already has for them.
+ *
+ * Signed from the player: negative means behind. See `RivalStanding`.
  */
-export function rivalGapMeters(session: RunSession): number {
-  let nearest = Number.POSITIVE_INFINITY;
-  let gap = 0;
-
-  for (const racer of session.race.racers) {
-    const difference = session.playerMeters - racer.meters;
-    if (Math.abs(difference) < nearest) {
-      nearest = Math.abs(difference);
-      gap = difference;
-    }
-  }
-
-  return gap;
+export function rivalStandings(session: RunSession): readonly RivalStanding[] {
+  return (
+    session.race.racers
+      .map((racer) => ({
+        side: racer.lane < CENTRE_LANE ? ('left' as const) : ('right' as const),
+        gapMeters: racer.meters - session.playerMeters,
+      }))
+      // Left before right, always. The HUD reads left to right and a pair of
+      // readouts that swap places between runs is a pair nobody can glance at.
+      .sort((left, right) => (left.side === right.side ? 0 : left.side === 'left' ? -1 : 1))
+  );
 }
 
 /** The powerup crate currently holding the typing field, if any. */
@@ -1732,6 +2048,13 @@ export function activePowerup(session: RunSession): ActivePowerup | null {
   const id = session.challenge.id;
 
   return session.powerups.find((entry) => entry.instanceId === id) ?? null;
+}
+
+/** The surge currently holding the typing field, if any. */
+export function activeSurge(session: RunSession): ActiveSurge | null {
+  if (session.challenge?.kind !== 'surge') return null;
+
+  return session.surge;
 }
 
 /** The flow word currently holding the typing field, if any. */

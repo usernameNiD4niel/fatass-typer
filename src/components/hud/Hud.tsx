@@ -2,7 +2,7 @@ import { useRef, type JSX } from 'react';
 
 import type { LiveRunStats } from '../../game-core/models';
 import { formatDistance } from '../format';
-import { Button, classes } from '../ui';
+import { Button, classes, VisuallyHidden } from '../ui';
 import styles from './Hud.module.css';
 import { paceBand, PACE_HEADROOM, PACE_WORD, type PaceBand } from './pace';
 
@@ -168,11 +168,29 @@ export function Hud({
           label="Place"
           value={PLACE_LABEL[stats.placement] ?? `${String(stats.placement)}th`}
         />
-        <Stat
-          label="Rival"
-          value={`${stats.rivalGapMeters >= 0 ? '+' : ''}${String(Math.round(stats.rivalGapMeters))} m`}
-        />
         <Stat label="Score" value={String(Math.round(stats.score))} />
+
+        {/*
+          The opponents' gaps, for a screen reader only.
+
+          They are *shown* beside the runner now (`game-scene/RivalBadges.tsx`),
+          which is a better place to glance at and no place at all to read from:
+          the scene is drawn, unlabelled, and out of the accessibility tree.
+          Keeping the numbers here as text is what stops moving them into the
+          world from quietly removing them for anybody not looking at it.
+        */}
+        <VisuallyHidden>
+          {stats.rivals.map((rival) => (
+            <div key={rival.side}>
+              <dt>{rival.side === 'left' ? 'Rival on the left' : 'Rival on the right'}</dt>
+              <dd>
+                {rival.gapMeters >= 0
+                  ? `${String(Math.round(rival.gapMeters))} metres ahead`
+                  : `${String(Math.abs(Math.round(rival.gapMeters)))} metres behind`}
+              </dd>
+            </div>
+          ))}
+        </VisuallyHidden>
       </dl>
 
       {(stats.flightRemainingMs > 0 || stats.magnetRemainingMs > 0) && (

@@ -23,9 +23,11 @@ import { distanceToCoins } from '../../game-core/pickups';
 import { distanceToPowerup, hasMagnet, isFlying } from '../../game-core/powerups';
 import { pursuitPressure } from '../../game-core/pursuit';
 import { flowRemainingMs, flowUrgency } from '../../game-core/flow';
+import { surgeProgress } from '../../game-core/surge';
 import {
   activeCoin,
   activeFlowWord,
+  activeSurge,
   activePowerup,
   advanceRunSession,
   applyRunInput,
@@ -62,6 +64,8 @@ export interface RuntimeHostOptions {
   readonly prompts: readonly PromptEntry[];
   /** The map's secret, as words in order. Every prompt comes from here first. */
   readonly secretWords?: readonly PromptEntry[];
+  /** Long sentences for the surge (`content/surges.ts`). */
+  readonly surges?: readonly PromptEntry[];
   /** Characters the player fumbles. The run's vocabulary leans toward them. */
   readonly weakCharacters?: readonly string[];
   readonly seed: string;
@@ -151,6 +155,7 @@ export class RuntimeHost implements GameHost {
       map: options.map,
       pool: options.prompts,
       secretWords: options.secretWords ?? [],
+      surges: options.surges ?? [],
       weakCharacters: options.weakCharacters ?? [],
       seed: options.seed,
     });
@@ -256,6 +261,10 @@ export class RuntimeHost implements GameHost {
       map: this.options.map,
       pool: this.options.prompts,
       secretWords: this.options.secretWords ?? [],
+      // A restart is a fresh run in every respect, surges included. Leaving
+      // this out gave a restarted run no surges at all, which is the kind of
+      // difference nobody would think to look for.
+      surges: this.options.surges ?? [],
       weakCharacters: this.options.weakCharacters ?? [],
       assistance: this.assistanceConfig,
       // A restart is a fresh run, not a replay: a new seed means new prompts.
@@ -626,6 +635,27 @@ export class RuntimeHost implements GameHost {
         DEFAULT_TYPING_OPTIONS,
       ),
     };
+
+    /*
+     * The surge first: it is the longest and most valuable thing on screen, and
+     * while one is running nothing else holds the field.
+     */
+    const surge = activeSurge(session);
+    if (surge !== null) {
+      return {
+        ...typed,
+        kind: 'surge',
+        safeSide: null,
+        safeLane: null,
+        hazardId: surge.instanceId,
+        // Not optional in the sense that matters: losing it costs the speed it
+        // was giving. But ignoring it never ends a run.
+        optional: true,
+        // One wrong character ends it, which is exactly what `perfect` means.
+        perfect: true,
+        urgency: surgeProgress(surge, session.elapsedMs),
+      };
+    }
 
     const flow = activeFlowWord(session);
     if (flow !== null) {

@@ -1,4 +1,4 @@
-import { MAP_1, ALL_PROMPTS, findSecret, secretPrompts } from '../content';
+import { MAP_1, ALL_PROMPTS, findSecret, secretPrompts, SURGES } from '../content';
 import type { MapConfig, PromptEntry } from '../game-core/models';
 import { liveStats, RuntimeHost } from '../game-runtime/session';
 import { GameBridge } from './bridge';
@@ -58,6 +58,7 @@ export function attachGame(options: AttachGameOptions = {}): AttachedGame {
     map,
     prompts: options.prompts ?? ALL_PROMPTS,
     secretWords: secret === undefined ? [] : secretPrompts(secret),
+    surges: SURGES,
     seed: options.seed ?? 'typing-chase',
     ...(options.weakCharacters === undefined ? {} : { weakCharacters: options.weakCharacters }),
     emit: (event) => {

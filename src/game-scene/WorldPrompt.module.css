@@ -154,3 +154,69 @@
     letter-spacing: var(--letter-spacing-normal);
   }
 }
+
+/*
+ * The surge: a long sentence, shown whole.
+ *
+ * Everything else in the game is one short word that can be read at a glance.
+ * A dozen words cannot, so the sentence arrives *shaded* and clears as it is
+ * typed — which tells the player where they are in it without hunting for a
+ * cursor, and makes the remaining work visible at all times.
+ */
+.word[data-surge='true'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28em 0.42em;
+  justify-content: center;
+  max-width: 34rem;
+  /* Smaller than a single word, because there are twelve of them. */
+  font-size: calc(var(--prompt-font-size, 2rem) * 0.62);
+  line-height: 1.5;
+}
+
+/*
+ * One word, one gradient border.
+ *
+ * The border is what says *this one is different* before a character is typed —
+ * nothing else in the game is framed, so the frame alone carries it. It is a
+ * gradient rather than a flat rule because a surge is the only prompt that is
+ * worth speed, and it should look like it costs something to lose.
+ */
+.surgeWord {
+  padding: 0.12em 0.42em;
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(var(--surface-glass-strong), var(--surface-glass-strong)) padding-box,
+    linear-gradient(
+        120deg,
+        var(--effect-tint, #ffd166),
+        var(--accent-default),
+        var(--effect-tint, #6ad4ff)
+      )
+      border-box;
+  border: 2px solid transparent;
+  /* Shaded until typed: the sentence is legible, but plainly not done yet. */
+  opacity: 0.45;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+/* Typed, and now fully legible. The clearing *is* the progress bar. */
+.surgeWordDone {
+  opacity: 1;
+}
+
+/* The word being typed sits between the two, so the eye lands on it. */
+.word[data-surge='true'] .surgeWord[data-active='true'] {
+  opacity: 0.92;
+  transform: scale(1.02);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surgeWord,
+  .word[data-surge='true'] .surgeWord[data-active='true'] {
+    transform: none;
+    transition: none;
+  }
+}

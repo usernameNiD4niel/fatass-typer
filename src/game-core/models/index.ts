@@ -72,7 +72,7 @@ export {
 export type { GameSettings, MistakeBehavior, PromptTextSize, ThemePreference } from './settings';
 
 export { EMPTY_LIVE_STATS, emptyRunResult, isRunResult } from './run';
-export type { FailureReason, LiveRunStats, RunResult } from './run';
+export type { FailureReason, LiveRunStats, RivalStanding, RunResult } from './run';
 
 export {
   coercePlayerProfile,

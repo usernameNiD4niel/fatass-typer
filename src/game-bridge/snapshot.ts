@@ -92,7 +92,7 @@ export interface EffectsSnapshot {
  * `flow` is the odd one: it has no body anywhere in the world, so the scene
  * places it rather than tracking something. See `game-core/flow`.
  */
-export type ChallengeKind = 'coin' | 'powerup' | 'flow';
+export type ChallengeKind = 'coin' | 'powerup' | 'flow' | 'surge';
 
 export interface ChallengeSnapshot {
   kind: ChallengeKind;

@@ -110,6 +110,14 @@ export interface RunResult extends Versioned {
  * Not persisted, so no schema version. The bridge sends this at a fixed low
  * frequency — never per frame (CLAUDE.md §3).
  */
+/** One opponent, as the HUD needs them. */
+export interface RivalStanding {
+  /** Which side of the road they run on. */
+  readonly side: 'left' | 'right';
+  /** Metres from the player. Negative when they are behind. */
+  readonly gapMeters: number;
+}
+
 export interface LiveRunStats {
   readonly currentWpm: number;
   readonly averageWpm: number;
@@ -151,8 +159,14 @@ export interface LiveRunStats {
   readonly targetWpm: number;
   /** Where the player stands in the race, 1-based. 1 is leading. */
   readonly placement: number;
-  /** How far ahead (positive) or behind (negative) the nearest rival is, in metres. */
-  readonly rivalGapMeters: number;
+  /**
+   * Where each opponent is, by the side of the road they run on.
+   *
+   * Signed **from the player**: negative means that opponent is behind you, so
+   * `-5 m` reads as "I am five metres up on them". The sign is that way round
+   * because the number is about them, not about you.
+   */
+  readonly rivals: readonly RivalStanding[];
 }
 
 export const EMPTY_LIVE_STATS: LiveRunStats = {
@@ -171,7 +185,7 @@ export const EMPTY_LIVE_STATS: LiveRunStats = {
   pursuitPressure: 0,
   targetWpm: 0,
   placement: 1,
-  rivalGapMeters: 0,
+  rivals: [],
   flightRemainingMs: 0,
   magnetRemainingMs: 0,
   elapsedMs: 0,

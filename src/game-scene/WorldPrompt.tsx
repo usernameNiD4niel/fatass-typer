@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { type CSSProperties, useRef, type JSX } from 'react';
 import type { Group, Mesh, MeshBasicMaterial } from 'three';
 
-import type { WorldSnapshot } from '../game-bridge';
+import type { ChallengeSnapshot, WorldSnapshot } from '../game-bridge';
 import { laneCenterX, LANE_WIDTH_METERS, type RunnerLook, type ScenePalette } from './scene-config';
 import styles from './WorldPrompt.module.css';
 
@@ -132,6 +132,9 @@ export function WorldPrompt({
       // means "there is something over there to go and get", and a word that
       // points nowhere must not borrow it.
       word.dataset['flow'] = challenge.kind === 'flow' ? 'true' : 'false';
+      // A surge is laid out differently — a whole sentence rather than a word —
+      // so the stylesheet needs to know before it can wrap anything.
+      word.dataset['surge'] = challenge.kind === 'surge' ? 'true' : 'false';
       const beat =
         reducedMotion || !urgent ? 1 : 1 + Math.abs(Math.sin(clock.elapsedTime * 6)) * 0.06;
 
@@ -196,33 +199,112 @@ export function WorldPrompt({
           data-optional="false"
           data-perfect="false"
           data-flow="false"
+          data-surge="false"
           data-effect={effectName}
           style={{ '--effect-tint': look?.effect ?? '#ffffff' } as CSSProperties}
           aria-hidden="true"
         >
-          {challenge === null
-            ? null
-            : // Per code point, which is what the typing engine compares against.
-              Array.from(challenge.word).map((character, index) => (
-                <span
-                  key={`${character}-${String(index)}`}
-                  className={
-                    index === challenge.firstErrorIndex
-                      ? styles.incorrect
-                      : index < challenge.typedLength
-                        ? styles.correct
-                        : index === challenge.typedLength
-                          ? styles.current
-                          : styles.untyped
-                  }
-                >
-                  {character === ' ' ? ' ' : character}
-                </span>
-              ))}
+          {challenge === null ? null : renderWord(challenge)}
         </p>
       </Html>
     </group>
   );
+}
+
+/**
+ * The word, character by character.
+ *
+ * Per code point, which is what the typing engine compares against — a surrogate
+ * pair split down the middle would be a character the player can never satisfy.
+ */
+function renderCharacters(challenge: ChallengeSnapshot, offset = 0): JSX.Element[] {
+  return Array.from(challenge.word.slice(offset, offset + challenge.word.length)).map(
+    (character, index) => {
+      const at = offset + index;
+
+      return (
+        <span
+          key={`${character}-${String(at)}`}
+          className={
+            at === challenge.firstErrorIndex
+              ? styles.incorrect
+              : at < challenge.typedLength
+                ? styles.correct
+                : at === challenge.typedLength
+                  ? styles.current
+                  : styles.untyped
+          }
+        >
+          {character === ' ' ? '\u00a0' : character}
+        </span>
+      );
+    },
+  );
+}
+
+/**
+ * A surge, word by word.
+ *
+ * The whole sentence is on screen from the moment it arrives, shaded back, and
+ * each word clears as it is typed. Everything else in the game shows one short
+ * word at a time and can be read at a glance; a dozen words cannot, so the
+ * shading is what tells the player where they are in it without having to hunt
+ * for the cursor.
+ *
+ * Each word carries its own gradient border, which is the thing that says *this
+ * one is different* before a single character is typed.
+ */
+function renderSurge(challenge: ChallengeSnapshot): JSX.Element[] {
+  const words: JSX.Element[] = [];
+  let index = 0;
+
+  for (const [position, word] of challenge.word.split(' ').entries()) {
+    const start = index;
+    const end = start + word.length;
+    index = end + 1;
+
+    // A word counts as done once the space after it has been typed, so the
+    // final word of the sentence clears on its last character rather than
+    // waiting for a space that never comes.
+    const done = challenge.typedLength >= end;
+    const active = challenge.typedLength >= start && challenge.typedLength <= end;
+
+    words.push(
+      <span
+        key={`${word}-${String(position)}`}
+        className={[styles.surgeWord, done ? styles.surgeWordDone : null].filter(Boolean).join(' ')}
+        data-active={active ? 'true' : 'false'}
+      >
+        {Array.from(word).map((character, offset) => {
+          const at = start + offset;
+
+          return (
+            <span
+              key={`${character}-${String(at)}`}
+              className={
+                at === challenge.firstErrorIndex
+                  ? styles.incorrect
+                  : at < challenge.typedLength
+                    ? styles.correct
+                    : at === challenge.typedLength
+                      ? styles.current
+                      : styles.untyped
+              }
+            >
+              {character}
+            </span>
+          );
+        })}
+      </span>,
+    );
+  }
+
+  return words;
+}
+
+/** Which renderer a challenge gets. Only a surge is drawn word by word. */
+function renderWord(challenge: ChallengeSnapshot): JSX.Element[] {
+  return challenge.kind === 'surge' ? renderSurge(challenge) : renderCharacters(challenge);
 }
 
 /** Where in the world a word belongs. */
