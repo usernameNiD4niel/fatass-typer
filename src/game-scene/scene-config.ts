@@ -135,6 +135,18 @@ export function scenePalette(theme: MapTheme): ScenePalette {
   return PALETTES[theme];
 }
 
+/**
+ * How brightly the lit windows burn, for a given palette.
+ *
+ * Zero in daylight, and that is the point rather than an economy. Windows lit at
+ * midday is the classic tell of an emissive map applied without asking what time
+ * it is — the city reads as being at night while the sky says otherwise. They
+ * come up as the map gets darker, and on the night maps they carry it.
+ */
+export function windowGlow(palette: ScenePalette): number {
+  return Math.max(0, Math.min(0.9, 1.05 - palette.lightIntensity));
+}
+
 /** Lateral position of a lane centre, in metres. Accepts a fractional lane. */
 export function laneCenterX(lane: number): number {
   return (lane - 1) * LANE_WIDTH_METERS;

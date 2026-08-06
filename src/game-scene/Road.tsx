@@ -1,7 +1,7 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, type JSX } from 'react';
 import type { InstancedMesh } from 'three';
-import { Object3D } from 'three';
+import { Object3D, PlaneGeometry } from 'three';
 
 import type { WorldSnapshot } from '../game-bridge';
 import {
@@ -15,8 +15,9 @@ import {
   SCENERY_PER_SIDE,
   SCENERY_SPACING_METERS,
   type ScenePalette,
+  windowGlow,
 } from './scene-config';
-import { createAsphaltRoughness } from './textures';
+import { createAsphaltRoughness, createFacade } from './textures';
 
 /**
  * The endless road (spec §13).
@@ -76,6 +77,15 @@ const DASH_COUNT = 26;
 const DASH_SPACING = DRAW_DISTANCE_METERS / DASH_COUNT;
 const DASH_LENGTH = 2.6;
 
+/** Lit windows are warm white, not the map's accent: they are lamps, not signage. */
+const WINDOW_LIGHT = '#ffce8a';
+
+/** Segments across the road, for the crown. A handful is enough to bend a highlight. */
+const CROWN_SEGMENTS = 6;
+
+/** How far the surface falls from the crown to the kerb, in metres. */
+const CROWN_HEIGHT_METERS = 0.09;
+
 /** Reflector posts down each verge. The closest thing to the camera, so the fastest-reading. */
 const POST_COUNT = 30;
 const POST_SPACING = 7;
@@ -97,11 +107,51 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
    * bleed nobody notices until the fifth run of a session.
    */
   const roughness = useMemo(() => createAsphaltRoughness(), []);
+  const facade = useMemo(() => createFacade(), []);
   useEffect(() => {
     return () => {
       roughness?.dispose();
+      facade?.color.dispose();
+      facade?.emissive.dispose();
     };
-  }, [roughness]);
+  }, [roughness, facade]);
+
+  /*
+   * The road is crowned, and the camber is baked once.
+   *
+   * A dead-flat surface is the last thing in the scene that gives away that it
+   * is a plane: the sun's highlight falls across it as a uniform sheet. A couple
+   * of centimetres of fall from the crown to each kerb bends that highlight,
+   * which is all it takes.
+   *
+   * Baked into the geometry rather than displaced in a shader because it never
+   * changes — the road does not move, it is recycled past.
+   */
+  const surface = useMemo(() => {
+    const geometry = new PlaneGeometry(
+      ROAD_HALF_WIDTH * 2,
+      DRAW_DISTANCE_METERS * 2,
+      CROWN_SEGMENTS,
+      1,
+    );
+    const position = geometry.attributes['position'];
+    if (position !== undefined) {
+      for (let index = 0; index < position.count; index += 1) {
+        const across = position.getX(index) / ROAD_HALF_WIDTH;
+        // Parabolic: flat along the crown, falling away fastest at the kerb.
+        position.setZ(index, -CROWN_HEIGHT_METERS * across * across);
+      }
+      position.needsUpdate = true;
+    }
+    geometry.computeVertexNormals();
+
+    return geometry;
+  }, []);
+  useEffect(() => {
+    return () => {
+      surface.dispose();
+    };
+  }, [surface]);
 
   useFrame(() => {
     // Reduced motion holds the *decoration* still; the road itself keeps moving,
@@ -218,10 +268,10 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
       */}
       <mesh
         receiveShadow
+        geometry={surface}
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0, -DRAW_DISTANCE_METERS / 2]}
       >
-        <planeGeometry args={[ROAD_HALF_WIDTH * 2, DRAW_DISTANCE_METERS * 2]} />
         <meshStandardMaterial
           color={palette.road}
           roughness={0.85}
@@ -313,7 +363,20 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
         frustumCulled={false}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={palette.buildingA} roughness={0.8} metalness={0.05} />
+        {/*
+          Windows, and a third of them lit. The emissive map is what makes the
+          night maps read as a city rather than as a row of dark boxes — and it
+          is the same texture in daylight, where the emissive term is simply
+          swamped by the sun.
+        */}
+        <meshStandardMaterial
+          color={palette.buildingA}
+          roughness={0.8}
+          metalness={0.05}
+          emissive={WINDOW_LIGHT}
+          emissiveIntensity={windowGlow(palette)}
+          {...(facade === null ? {} : { map: facade.color, emissiveMap: facade.emissive })}
+        />
       </instancedMesh>
     </group>
   );

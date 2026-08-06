@@ -87,10 +87,25 @@ export function lightingRig(palette: ScenePalette, reducedMotion: boolean): Ligh
     sunPosition: SUN_POSITION,
     sunIntensity: palette.lightIntensity * (night ? 0.8 : 1.35),
     skyColor: palette.sky,
-    // The ground bounce is the road, not the grass: it is what is under the
-    // runner, and it is what the underside of the runner sees.
-    groundColor: palette.road,
-    hemisphereIntensity: palette.lightIntensity * (night ? 1.1 : 0.85),
+    /*
+     * The ground bounce is the road, not the grass: it is what is under the
+     * runner, and it is what the underside of the runner sees.
+     *
+     * Except at night, where the road is nearly black and bouncing black light
+     * is the same as no fill at all. The map's accent stands in — every night
+     * palette's accent is the colour of its own lighting, so the runner picks
+     * up a rim of the world they are running through rather than a grey wash.
+     */
+    groundColor: night ? palette.accent : palette.road,
+    /*
+     * The night maps get *more* of the hemisphere term, not less.
+     *
+     * A night scene lit mostly by a directional light leaves the runner a dark
+     * silhouette against a dark road — and they are the one thing on screen the
+     * player has to be able to see. The sky-and-ground fill is what separates
+     * them from it, so it carries the night maps and merely softens the day ones.
+     */
+    hemisphereIntensity: palette.lightIntensity * (night ? 1.75 : 0.85),
     shadowMapSize: reducedMotion ? REDUCED_SHADOW_MAP_SIZE : SHADOW_MAP_SIZE,
   };
 }

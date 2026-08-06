@@ -5,6 +5,7 @@ import type { Group } from 'three';
 import type { WorldSnapshot } from '../game-bridge';
 import { MAX_SNAPSHOT_POWERUPS } from '../game-bridge';
 import { laneCenterX } from './scene-config';
+import { Glow } from './Glow';
 
 /**
  * Powerup crates.
@@ -102,6 +103,8 @@ function Crate({ color }: { color: string }): JSX.Element {
           metalness={0.25}
         />
       </mesh>
+      {/* The crate is the rarest thing on the road, and it should look it. */}
+      <Glow color={color} size={3.4} opacity={0.45} />
       {/* A band, so the crate reads as a container rather than a coloured cube. */}
       <mesh castShadow position={[0, 0, 0]}>
         <boxGeometry args={[1.42, 0.26, 1.42]} />

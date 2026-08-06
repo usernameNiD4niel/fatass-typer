@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { MAP_THEMES } from '../game-core/models';
 import { TRAFFIC_POOL } from './AmbientTraffic';
 import { ROAD_POOL } from './Road';
+import { scenePalette, windowGlow } from './scene-config';
 import { MAX_SNAPSHOT_COINS, MAX_SNAPSHOT_POPUPS, MAX_SNAPSHOT_POWERUPS } from '../game-bridge';
 
 /**
@@ -41,5 +43,22 @@ describe('scene pools', () => {
       ROAD_POOL.dashes + ROAD_POOL.scenery + ROAD_POOL.posts + ROAD_POOL.gantries + TRAFFIC_POOL;
 
     expect(drawnObjects).toBeLessThan(200);
+  });
+});
+
+describe('window glow', () => {
+  it('is dark in daylight and lit at night', () => {
+    // Windows burning at midday is the classic tell of an emissive map applied
+    // without asking what time it is.
+    expect(windowGlow(scenePalette('neighborhood'))).toBe(0);
+    expect(windowGlow(scenePalette('market-district'))).toBe(0);
+    expect(windowGlow(scenePalette('night-highway'))).toBeGreaterThan(0.3);
+    expect(windowGlow(scenePalette('final-pursuit'))).toBeGreaterThan(0.2);
+  });
+
+  it('never burns brighter than the map it belongs to', () => {
+    for (const theme of MAP_THEMES) {
+      expect(windowGlow(scenePalette(theme)), theme).toBeLessThanOrEqual(0.9);
+    }
   });
 });

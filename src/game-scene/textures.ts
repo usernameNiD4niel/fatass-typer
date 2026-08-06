@@ -88,6 +88,82 @@ export function createAsphaltRoughness(): Texture | null {
  * the few things that actually glow — coins, crates, the lane cue — gets most
  * of the look for one small texture and no new dependency.
  */
+/**
+ * A building facade: a grid of windows, some of them lit.
+ *
+ * Returned as a pair, because the same grid has to do two jobs. The colour map
+ * gives the wall its windows in daylight; the emissive map lights a *subset* of
+ * them, which is the only thing that makes a night skyline look inhabited
+ * rather than like a row of dark boxes.
+ *
+ * Every building instance shares this one texture, so they all wear the same
+ * facade. At the distance they are drawn — set back beyond the far carriageway
+ * — that reads as a repeated building style rather than as a repeat.
+ */
+export function createFacade(): { color: Texture; emissive: Texture } | null {
+  const colorCanvas = createCanvas(TEXTURE_SIZE);
+  const lightCanvas = createCanvas(TEXTURE_SIZE);
+  const colorContext = colorCanvas?.getContext('2d') ?? null;
+  const lightContext = lightCanvas?.getContext('2d') ?? null;
+  if (!colorCanvas || !lightCanvas || !colorContext || !lightContext) return null;
+
+  // The wall itself is white so the material's own colour decides the shade,
+  // which is what lets one texture serve six palettes.
+  colorContext.fillStyle = '#ffffff';
+  colorContext.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE);
+  lightContext.fillStyle = '#000000';
+  lightContext.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE);
+
+  const columns = 8;
+  const rows = 10;
+  const cell = TEXTURE_SIZE / columns;
+  const rowHeight = TEXTURE_SIZE / rows;
+  const paneWidth = cell * 0.56;
+  const paneHeight = rowHeight * 0.5;
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const x = column * cell + (cell - paneWidth) / 2;
+      const y = row * rowHeight + (rowHeight - paneHeight) / 2;
+
+      colorContext.fillStyle = '#4d5867';
+      colorContext.fillRect(x, y, paneWidth, paneHeight);
+
+      // Roughly a third of them, scattered rather than striped.
+      if (noise(row * 37 + column * 11) > 0.66) {
+        lightContext.fillStyle = '#ffdda6';
+        lightContext.fillRect(x, y, paneWidth, paneHeight);
+      }
+    }
+  }
+
+  const color = new CanvasTexture(colorCanvas);
+  const emissive = new CanvasTexture(lightCanvas);
+  for (const texture of [color, emissive]) {
+    texture.wrapS = RepeatWrapping;
+    texture.wrapT = RepeatWrapping;
+  }
+
+  return { color, emissive };
+}
+
+let glow: Texture | null | undefined;
+
+/**
+ * The glow sprite, shared by everything that glows.
+ *
+ * A module-level singleton rather than a per-component `useMemo`, and
+ * deliberately never disposed: it is one 64×64 texture, every caller wants the
+ * identical thing, and the alternative is three components each building and
+ * tearing down their own copy on every remount. It lives as long as the tab
+ * does, which is the honest lifetime for it.
+ */
+export function sharedGlowTexture(): Texture | null {
+  glow ??= createGlowSprite();
+
+  return glow;
+}
+
 export function createGlowSprite(): Texture | null {
   const canvas = createCanvas(64);
   const context = canvas?.getContext('2d') ?? null;

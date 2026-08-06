@@ -62,6 +62,12 @@ before anything is on screen.
   them; coins, crates and traffic are fixed pools of groups that are shown and
   hidden rather than mounted. `game-scene/scene-pools.test.ts` asserts the sizes
   are constants.
+- **Textures are painted once and disposed.** The asphalt roughness map and the
+  building facade are built in a `useMemo` and freed in the matching cleanup; the
+  glow sprite is a module-level singleton shared by everything that glows, since
+  every caller wants the identical 64×64 texture.
+- **There is no post-processing pass.** The glow is additive billboards rather
+  than bloom — see `game-scene/Glow.tsx` for what that trades away.
 - **The gait is a pure function into a shared object.** `runner/gait.ts` fills one
   module-level pose rather than returning a literal — sixty allocations a second
   is exactly what this section exists to prevent.

@@ -6,6 +6,7 @@ import { Vector3 } from 'three';
 import type { WorldSnapshot } from '../game-bridge';
 import { MAX_SNAPSHOT_COIN_UNITS, MAX_SNAPSHOT_COINS } from '../game-bridge';
 import { laneCenterX } from './scene-config';
+import { Glow } from './Glow';
 
 /**
  * Coin lines.
@@ -187,6 +188,12 @@ export function Coins({ snapshot, reducedMotion }: CoinsProps): JSX.Element {
                   metalness={1}
                 />
               </mesh>
+              {/*
+                A halo, so a coin is findable on the night maps. Edge-on, a disc
+                is a few pixels of nothing; this is what keeps it visible while
+                it spins. See `Glow.tsx`.
+              */}
+              <Glow color={GOLD} size={1.5} opacity={0.4} />
             </group>
           ))}
         </group>
