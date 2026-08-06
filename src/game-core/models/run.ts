@@ -1,5 +1,5 @@
 import type { KeyStats } from '../keystats';
-import { isCount, isRatio, isRecord } from './guards';
+import { isCount, isIntegerAtLeast, isRatio, isRecord } from './guards';
 import type { IsoTimestamp, MapId, RunId } from './ids';
 import { isId, isIsoTimestamp } from './ids';
 import { CURRENT_SCHEMA_VERSION } from './schema';
@@ -76,6 +76,16 @@ export interface RunResult extends Versioned {
    */
   readonly obstacleSuccessRate: number;
   readonly longestCombo: number;
+  /**
+   * Where the player finished the race, 1-based.
+   *
+   * Optional and defaulted when absent, like the fields below it: it is
+   * additive to a shape that is already on disk, and a required field would
+   * make every stored run fail validation and vanish from the player's history.
+   */
+  readonly placement?: number;
+  /** Coins a rival reached first. */
+  readonly coinsStolen?: number;
   /** Coins collected. Optional pickups, so this is a flourish, not a grade. */
   readonly coinsCollected: number;
   /** Powerups taken — sentences typed without a single mistake. */
@@ -139,6 +149,10 @@ export interface LiveRunStats {
    * captured once at mount would be a lie for all but the first few seconds.
    */
   readonly targetWpm: number;
+  /** Where the player stands in the race, 1-based. 1 is leading. */
+  readonly placement: number;
+  /** How far ahead (positive) or behind (negative) the nearest rival is, in metres. */
+  readonly rivalGapMeters: number;
 }
 
 export const EMPTY_LIVE_STATS: LiveRunStats = {
@@ -156,6 +170,8 @@ export const EMPTY_LIVE_STATS: LiveRunStats = {
   secretWordCount: 0,
   pursuitPressure: 0,
   targetWpm: 0,
+  placement: 1,
+  rivalGapMeters: 0,
   flightRemainingMs: 0,
   magnetRemainingMs: 0,
   elapsedMs: 0,
@@ -189,6 +205,8 @@ export function isRunResult(value: unknown): value is RunResult {
     isCount(value['longestCombo']) &&
     // Added after the first release: an older stored run has no coins, and is
     // repaired rather than rejected.
+    (value['placement'] === undefined || isIntegerAtLeast(value['placement'], 1)) &&
+    (value['coinsStolen'] === undefined || isCount(value['coinsStolen'])) &&
     (value['coinsCollected'] === undefined || isCount(value['coinsCollected'])) &&
     (value['powerupsClaimed'] === undefined || isCount(value['powerupsClaimed'])) &&
     (value['secretUnlocked'] === undefined || typeof value['secretUnlocked'] === 'boolean') &&

@@ -107,6 +107,9 @@ function Meter({
   );
 }
 
+/** Ordinals, for the two places that are not "3rd". */
+const PLACE_LABEL: Record<number, string> = { 1: '1st', 2: '2nd', 3: '3rd' };
+
 const PACE_FILL: Record<PaceBand, string | undefined> = {
   idle: styles.paceFillIdle,
   behind: styles.paceFillBehind,
@@ -155,6 +158,20 @@ export function Hud({
             value={`${String(stats.secretWordsTyped)}/${String(stats.secretWordCount)}`}
           />
         )}
+        {/*
+          The standing, as a place and a gap.
+
+          Both, because either alone is useless: "2nd" does not say whether the
+          player is about to take the lead, and "+4 m" does not say of whom.
+        */}
+        <Stat
+          label="Place"
+          value={PLACE_LABEL[stats.placement] ?? `${String(stats.placement)}th`}
+        />
+        <Stat
+          label="Rival"
+          value={`${stats.rivalGapMeters >= 0 ? '+' : ''}${String(Math.round(stats.rivalGapMeters))} m`}
+        />
         <Stat label="Score" value={String(Math.round(stats.score))} />
       </dl>
 

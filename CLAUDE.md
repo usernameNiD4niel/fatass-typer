@@ -156,7 +156,7 @@ describe systems that no longer exist.
 
 | | |
 |---|---|
-| **Last completed** | **the hazard-free rework** — no obstacles at all, speed and the chaser both driven by typing, a pace bar on the HUD, and a lit PBR scene with a human runner |
+| **Last completed** | **the race** — two seeded opponents who contest the coins, placement scored on the results screen, and speed that is kept rather than leaked |
 | **Next up** | nothing scheduled — awaiting direction |
 | **In progress** | none |
 | **Blocked** | none |
@@ -189,12 +189,27 @@ game. They are collected **one at a time**, each decided at its own plane.
 Typing is forgiving within a word — a wrong character costs the combo and a little ground,
 and can be corrected — because accuracy is the statistic the unlock gates read.
 
+### The race
+
+Two opponents run the same road (`game-core/race`). They do not type, cannot be
+collided with, and **cannot end a run** — the chaser keeps that job. What they do
+is take coins: whoever is in front reaches a coin first, so a player who never
+leads never collects one. Placement pays a bonus on a run that reaches the
+finish line, and is shown on the results screen.
+
+Their pace is drawn from a band around the map's own reference speed and
+re-drawn every few seconds, so a lead has to be held rather than established
+once. At the map's advertised speed the player is neck and neck with them; above
+it they pull clear and keep every coin. `race/README.md` records the tuning and
+what was tried first.
+
 ### Speed, and the chaser
 
-**Speed is momentum** (`game-core/motion/momentum.ts`): a level from 0 to 1 that drains
-continuously and is topped up by every completed word, by how much of its budget was left.
-It is a level rather than a countdown because a word finishes every second or two, and a
-refreshed timer would simply never lapse.
+**Speed is momentum** (`game-core/motion/momentum.ts`): a level from 0 to 1, topped up by
+every completed word by how much of its budget was left, and **kept** rather than leaked.
+A wrong character costs a little of it; a pause lets it fall back to a coasting floor and
+no further. It is a level rather than a countdown because a word finishes every second or
+two, and a refreshed timer would simply never lapse.
 
 **The chaser is the whole of the difficulty** (`game-core/pursuit/`). Every completed word
 grants ground by the same margin; a lapsed word and a mistyped character take it. Its

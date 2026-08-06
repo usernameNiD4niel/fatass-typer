@@ -33,6 +33,7 @@ import {
   lanePosition,
   momentumMultiplier,
   momentumShare,
+  penaliseMomentum,
   type PlayerMotion,
   rampedSpeed,
   targetLane,
@@ -62,6 +63,7 @@ import {
   isCoinLive,
   placeCoin,
 } from '../../game-core/pickups';
+import { advanceRace, createRace, playerPlacement, type RaceState } from '../../game-core/race';
 import {
   applyClear as pursuitClear,
   applyFlowMiss as pursuitFlowMiss,
@@ -267,6 +269,13 @@ export interface RunSession {
   /** Adaptive assistance (spec §6). Moves the reaction buffer, nothing else. */
   readonly assistance: AssistanceState;
   readonly assistanceConfig: AdaptiveAssistanceConfig;
+  /**
+   * The two opponents (`game-core/race`).
+   *
+   * They do not type and cannot be collided with. What they do is finish before
+   * or after the player, and take coins the player was slower to reach.
+   */
+  readonly race: RaceState;
   /** Coin lines currently in the world. At most one unresolved. */
   readonly coins: readonly ActiveCoin[];
   /** Powerup crates currently in the world. At most one unresolved. */
@@ -296,6 +305,8 @@ export interface RunSession {
   readonly completedPrompts: number;
   readonly coinsCollected: number;
   readonly coinsMissed: number;
+  /** Coins a rival reached first. Missed, but not by the player's own doing. */
+  readonly coinsStolen: number;
   readonly powerupsClaimed: number;
   readonly powerupsLost: number;
   readonly flowWordsCompleted: number;
@@ -326,6 +337,12 @@ export type SessionEvent =
       readonly index: number;
       readonly collected: boolean;
       readonly value: number;
+    }
+  | {
+      readonly type: 'coinStolen';
+      readonly coin: ActiveCoin;
+      readonly index: number;
+      readonly by: string;
     }
   | {
       readonly type: 'coinResolved';
@@ -406,6 +423,7 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     stats: createRunStats(),
     score: createScoreState(),
     coinRng: createRngFromString(`${input.seed}:coins`),
+    race: createRace(input.map, createRngFromString(`${input.seed}:race`)),
     coins: [],
     flow: null,
     flowIndex: 0,
@@ -421,6 +439,7 @@ export function createRunSession(input: CreateRunSessionInput): RunSession {
     completedPrompts: 0,
     coinsCollected: 0,
     coinsMissed: 0,
+    coinsStolen: 0,
     powerupsClaimed: 0,
     powerupsLost: 0,
     flowWordsCompleted: 0,
@@ -831,6 +850,14 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
     elapsedMs: session.elapsedMs + deltaMs,
     playerMeters: session.playerMeters + speed * seconds,
     momentum,
+    // The opponents run on the same clock. They are not driven by the player
+    // and nothing they do can end the run — see `game-core/race`.
+    race: advanceRace(session.race, {
+      map: session.map,
+      deltaMs,
+      elapsedMs: session.elapsedMs,
+      distanceMeters: session.map.distanceMeters,
+    }),
     motion: advanceMotion(session.motion, deltaMs),
     effects: advanceEffects(session.effects, deltaMs),
     // Only time spent with a word on screen counts toward WPM.
@@ -983,6 +1010,9 @@ export function applyRunInput(session: RunSession, value: string): RunSessionRes
       // The chaser closes on the keystroke, not at the end of the word. That is
       // the point of having something visible back there.
       pursuit: pursuitMistake(typed.pursuit, typed.pursuitConfig),
+      // And the player loses a little speed with it, so a mistake is felt in
+      // the road as well as in the numbers.
+      momentum: penaliseMomentum(typed.momentum),
     };
     const mistake: SessionEvent = {
       type: 'mistyped',
@@ -1093,6 +1123,12 @@ function advanceCoinLifecycle(session: RunSession): RunSessionResult {
       magnet: hasMagnet(session.effects),
       playerLane: session.motion.lane,
       settled: isSettled(session.motion),
+      // Whoever is in front gets there first.
+      rivals: session.race.racers.map((racer) => ({
+        id: racer.id,
+        name: racer.name,
+        meters: racer.meters,
+      })),
     });
 
     let latest = result.coin;
@@ -1115,6 +1151,20 @@ function advanceCoinLifecycle(session: RunSession): RunSessionResult {
           nextCoinAtMs: current.elapsedMs + current.map.content.coinIntervalSeconds * 1_000,
         };
         current = releaseCoinField(current, latest.instanceId, events);
+        continue;
+      }
+
+      if (event.type === 'coinUnitStolen') {
+        /*
+         * Gone, and not to the player. Counted apart from `coinsMissed`
+         * because the two mean different things to a player reading their
+         * results: one is a coin they declined, the other is a coin they were
+         * beaten to.
+         */
+        latest = event.coin;
+        current = { ...current, coinsStolen: current.coinsStolen + 1 };
+
+        events.push({ type: 'coinStolen', coin: latest, index: event.index, by: event.by });
         continue;
       }
 
@@ -1649,7 +1699,31 @@ export function liveStats(session: RunSession): LiveRunStats {
     pursuitPressure: pursuitPressure(session.pursuit, session.pursuitConfig),
     // Paced, not the raw config: the endless map raises its own target.
     targetWpm: pacedMap(session).targetWpm,
+    placement: playerPlacement(session.race, session.playerMeters),
+    rivalGapMeters: rivalGapMeters(session),
   };
+}
+
+/**
+ * Metres to the nearest rival: positive when the player is ahead of them.
+ *
+ * The nearest one rather than the leader, because that is the one the standing
+ * is about to change on — a player in second wants to know how far the runner
+ * in front is, and a player in first wants to know who is closing.
+ */
+export function rivalGapMeters(session: RunSession): number {
+  let nearest = Number.POSITIVE_INFINITY;
+  let gap = 0;
+
+  for (const racer of session.race.racers) {
+    const difference = session.playerMeters - racer.meters;
+    if (Math.abs(difference) < nearest) {
+      nearest = Math.abs(difference);
+      gap = difference;
+    }
+  }
+
+  return gap;
 }
 
 /** The powerup crate currently holding the typing field, if any. */

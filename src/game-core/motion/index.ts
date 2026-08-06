@@ -28,11 +28,14 @@ export { rampedSpeed } from './speed';
 
 export {
   BOOSTING_THRESHOLD,
+  COASTING_FLOOR,
   decayMomentum,
+  MISTAKE_COST,
   MARGIN_BAND_CEILING,
   MARGIN_BAND_FLOOR,
   MARGIN_FLOOR_SHARE,
   momentumMultiplier,
   momentumShare,
+  penaliseMomentum,
   topUpMomentum,
 } from './momentum';

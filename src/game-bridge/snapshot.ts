@@ -28,6 +28,9 @@ import type { GameState } from './messages';
  * whatever the world looks like *now*.
  */
 
+/** Opponents in the race. Fixed: there are two, and there will be two.  */
+export const MAX_SNAPSHOT_RACERS = 2;
+
 /** Maximum coin lines the pool can describe at once. */
 export const MAX_SNAPSHOT_COINS = 4;
 
@@ -178,6 +181,15 @@ export const MAX_SNAPSHOT_POPUPS = 6;
  * body from `gapMeters` and its danger cue from `pressure`, so retuning the
  * distances never silently retunes how alarming it looks.
  */
+/** One opponent, as the scene needs them. */
+export interface RacerSnapshot {
+  instanceId: string;
+  /** Metres ahead of the player. Negative once the player has passed them. */
+  aheadMeters: number;
+  lane: number;
+  finished: boolean;
+}
+
 export interface PursuitSnapshot {
   gapMeters: number;
   /** 0..1, where 1 is on top of the player. */
@@ -195,6 +207,8 @@ export interface WorldSnapshot {
   /** 0..1, deepest at take-off and on landing. Cosmetic crouch. */
   crouch: number;
   boosting: boolean;
+  racerCount: number;
+  racers: RacerSnapshot[];
   coinCount: number;
   coins: CoinSnapshot[];
   powerupCount: number;
@@ -244,6 +258,13 @@ export function createWorldSnapshot(): WorldSnapshot {
     jumpHeightMeters: 0,
     crouch: 0,
     boosting: false,
+    racerCount: 0,
+    racers: Array.from({ length: MAX_SNAPSHOT_RACERS }, () => ({
+      instanceId: '',
+      aheadMeters: 0,
+      lane: 0,
+      finished: false,
+    })),
     coinCount: 0,
     coins: Array.from({ length: MAX_SNAPSHOT_COINS }, emptyCoin),
     powerupCount: 0,

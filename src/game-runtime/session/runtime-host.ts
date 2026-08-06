@@ -4,6 +4,7 @@ import {
   MAX_SNAPSHOT_COIN_UNITS,
   MAX_SNAPSHOT_COINS,
   MAX_SNAPSHOT_POPUPS,
+  MAX_SNAPSHOT_RACERS,
   MAX_SNAPSHOT_POWERUPS,
 } from '../../game-bridge';
 import type {
@@ -76,6 +77,27 @@ export interface RuntimeHostOptions {
   /** Monotonic wall clock, for throttling. Injected so tests can control it. */
   readonly now?: () => number;
 }
+
+/**
+ * What finishing in front is worth.
+ *
+ * Paid on the run's score, so it flows into the same total everything else
+ * does — the race is a way of scoring a run rather than a second currency
+ * bolted beside it.
+ *
+ * Only paid on a run that *reached the finish line*. A player caught by the
+ * chaser in first place did not win a race, they lost a run; paying them for
+ * the standing they held at the moment they died would make being caught early
+ * while leading worth more than being caught late while second.
+ */
+export function placementBonus(placement: number, completed: boolean): number {
+  if (!completed) return 0;
+
+  return PLACEMENT_BONUS[placement - 1] ?? 0;
+}
+
+/** First, second, third. Third is not zero: turning up and finishing is worth something. */
+const PLACEMENT_BONUS = [1_200, 600, 200] as const;
 
 /** How quickly a camera shake impulse decays, per second. */
 const SHAKE_DECAY_PER_SECOND = 3.2;
@@ -355,7 +377,7 @@ export class RuntimeHost implements GameHost {
       distanceMeters: this.session.playerMeters,
       keyStats: this.session.keyStats,
       completed,
-      score: stats.score,
+      score: stats.score + placementBonus(stats.placement, completed),
       averageWpm: stats.averageWpm,
       // The headline lifetime figure (spec §7): a rolling window with minimum
       // characters, minimum accuracy, and a maximum idle gap, so a one-second
@@ -369,6 +391,8 @@ export class RuntimeHost implements GameHost {
       completedPrompts: this.session.completedPrompts,
       missedPrompts: this.session.flowWordsMissed,
       obstacleSuccessRate: promptSuccessRate(this.session),
+      placement: stats.placement,
+      coinsStolen: this.session.coinsStolen,
       longestCombo: this.session.score.longestCombo,
       coinsCollected: this.session.coinsCollected,
       powerupsClaimed: this.session.powerupsClaimed,
@@ -429,6 +453,24 @@ export class RuntimeHost implements GameHost {
     world.jumpHeightMeters = jumpHeightMeters(session.motion);
     world.crouch = crouchDepth(session.motion);
     world.boosting = isBoosting(session);
+
+    let racerCount = 0;
+    for (const racer of session.race.racers) {
+      if (racerCount >= MAX_SNAPSHOT_RACERS) break;
+
+      const slot = world.racers[racerCount];
+      if (slot === undefined) break;
+
+      slot.instanceId = racer.id;
+      // Relative to the player, like everything else the scene draws: the
+      // player is pinned at the origin and the world moves past them.
+      slot.aheadMeters = racer.meters - world.playerMeters;
+      slot.lane = racer.lane;
+      slot.finished = racer.finished;
+
+      racerCount += 1;
+    }
+    world.racerCount = racerCount;
 
     let coinCount = 0;
     for (const coin of session.coins) {

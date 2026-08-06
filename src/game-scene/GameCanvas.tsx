@@ -10,6 +10,7 @@ import { Coins } from './Coins';
 import { lightingRig, SHADOW_BIAS, SHADOW_BOX } from './lighting';
 import { Player } from './Player';
 import { Powerups } from './Powerups';
+import { Racers } from './Racers';
 import { Road } from './Road';
 import {
   BASE_FOV_DEGREES,
@@ -161,6 +162,11 @@ export function GameCanvas({
       <Coins snapshot={snapshot} reducedMotion={reducedMotion} />
       <Powerups snapshot={snapshot} reducedMotion={reducedMotion} />
       <Player snapshot={snapshot} reducedMotion={reducedMotion} />
+      {/*
+        The two opponents. Drawn from the snapshot like everything else — see
+        `Racers.tsx` for why they can be run through.
+      */}
+      <Racers snapshot={snapshot} reducedMotion={reducedMotion} />
       <Pursuer snapshot={snapshot} reducedMotion={reducedMotion} />
       <BestLine snapshot={snapshot} bestDistanceMeters={bestDistanceMeters} />
       <WorldPrompt snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />

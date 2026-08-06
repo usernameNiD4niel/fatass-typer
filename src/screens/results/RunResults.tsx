@@ -45,6 +45,21 @@ function Stat({
   );
 }
 
+/**
+ * What a finished run is called, given where it placed.
+ *
+ * The place is the headline when there was a race to win, because "1st" says
+ * more about how the run went than "Finished" does. A run with no placement
+ * recorded — anything stored before the race existed — still reads correctly.
+ */
+function finishedLabel(placement: number | undefined): string {
+  if (placement === undefined) return 'Finished';
+  if (placement === 1) return 'Won';
+  if (placement === 2) return 'Finished 2nd';
+
+  return 'Finished 3rd';
+}
+
 function formatDuration(ms: number): string {
   const total = Math.round(ms / 1000);
   const minutes = Math.floor(total / 60);
@@ -81,7 +96,7 @@ export function RunResults({
     <section className={styles.screen} aria-label="Run results">
       <header className={styles.header}>
         <p className={classes(styles.outcome, result.completed ? styles.completed : styles.caught)}>
-          {result.completed ? 'Finished' : 'Caught'}
+          {result.completed ? finishedLabel(result.placement) : 'Caught'}
         </p>
         <h1 className={styles.title}>{map.name}</h1>
         <p className={styles.subtitle}>
@@ -138,6 +153,21 @@ export function RunResults({
               result.correctedErrors > 0 ? `${String(result.correctedErrors)} corrected` : undefined
             }
           />
+          {result.placement !== undefined && (
+            <Stat
+              label="Race"
+              value={
+                result.placement === 1
+                  ? '1st of 3'
+                  : `${String(result.placement)}${result.placement === 2 ? 'nd' : 'rd'} of 3`
+              }
+            />
+          )}
+          {result.coinsStolen !== undefined && result.coinsStolen > 0 && (
+            // Named apart from missed coins: one is a coin the player declined,
+            // the other is a coin they were beaten to.
+            <Stat label="Coins lost to rivals" value={String(result.coinsStolen)} />
+          )}
           <Stat label="Prompts" value={String(result.completedPrompts)} />
         </dl>
       </Card>

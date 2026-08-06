@@ -34,9 +34,14 @@ npm run dev        # http://localhost:5173
 There is no typing field. The keyboard is captured while a run is going and the
 word lives out in the world, ahead of the runner.
 
-There is a word in front of you at all times, and something behind you. Finishing
-a word pushes it back and speeds you up; letting one run out of time lets it
-close. It catching you is the only way to lose — nothing on the road can be hit.
+There is a word in front of you at all times, something behind you, and two
+runners racing you. Finishing a word pushes the chaser back and speeds you up;
+letting one run out of time lets it close. It catching you is the only way to
+lose — nothing on the road can be hit, and the opponents cannot end your run.
+
+What the opponents can do is take your coins. Whoever is in front reaches them
+first, so the lead is worth something every few seconds rather than only at the
+finish line.
 
 Typing is forgiving _within_ a word: a wrong character breaks your combo and
 costs a little ground, not your run, and you can correct it. Failure is
@@ -44,7 +49,8 @@ cumulative, which is what lets a run be forgiving per word and still decisive
 over two minutes.
 
 Coins work the same way but cost nothing at all to miss — no score, no combo, no
-ground. They are the only optional thing in the game.
+ground. They are the only optional thing in the game, and the only thing you can
+be beaten to.
 
 **The maps mean their numbers.** A 20 WPM map is finishable at 20 WPM and at
 about 17; below roughly 15 it will turn you away, because at that speed the words
