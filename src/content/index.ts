@@ -10,7 +10,16 @@ export {
   MAP_ENDLESS,
   MAPS,
 } from './maps';
-export { findSecret, MAP_SECRETS, secretPrompts, secretWordCount } from './secrets';
+export {
+  findSecret,
+  findSecretById,
+  MAP_SECRETS,
+  pickSecret,
+  secretIdOf,
+  secretPrompts,
+  secretsFor,
+  secretWordCount,
+} from './secrets';
 export { SURGES } from './surges';
 export type { MapSecret } from './secrets';
 export {

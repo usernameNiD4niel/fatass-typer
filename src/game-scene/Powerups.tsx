@@ -5,6 +5,7 @@ import type { Group } from 'three';
 import type { WorldSnapshot } from '../game-bridge';
 import { MAX_SNAPSHOT_POWERUPS } from '../game-bridge';
 import { laneCenterX } from './scene-config';
+import { shiftAt } from './curve-state';
 import { Glow } from './Glow';
 
 /**
@@ -52,7 +53,7 @@ export function Powerups({ snapshot, reducedMotion }: PowerupsProps): JSX.Elemen
       }
 
       group.visible = true;
-      group.position.x = laneCenterX(powerup.lane);
+      group.position.x = laneCenterX(powerup.lane) + shiftAt(powerup.distanceMeters);
       group.position.z = -powerup.distanceMeters;
       group.position.y = CRATE_HEIGHT + (reducedMotion ? 0 : Math.sin(spin.current * 2) * 0.22);
       group.rotation.y = reducedMotion ? 0.6 : spin.current * 1.4;

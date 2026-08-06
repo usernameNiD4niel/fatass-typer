@@ -64,6 +64,8 @@ export interface RuntimeHostOptions {
   readonly prompts: readonly PromptEntry[];
   /** The map's secret, as words in order. Every prompt comes from here first. */
   readonly secretWords?: readonly PromptEntry[];
+  /** Which of the map's secrets this run drew. Recorded on the result. */
+  readonly secretId?: string;
   /** Long sentences for the surge (`content/surges.ts`). */
   readonly surges?: readonly PromptEntry[];
   /** Characters the player fumbles. The run's vocabulary leans toward them. */
@@ -401,6 +403,7 @@ export class RuntimeHost implements GameHost {
       missedPrompts: this.session.flowWordsMissed,
       obstacleSuccessRate: promptSuccessRate(this.session),
       placement: stats.placement,
+      ...(this.options.secretId === undefined ? {} : { secretId: this.options.secretId }),
       coinsStolen: this.session.coinsStolen,
       longestCombo: this.session.score.longestCombo,
       coinsCollected: this.session.coinsCollected,

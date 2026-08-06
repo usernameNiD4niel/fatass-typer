@@ -5,6 +5,7 @@ import type { Group, Mesh, MeshBasicMaterial } from 'three';
 
 import type { ChallengeSnapshot, WorldSnapshot } from '../game-bridge';
 import { laneCenterX, LANE_WIDTH_METERS, type RunnerLook, type ScenePalette } from './scene-config';
+import { shiftAt } from './curve-state';
 import styles from './WorldPrompt.module.css';
 
 /**
@@ -94,7 +95,12 @@ export function WorldPrompt({
 
     // Cars and coins point at the lane to be in; jumps point at themselves.
     const lane = challenge.safeLane ?? anchor.lane;
-    root.position.set(laneCenterX(lane), PROMPT_HEIGHT_METERS, -anchor.distanceMeters);
+    // The word hangs over the road, so it follows the road (`curve-state.ts`).
+    root.position.set(
+      laneCenterX(lane) + shiftAt(anchor.distanceMeters),
+      PROMPT_HEIGHT_METERS,
+      -anchor.distanceMeters,
+    );
 
     // The lane cue lies on the road *between* the player and the safe lane, so
     // the eye is led there rather than merely told (spec §6). It is scaled and

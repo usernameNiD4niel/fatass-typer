@@ -6,6 +6,7 @@ import { Vector3 } from 'three';
 import type { WorldSnapshot } from '../game-bridge';
 import { MAX_SNAPSHOT_COIN_UNITS, MAX_SNAPSHOT_COINS } from '../game-bridge';
 import { laneCenterX } from './scene-config';
+import { shiftAt } from './curve-state';
 import { Glow } from './Glow';
 
 /**
@@ -92,7 +93,7 @@ export function Coins({ snapshot, reducedMotion }: CoinsProps): JSX.Element {
       }
 
       line.visible = true;
-      line.position.x = laneCenterX(coin.lane);
+      line.position.x = laneCenterX(coin.lane) + shiftAt(coin.distanceMeters);
       line.position.z = -coin.distanceMeters;
 
       for (let slot = 0; slot < line.children.length; slot += 1) {

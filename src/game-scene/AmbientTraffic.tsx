@@ -3,6 +3,7 @@ import { useRef, type JSX } from 'react';
 import type { Group } from 'three';
 
 import type { WorldSnapshot } from '../game-bridge';
+import { shiftAt } from './curve-state';
 import { CARRIAGEWAY_CENTRE, noise, type ScenePalette } from './scene-config';
 
 /**
@@ -89,11 +90,9 @@ export function AmbientTraffic({
         // Within the carriageway's own width, so nobody straddles its edge.
         const lateral = (oncoming ? -1 : 1) * (CARRIAGEWAY_CENTRE + (noise(seed) - 0.5) * 2.4);
 
-        group.position.set(
-          lateral,
-          0,
-          wrap(slot * SPACING_METERS + noise(seed + 7) * 12, travelled + relative, span),
-        );
+        const z = wrap(slot * SPACING_METERS + noise(seed + 7) * 12, travelled + relative, span);
+        // The far carriageways follow the same bend the player's road does.
+        group.position.set(lateral + shiftAt(-z), 0, z);
       }
     }
   });

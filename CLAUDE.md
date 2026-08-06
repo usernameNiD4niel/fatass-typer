@@ -156,7 +156,7 @@ describe systems that no longer exist.
 
 | | |
 |---|---|
-| **Last completed** | **the wardrobe** — credits earned by placing and by coins, spent on characters, shoes and typing effects, none of which change a rule |
+| **Last completed** | **variety** — three secrets per map chosen by seed, ~90 more words, seeded weather, and a road that bends |
 | **Next up** | nothing scheduled — awaiting direction |
 | **In progress** | none |
 | **Blocked** | none |
@@ -264,6 +264,32 @@ that is the only thing left for a life to mean.
 | **Scene** | shadows, PBR materials, procedural asphalt and sky, ACES tone mapping, a capsule-and-joint human runner, ambient traffic on flanking carriageways |
 | **Kept** | six maps, unlock gates, progression, results, settings, statistics, storage, coins, crates, the secret sentence |
 
+### Variety — why two runs of a map are not the same run
+
+The complaint this answers was replay: the same map gave the same words in the same order,
+every time. The cause was not a small word list. It was that **each map had exactly one
+secret sentence**, and the sentence *is* the prompt order — so the word list barely mattered.
+
+Four things vary now, all from the run seed, so a run stays reproducible:
+
+| | |
+|---|---|
+| **The sentence** | three secrets per map, `pickSecret(mapId, seed)`. This is the fix; the rest is dressing |
+| **The words** | ~90 more in `content/prompts/words.ts`, the long ones gated to `minimumMap: 4` |
+| **The sky** | `game-scene/weather.ts` — clear, rain, snow or storm. Clear is weighted heaviest, because weather half the time reads as weather all the time |
+| **The road** | `game-scene/road-curve.ts` — two sine waves of different lengths, so the bends never quite repeat. A quarter of runs are straight, deliberately: variety needs a baseline |
+
+**Weather and the curve are drawing tricks, and must stay that way.** Rain does not shorten
+a deadline and a bend does not move a lane. The curve is applied last, in the scene, to
+*everything at once* — road, markings, kerbs, scenery, traffic, coins, crates, opponents,
+badges — by the same `shiftAt(depthAhead)`. Nothing's relationship to anything else changes,
+which is exactly why it is safe. `shiftAt(0)` is zero: the road bends away from the player
+rather than the player sliding along a fixed curve.
+
+`game-scene/curve-state.ts` is module state, written in exactly one place — `Driver`, at
+`useFrame` priority `-1`, before anything reads it. Its header says why nine components share
+two numbers instead of being handed them as props.
+
 ### Where the new work lives
 
 - `game-core/motion/momentum.ts` — speed as a level, and why it is not a timer.
@@ -277,6 +303,10 @@ that is the only thing left for a life to mean.
 - `game-scene/Sky.tsx` — drei `<Sky>`/`<Stars>` are asset-free; **`<Cloud>` is not**.
 - `game-scene/runner/` — the rig, the pure gait function, and the assembly.
 - `game-scene/AmbientTraffic.tsx` — the speed cue that replaced oncoming hazards.
+- `game-scene/road-curve.ts` + `curve-state.ts` — the bend, and the one place it is written.
+- `game-scene/weather.ts` + `WeatherLayer.tsx` — the sky, and the instanced particle field.
+  The component is `WeatherLayer` rather than `Weather` because `./Weather` and `./weather`
+  are the same module on a case-insensitive filesystem.
 
 ### Tuning, as measured
 
@@ -314,7 +344,7 @@ below it everything does. `content/pace.test.ts` proves that per map × word, as
 All green, verified by running them:
 
 ```bash
-npm run test          # 950 passed, 63 files
+npm run test          # 1032 passed, 68 files
 npm run test:e2e      # 16 passed, Chromium against the production build
 npm run lint          # clean
 npm run typecheck     # clean

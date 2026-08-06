@@ -1,4 +1,4 @@
-import { MAP_1, ALL_PROMPTS, findSecret, secretPrompts, SURGES } from '../content';
+import { MAP_1, ALL_PROMPTS, pickSecret, secretIdOf, secretPrompts, SURGES } from '../content';
 import type { MapConfig, PromptEntry } from '../game-core/models';
 import { liveStats, RuntimeHost } from '../game-runtime/session';
 import { GameBridge } from './bridge';
@@ -52,14 +52,18 @@ export function attachGame(options: AttachGameOptions = {}): AttachedGame {
   // Every prompt of a run is the next word of the map's secret. A map without
   // one simply falls back to its own vocabulary, which is what the sentence
   // does anyway once it is finished.
-  const secret = findSecret(map.id);
+  // Chosen from the run's own seed, so replaying a map is a different sentence
+  // rather than the same words in the same order. See `content/secrets.ts`.
+  const seed = options.seed ?? 'typing-chase';
+  const secret = pickSecret(map.id, seed);
 
   const host = new RuntimeHost({
     map,
     prompts: options.prompts ?? ALL_PROMPTS,
     secretWords: secret === undefined ? [] : secretPrompts(secret),
+    ...(secret === undefined ? {} : { secretId: secretIdOf(secret) }),
     surges: SURGES,
-    seed: options.seed ?? 'typing-chase',
+    seed,
     ...(options.weakCharacters === undefined ? {} : { weakCharacters: options.weakCharacters }),
     emit: (event) => {
       bridge.emit(event);

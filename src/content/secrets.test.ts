@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import { normalizePromptText } from '../game-core/models';
 import { MAPS } from './maps';
-import { findSecret, MAP_SECRETS, secretPrompts, secretWordCount } from './secrets';
+import {
+  findSecret,
+  findSecretById,
+  MAP_SECRETS,
+  pickSecret,
+  secretIdOf,
+  secretPrompts,
+  secretsFor,
+  secretWordCount,
+} from './secrets';
 
 /**
  * The sentence every run assembles.
@@ -73,5 +82,50 @@ describe('map secrets', () => {
       expect(secret.title.length, secret.mapId).toBeGreaterThan(3);
       expect(secret.lore.length, secret.mapId).toBeGreaterThan(120);
     }
+  });
+});
+
+describe('choosing one', () => {
+  it('gives every map more than one, so a replay is not the same run', () => {
+    /*
+     * The whole reason this exists. Every prompt in a run is the next word of
+     * the map's sentence, so one sentence per map means the identical words in
+     * the identical order however many times it is played.
+     */
+    for (const map of MAPS) {
+      expect(secretsFor(map.id).length, map.id).toBeGreaterThan(1);
+    }
+  });
+
+  it('picks a different one for different runs', () => {
+    const map = MAPS[0];
+    if (map === undefined) throw new Error('no map');
+
+    const drawn = new Set(
+      Array.from({ length: 40 }, (_, index) => pickSecret(map.id, `run-${String(index)}`)?.title),
+    );
+
+    expect(drawn.size).toBeGreaterThan(1);
+  });
+
+  it('picks the same one for the same seed', () => {
+    // Seeded rather than random: a run has to be reproducible from its seed,
+    // and the sentence is most of what a run is.
+    const map = MAPS[0];
+    if (map === undefined) throw new Error('no map');
+
+    expect(pickSecret(map.id, 'fixed')?.title).toBe(pickSecret(map.id, 'fixed')?.title);
+  });
+
+  it('resolves a played secret by its own id', () => {
+    for (const secret of MAP_SECRETS) {
+      expect(findSecretById(secretIdOf(secret))?.title).toBe(secret.title);
+    }
+  });
+
+  it('gives every secret a distinct id', () => {
+    const ids = new Set(MAP_SECRETS.map(secretIdOf));
+
+    expect(ids.size).toBe(MAP_SECRETS.length);
   });
 });

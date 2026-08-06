@@ -6,6 +6,7 @@ import { MAX_SNAPSHOT_RACERS, type WorldSnapshot } from '../game-bridge';
 import { racerKit } from './racer-kits';
 import { pose } from './runner/gait';
 import { RIG } from './runner/runner-rig';
+import { shiftAt } from './curve-state';
 import { laneCenterX } from './scene-config';
 
 /**
@@ -60,7 +61,8 @@ export function Racers({ snapshot, reducedMotion }: RacersProps): JSX.Element {
       }
 
       group.visible = true;
-      group.position.x = laneCenterX(racer.lane);
+      // On the road, which bends: the same shift the tarmac under them gets.
+      group.position.x = laneCenterX(racer.lane) + shiftAt(racer.aheadMeters);
       // Ahead of the player is *into* the screen, which is negative z.
       group.position.z = -racer.aheadMeters;
 

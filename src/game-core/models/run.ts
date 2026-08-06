@@ -1,5 +1,5 @@
 import type { KeyStats } from '../keystats';
-import { isCount, isIntegerAtLeast, isRatio, isRecord } from './guards';
+import { isCount, isIntegerAtLeast, isNonEmptyString, isRatio, isRecord } from './guards';
 import type { IsoTimestamp, MapId, RunId } from './ids';
 import { isId, isIsoTimestamp } from './ids';
 import { CURRENT_SCHEMA_VERSION } from './schema';
@@ -86,6 +86,14 @@ export interface RunResult extends Versioned {
   readonly placement?: number;
   /** Coins a rival reached first. */
   readonly coinsStolen?: number;
+  /**
+   * Which of the map's secrets this run was given.
+   *
+   * A map has several and a run picks one from its seed, so the results screen
+   * cannot look it up by map alone — it would show whichever comes first in the
+   * file rather than the sentence the player actually typed.
+   */
+  readonly secretId?: string;
   /** Coins collected. Optional pickups, so this is a flourish, not a grade. */
   readonly coinsCollected: number;
   /** Powerups taken — sentences typed without a single mistake. */
@@ -221,6 +229,7 @@ export function isRunResult(value: unknown): value is RunResult {
     // repaired rather than rejected.
     (value['placement'] === undefined || isIntegerAtLeast(value['placement'], 1)) &&
     (value['coinsStolen'] === undefined || isCount(value['coinsStolen'])) &&
+    (value['secretId'] === undefined || isNonEmptyString(value['secretId'])) &&
     (value['coinsCollected'] === undefined || isCount(value['coinsCollected'])) &&
     (value['powerupsClaimed'] === undefined || isCount(value['powerupsClaimed'])) &&
     (value['secretUnlocked'] === undefined || typeof value['secretUnlocked'] === 'boolean') &&

@@ -102,10 +102,172 @@ export const MAP_SECRETS: readonly MapSecret[] = [
     title: 'The raised barrier',
     lore: 'The checkpoint booth is empty and the counterweight has long since seized. The barrier points at the sky above the northbound lanes and has done for as long as anyone driving today can remember. It is not maintained. It is simply never lowered, and nobody has ever suggested that it should be.',
   },
+  {
+    mapId: 'map-1',
+    sentence:
+      'there is a bench at the top of our street that nobody sits on because the boy who painted ' +
+      'it left town the same week and the paint has kept its colour through eleven winters since',
+    title: 'The painted bench',
+    lore: 'It was council green when he started and it has been the wrong shade of blue ever since. The council have replaced four benches on that street in the same period. This one they touch up.',
+  },
+  {
+    mapId: 'map-1',
+    sentence:
+      'the corner shop keeps a shelf of things that were paid for and never collected and the ' +
+      'owner will not clear it because every year somebody comes back for one of them and cries',
+    title: 'The shelf at the back',
+    lore: 'Fourteen items at the last count. A radio, a pair of boots, a birthday cake tin, a wedding album. He keeps a note of who paid, and he has never once charged twice.',
+  },
+  {
+    mapId: 'map-2',
+    sentence:
+      'every lift in the tower on fifth avenue stops at a floor that does not appear on any of the ' +
+      'buttons and the engineers who service it say the doors have never once opened there',
+    title: 'The floor with no button',
+    lore: 'It is on the schematics as a plant room. The lift slows, settles, and moves on. Three separate service companies have logged it as normal behaviour and none of them has explained why it happens at that floor and no other.',
+  },
+  {
+    mapId: 'map-2',
+    sentence:
+      'the crossing outside the station counts down from twelve for everybody every day of the ' +
+      'week except on tuesday mornings when it counts down from twenty instead and the traffic ' +
+      'office swears that nothing in the timing file has ever been changed at all',
+    title: 'The long tuesday',
+    lore: 'A cleaner noticed it first and was not believed for two years. The timing file is identical every day of the week. The crossing has been replaced once since, and the new one does it too.',
+  },
+  {
+    mapId: 'map-3',
+    sentence:
+      'the bakery on the market row has thrown nothing away in thirty years because whatever is ' +
+      'left at closing goes into a basket by the door and the basket is always empty by morning',
+    title: 'The basket by the door',
+    lore: 'Nobody has ever seen it emptied. The baker stopped watching a long time ago and now simply fills it. On the two mornings it was still full, the whole row knew something had happened before anybody said so.',
+  },
+  {
+    mapId: 'map-3',
+    sentence:
+      'a clock above the market gate has been wrong by four minutes since the war and every trader ' +
+      'sets their day by it anyway so the whole district runs four minutes ahead of the city',
+    title: 'Four minutes early',
+    lore: 'Traders arrive early, deliveries arrive early, the market opens early. A clockmaker offered to fix it free of charge in 1988 and was talked out of it by the association, who pointed out that everyone would then be late.',
+  },
+  {
+    mapId: 'map-4',
+    sentence:
+      'the night watchman on the east gate has walked the same route for twenty two years and the ' +
+      'path he takes across the yard has worn a line through the concrete that the rain follows',
+    title: 'The worn line',
+    lore: 'Maintenance resurfaced the yard in 2011 and the line came back within a year. It runs from the gatehouse to the far shed, turns twice for no reason anybody can see, and drains better than the channels that were designed for it.',
+  },
+  {
+    mapId: 'map-4',
+    sentence:
+      'nobody has found the switch that turns off the last row of lamps in the old paint shop so ' +
+      'the building has not been fully dark for as long as the company has owned it',
+    title: 'The last row',
+    lore: 'Four lamps, on their own circuit, fed from somewhere not on the drawings. An electrician traced the cable as far as a wall that was built across it. The estimate to go further was refused twice, and now nobody wants to.',
+  },
+  {
+    mapId: 'map-5',
+    sentence:
+      'the service station at the halfway point keeps one table by the window permanently laid for ' +
+      'a driver who stopped there every night for nine years and then one winter simply did not ' +
+      'arrive and nobody working there now has ever met the man they are keeping it for',
+    title: 'The laid table',
+    lore: 'Staff who never met him keep it up because the ones who trained them did. There is no plaque and no photograph. New managers have twice asked about the table and twice been told, and neither of them raised it again.',
+  },
+  {
+    mapId: 'map-5',
+    sentence:
+      'there is a stretch of the northbound carriageway where every radio station fades out at the ' +
+      'same marker post and comes back exactly nine seconds later whatever the weather is doing ' +
+      'and whatever season it happens to be when you drive through it',
+    title: 'The nine seconds',
+    lore: 'Surveyors have blamed the cutting, the pylons, and the underlying rock. Drivers who use the road nightly stop talking a little before it, out of habit, and start again afterwards without ever having agreed to.',
+  },
+  {
+    mapId: 'map-6',
+    sentence:
+      'the runners who finish this route all say the last kilometre felt shorter than the first one ' +
+      'did and the timing boards have never once agreed with a single one of them about it and ' +
+      'the organisers long ago stopped trying to talk anybody out of it',
+    title: 'The short kilometre',
+    lore: 'Split times are consistently slowest over the final stretch. Every finisher interviewed since the route opened has described it as the easiest part. The organisers stopped correcting people some years ago.',
+  },
+  {
+    mapId: 'map-6',
+    sentence:
+      'somebody repaints the finish line on this road every spring and the council has no record of ' +
+      'ever paying for it and no contractor has ever submitted an invoice for the work and the ' +
+      'paint is always the right width and the right shade of white',
+    title: 'The repainted line',
+    lore: 'It appears between the last frost and the first warm week. The paint is the correct specification, the width is correct, and the placement is accurate to within a few centimetres of the original survey. Nobody has ever been seen doing it.',
+  },
 ];
 
+/** Every secret a map can tell. */
+export function secretsFor(mapId: string): readonly MapSecret[] {
+  return MAP_SECRETS.filter((secret) => secret.mapId === mapId);
+}
+
+/**
+ * A map's secret by its own id.
+ *
+ * Used by the results screen, which has to show the sentence that was actually
+ * played rather than whichever one comes first in the file.
+ */
+export function findSecretById(secretId: string): MapSecret | undefined {
+  return MAP_SECRETS.find((secret) => secretId === secretIdOf(secret));
+}
+
+/**
+ * A stable id for a secret.
+ *
+ * Derived from the map and the title rather than stored, because the alternative
+ * is a hand-written id per secret that somebody eventually duplicates.
+ */
+export function secretIdOf(secret: MapSecret): string {
+  return `${secret.mapId}:${normalizePromptText(secret.title).replace(/ /g, '-')}`;
+}
+
+/**
+ * One of a map's secrets, chosen by a run's own seed.
+ *
+ * **This is what stops a replay being the same run.** Every prompt in a run is
+ * the next word of the map's sentence, so a map with one sentence hands the
+ * player the identical words in the identical order however many times they
+ * play it — which is the fastest way to make a typing game feel like a chore.
+ *
+ * Seeded rather than random, so a run can still be reproduced from its seed:
+ * same seed, same sentence, same everything.
+ */
+export function pickSecret(mapId: string, seed: string): MapSecret | undefined {
+  const options = secretsFor(mapId);
+  if (options.length === 0) return undefined;
+
+  return options[hash(seed) % options.length];
+}
+
+/**
+ * A small string hash. Not cryptographic and not trying to be.
+ *
+ * `game-core/random` is the only source of randomness in the game and this is
+ * not randomness: it is a deterministic choice made once, at the edge, from a
+ * seed the caller already has.
+ */
+function hash(seed: string): number {
+  let value = 2_166_136_261;
+  for (let index = 0; index < seed.length; index += 1) {
+    value ^= seed.charCodeAt(index);
+    value = Math.imul(value, 16_777_619);
+  }
+
+  return Math.abs(value);
+}
+
+/** The first secret a map has. Kept for callers with no run in hand. */
 export function findSecret(mapId: string): MapSecret | undefined {
-  return MAP_SECRETS.find((secret) => secret.mapId === mapId);
+  return secretsFor(mapId)[0];
 }
 
 /**

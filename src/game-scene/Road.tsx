@@ -1,6 +1,6 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, type JSX } from 'react';
-import type { InstancedMesh } from 'three';
+import type { InstancedMesh, Mesh } from 'three';
 import { Object3D, PlaneGeometry } from 'three';
 
 import type { WorldSnapshot } from '../game-bridge';
@@ -18,6 +18,7 @@ import {
   windowGlow,
 } from './scene-config';
 import { createAsphaltRoughness, createFacade } from './textures';
+import { isStraight, shiftAt } from './curve-state';
 
 /**
  * The endless road (spec §13).
@@ -132,7 +133,7 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
       ROAD_HALF_WIDTH * 2,
       DRAW_DISTANCE_METERS * 2,
       CROWN_SEGMENTS,
-      1,
+      RIBBON_SEGMENTS,
     );
     const position = geometry.attributes['position'];
     if (position !== undefined) {
@@ -147,6 +148,17 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
 
     return geometry;
   }, []);
+
+  /*
+   * The road bends, and it bends by moving its own vertices.
+   *
+   * A plane cannot curve, so the surface is built as a ribbon of segments and
+   * each row is pushed sideways by how far up the road it is. The rest of the
+   * scene is shifted the same way, by the same function — see
+   * `curve-state.ts`. Everything moves together, so nothing's relationship to
+   * anything else changes and no rule has to know.
+   */
+  const ribbons = useRef<(Mesh | null)[]>([]);
   useEffect(() => {
     return () => {
       surface.dispose();
@@ -158,6 +170,13 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
     // because the movement is the game (spec §12).
     const travelled = reducedMotion ? 0 : snapshot.playerMeters;
 
+    if (!isStraight()) {
+      for (const ribbon of ribbons.current) {
+        if (!ribbon) continue;
+        bendRibbon(ribbon);
+      }
+    }
+
     const dashes = dashesRef.current;
     if (dashes) {
       const span = DASH_COUNT * DASH_SPACING;
@@ -166,7 +185,8 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
       for (let lane = 0; lane < 2; lane += 1) {
         const x = laneCenterX(lane) + LANE_WIDTH_METERS / 2;
         for (let step = 0; step < DASH_COUNT; step += 1) {
-          dummy.position.set(x, 0.02, recycleZ(step * DASH_SPACING, travelled, span));
+          const z = recycleZ(step * DASH_SPACING, travelled, span);
+          dummy.position.set(x + shiftAt(-z), 0.02, z);
           dummy.scale.set(0.16, 1, DASH_LENGTH);
           dummy.updateMatrix();
           dashes.setMatrixAt(index, dummy.matrix);
@@ -184,11 +204,8 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
       for (let side = 0; side < 2; side += 1) {
         const direction = side === 0 ? -1 : 1;
         for (let slot = 0; slot < POST_COUNT; slot += 1) {
-          dummy.position.set(
-            direction * (ROAD_HALF_WIDTH + 1.1),
-            0.55,
-            recycleZ(slot * POST_SPACING, travelled, span),
-          );
+          const z = recycleZ(slot * POST_SPACING, travelled, span);
+          dummy.position.set(direction * (ROAD_HALF_WIDTH + 1.1) + shiftAt(-z), 0.55, z);
           dummy.scale.set(0.12, 1.1, 0.12);
           dummy.updateMatrix();
           posts.setMatrixAt(index, dummy.matrix);
@@ -203,7 +220,8 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
       const span = GANTRY_COUNT * GANTRY_SPACING;
 
       for (let slot = 0; slot < GANTRY_COUNT; slot += 1) {
-        dummy.position.set(0, 6.2, recycleZ(slot * GANTRY_SPACING, travelled, span));
+        const z = recycleZ(slot * GANTRY_SPACING, travelled, span);
+        dummy.position.set(shiftAt(-z), 6.2, z);
         dummy.scale.set(ROAD_HALF_WIDTH * 2 + 3, 0.5, 0.4);
         dummy.updateMatrix();
         gantries.setMatrixAt(slot, dummy.matrix);
@@ -230,10 +248,12 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
            */
           const inset = 4 + noise(seed + 23) * 14;
 
+          const z = recycleZ(slot * SCENERY_SPACING_METERS, travelled, span);
           dummy.position.set(
-            direction * (CARRIAGEWAY_CENTRE + CARRIAGEWAY_WIDTH / 2 + inset + width / 2),
+            direction * (CARRIAGEWAY_CENTRE + CARRIAGEWAY_WIDTH / 2 + inset + width / 2) +
+              shiftAt(-z),
             height / 2,
-            recycleZ(slot * SCENERY_SPACING_METERS, travelled, span),
+            z,
           );
           dummy.scale.set(width, height, width);
           dummy.updateMatrix();
@@ -269,6 +289,9 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
       <mesh
         receiveShadow
         geometry={surface}
+        ref={(mesh) => {
+          ribbons.current[0] = mesh;
+        }}
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0, -DRAW_DISTANCE_METERS / 2]}
       >
@@ -279,14 +302,17 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
           {...(roughness === null ? {} : { roughnessMap: roughness })}
         />
       </mesh>
-      {[-1, 1].map((side) => (
+      {[-1, 1].map((side, index) => (
         <mesh
           key={side}
           receiveShadow
+          ref={(mesh) => {
+            ribbons.current[1 + index] = mesh;
+          }}
           rotation={[-Math.PI / 2, 0, 0]}
           position={[side * (ROAD_HALF_WIDTH + 0.35), 0.01, -DRAW_DISTANCE_METERS / 2]}
         >
-          <planeGeometry args={[0.7, DRAW_DISTANCE_METERS * 2]} />
+          <planeGeometry args={[0.7, DRAW_DISTANCE_METERS * 2, 1, RIBBON_SEGMENTS]} />
           <meshStandardMaterial color={palette.roadEdge} roughness={0.8} metalness={0} />
         </mesh>
       ))}
@@ -299,14 +325,17 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
         grass, which reads as a bug rather than as scenery, and undoes the one
         job they have: making the speed look real.
       */}
-      {[-1, 1].map((side) => (
+      {[-1, 1].map((side, index) => (
         <mesh
           key={`carriageway-${String(side)}`}
           receiveShadow
+          ref={(mesh) => {
+            ribbons.current[3 + index] = mesh;
+          }}
           rotation={[-Math.PI / 2, 0, 0]}
           position={[side * CARRIAGEWAY_CENTRE, 0, -DRAW_DISTANCE_METERS / 2]}
         >
-          <planeGeometry args={[CARRIAGEWAY_WIDTH, DRAW_DISTANCE_METERS * 2]} />
+          <planeGeometry args={[CARRIAGEWAY_WIDTH, DRAW_DISTANCE_METERS * 2, 1, RIBBON_SEGMENTS]} />
           <meshStandardMaterial
             color={palette.road}
             roughness={0.88}
@@ -380,6 +409,47 @@ export function Road({ snapshot, palette, reducedMotion }: RoadProps): JSX.Eleme
       </instancedMesh>
     </group>
   );
+}
+
+/**
+ * Rows along a long surface. Enough that a bend reads as a curve rather than as
+ * a series of corners, and few enough that moving them all is free.
+ */
+const RIBBON_SEGMENTS = 64;
+
+/**
+ * Pushes one long surface sideways to follow the road.
+ *
+ * Each vertex is moved by `shiftAt` for its own depth. The geometry keeps its
+ * original z, so the mesh still covers the same stretch of road — only its `x`
+ * changes, which is exactly what a bend is.
+ */
+function bendRibbon(mesh: Mesh): void {
+  const geometry = mesh.geometry;
+  const position = geometry.attributes['position'];
+  const rest = geometry.userData['restX'] as Float32Array | undefined;
+  if (position === undefined) return;
+
+  // The straight road is remembered once: bending a bent road compounds.
+  const original =
+    rest ??
+    (() => {
+      const copy = new Float32Array(position.count);
+      for (let index = 0; index < position.count; index += 1) copy[index] = position.getX(index);
+      geometry.userData['restX'] = copy;
+
+      return copy;
+    })();
+
+  for (let index = 0; index < position.count; index += 1) {
+    // The mesh is rotated flat, so its local y runs *up* the road, and the
+    // group it sits in is pushed back by half the draw distance.
+    const depth = position.getY(index) + DRAW_DISTANCE_METERS / 2;
+    position.setX(index, (original[index] ?? 0) + shiftAt(depth));
+  }
+
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
 }
 
 /** Pool sizes, fixed for the life of a run. Nothing here grows with distance. */

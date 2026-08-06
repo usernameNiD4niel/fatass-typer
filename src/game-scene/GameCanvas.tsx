@@ -22,7 +22,11 @@ import {
   scenePalette,
 } from './scene-config';
 import { BestLine } from './BestLine';
+import { setRoadShape, setTravelled } from './curve-state';
+import { roadShapeFor } from './road-curve';
 import { Sky } from './Sky';
+import { WeatherLayer } from './WeatherLayer';
+import { weatherFor, weatherLook, weatheredPalette } from './weather';
 import { Pursuer } from './Pursuer';
 import { ScorePopups } from './ScorePopups';
 import { WorldPrompt } from './WorldPrompt';
@@ -56,6 +60,13 @@ export interface GameCanvasProps {
   /** Which typing flourish is equipped. A name the prompt's stylesheet switches on. */
   readonly effectName?: string;
   /**
+   * The run's seed, for the parts of the *look* that vary run to run.
+   *
+   * Weather and the road's curve are chosen from it, so the same seed gives the
+   * same road twice — and two runs of a map look like two different days.
+   */
+  readonly lookSeed?: string;
+  /**
    * Furthest the player has ever got on this map, in metres.
    *
    * Drawn as a gate across the road. Zero draws nothing — a first run has
@@ -69,9 +80,22 @@ export interface GameCanvasProps {
 /** Longest frame the simulation will believe, in seconds. */
 const MAX_FRAME_SECONDS = 0.25;
 
-function Driver({ advance }: { advance: (frameDeltaMs: number) => void }): null {
+function Driver({
+  advance,
+  snapshot,
+}: {
+  advance: (frameDeltaMs: number) => void;
+  snapshot: WorldSnapshot;
+}): null {
   useFrame((_, delta) => {
     advance(Math.min(delta, MAX_FRAME_SECONDS) * 1000);
+    /*
+     * The road's shape for this frame, written once, before anything reads it.
+     *
+     * Priority -1 is what makes that true — see `curve-state.ts` for why nine
+     * components share a number instead of being handed one each.
+     */
+    setTravelled(snapshot.playerMeters);
   }, -1);
 
   return null;
@@ -84,10 +108,28 @@ export function GameCanvas({
   reducedMotion,
   look,
   effectName,
+  lookSeed = 'default',
   bestDistanceMeters = 0,
 }: GameCanvasProps): JSX.Element {
-  const palette = useMemo(() => scenePalette(theme), [theme]);
-  const rig = useMemo(() => lightingRig(palette, reducedMotion), [palette, reducedMotion]);
+  const basePalette = useMemo(() => scenePalette(theme), [theme]);
+  // Cosmetic only — see `weather.ts` for why the rules never read this.
+  const weather = useMemo(() => weatherLook(weatherFor(lookSeed)), [lookSeed]);
+  const palette = useMemo(() => weatheredPalette(basePalette, weather), [basePalette, weather]);
+  /*
+   * The shape of the road, fixed for the run.
+   *
+   * Set during render rather than in an effect because the first frame draws
+   * before effects run, and a road that snapped into shape one frame in would
+   * be visible on every single run.
+   */
+  const shape = useMemo(() => roadShapeFor(lookSeed), [lookSeed]);
+  setRoadShape(shape);
+
+  const rig = useMemo(() => {
+    const base = lightingRig(palette, reducedMotion);
+
+    return { ...base, hemisphereIntensity: base.hemisphereIntensity * weather.fillScale };
+  }, [palette, reducedMotion, weather]);
 
   return (
     <Canvas
@@ -131,9 +173,13 @@ export function GameCanvas({
         beginning a third of the way down the road ate the view the sky was
         added to provide — and the two met in a visible band.
       */}
-      <fog attach="fog" args={[palette.fog, DRAW_DISTANCE_METERS * 0.5, DRAW_DISTANCE_METERS]} />
+      <fog
+        attach="fog"
+        args={[palette.fog, DRAW_DISTANCE_METERS * weather.fogNear, DRAW_DISTANCE_METERS]}
+      />
 
       <Sky palette={palette} reducedMotion={reducedMotion} />
+      <WeatherLayer look={weather} reducedMotion={reducedMotion} />
 
       {/*
         Sky above, road bounce below. See `lighting.ts` for why this replaced the
@@ -157,7 +203,7 @@ export function GameCanvas({
         shadow-camera-far={SHADOW_BOX.far}
       />
 
-      <Driver advance={advance} />
+      <Driver advance={advance} snapshot={snapshot} />
       <ChaseCamera snapshot={snapshot} reducedMotion={reducedMotion} />
 
       <Road snapshot={snapshot} palette={palette} reducedMotion={reducedMotion} />

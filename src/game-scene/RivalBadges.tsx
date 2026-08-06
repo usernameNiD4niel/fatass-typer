@@ -6,6 +6,7 @@ import type { Group } from 'three';
 import { MAX_SNAPSHOT_RACERS, type WorldSnapshot } from '../game-bridge';
 import { racerKit } from './racer-kits';
 import styles from './RivalBadges.module.css';
+import { shiftAt } from './curve-state';
 import { laneCenterX } from './scene-config';
 
 /**
@@ -76,7 +77,7 @@ export function RivalBadges({ snapshot }: RivalBadgesProps): JSX.Element {
 
   useFrame(() => {
     const root = rootRef.current;
-    if (root) root.position.x = laneCenterX(snapshot.lanePosition);
+    if (root) root.position.x = laneCenterX(snapshot.lanePosition) + shiftAt(BADGE_AHEAD_METERS);
 
     for (let index = 0; index < MAX_SNAPSHOT_RACERS; index += 1) {
       const holder = holders.current[index];

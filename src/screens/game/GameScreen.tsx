@@ -136,6 +136,27 @@ export function GameScreen({
   /** Whether the shell has been told the run is paused. */
   const pausedRef = useRef(false);
 
+  /**
+   * The seed this run was attached with.
+   *
+   * Held so the scene can derive the things that vary run to run — the weather,
+   * the shape of the road — from the same value the rules used. A fresh random
+   * value here would make the look disagree with the run it belongs to.
+   */
+  const seedRef = useRef<string>('');
+  if (seedRef.current === '') {
+    /*
+     * A fresh seed per mounted run, read from the clock here at the edge —
+     * `game-core` may not read one (CLAUDE.md §3).
+     *
+     * It has to be *one* value: the rules draw the map's sentence from it and
+     * the scene draws the weather and the shape of the road from it, and two
+     * seeds would mean a run whose look disagreed with the run itself. It also
+     * has to be *new* each time, or every run of a map is the same run.
+     */
+    seedRef.current = seed ?? `run-${String(Date.now())}`;
+  }
+
   const [game, setGame] = useState<AttachedGame | null>(null);
   const [ready, setReady] = useState(false);
   const [announcement, setAnnouncement] = useState('');
@@ -159,9 +180,7 @@ export function GameScreen({
     const chosen = mapId === undefined ? undefined : findMap(mapId);
 
     const attached = attachGame({
-      // A new seed per run. The clock is read here, at the edge, because
-      // `game-core` may not read one (CLAUDE.md §3).
-      seed: seed ?? `run-${String(Date.now())}`,
+      seed: seedRef.current,
       // An unknown id falls back to the default map rather than failing to
       // start: the run matters more than the routing mistake behind it.
       ...(chosen === undefined ? {} : { map: chosen }),
@@ -405,6 +424,7 @@ export function GameScreen({
               theme={map.theme}
               {...(look === undefined ? {} : { look })}
               {...(effectName === undefined ? {} : { effectName })}
+              lookSeed={seedRef.current}
               bestDistanceMeters={bestDistanceMeters}
               reducedMotion={reducedMotion}
             />

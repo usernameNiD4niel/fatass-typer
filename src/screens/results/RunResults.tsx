@@ -1,7 +1,7 @@
 import type { JSX } from 'react';
 
 import { Button, Card, classes } from '../../components/ui';
-import { findSecret } from '../../content';
+import { findSecretById } from '../../content';
 import type { MapConfig, PlayerProfile, RunResult } from '../../game-core/models';
 import styles from './RunResults.module.css';
 import { missedUnlockReason, newRecords, unlockedMap } from './run-summary';
@@ -90,7 +90,8 @@ export function RunResults({
   const unlocked = unlockedMap(result, profile, maps);
   const missed = unlocked === null ? missedUnlockReason(result, profile, maps) : null;
   const mistakes = result.incorrectCharacters;
-  const secret = findSecret(result.mapId);
+  // By id, not by map: a map has several secrets and this run played one.
+  const secret = result.secretId === undefined ? undefined : findSecretById(result.secretId);
 
   return (
     <section className={styles.screen} aria-label="Run results">

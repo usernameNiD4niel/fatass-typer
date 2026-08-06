@@ -5,6 +5,7 @@ import type { Group } from 'three';
 
 import type { WorldSnapshot } from '../game-bridge';
 import { bestLineState } from './best-line-state';
+import { shiftAt } from './curve-state';
 import { ROAD_HALF_WIDTH } from './scene-config';
 import styles from './BestLine.module.css';
 
@@ -43,7 +44,7 @@ export function BestLine({ snapshot, bestDistanceMeters }: BestLineProps): JSX.E
     root.visible = state.visible;
     if (!state.visible) return;
 
-    root.position.set(0, 0.02, -state.aheadMeters);
+    root.position.set(shiftAt(state.aheadMeters), 0.02, -state.aheadMeters);
 
     const label = labelRef.current;
     if (label) {
