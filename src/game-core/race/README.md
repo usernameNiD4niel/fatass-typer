@@ -9,10 +9,10 @@ type, cannot be collided with, and cannot end a run — the chaser keeps that jo
 and giving the race a second way to lose would mean two unrelated clocks running
 against the player at once.
 
-Nothing about them is reactive. They do not speed up when you do, they do not
-rubber-band, and they never target the player's position. A bot that quietly
-matched your pace would make the standing meaningless: you would always be
-roughly level, whatever you did.
+Their **drawn pace** is not reactive: it never looks at the player, because a bot
+that quietly matched your pace would make the standing meaningless — you would
+always be roughly level, whatever you did. What is reactive is the **chase**,
+which applies only to an opponent that is behind. See below.
 
 ## Why the pace wanders
 
@@ -34,6 +34,14 @@ decides everything else in the feature:
 `0.55` was tried first and was too much: a target-speed player never once led,
 so every coin in every run went to a bot. It is `0.25`, measured rather than
 guessed — see the coin assertions in `map-progression.test.ts`.
+
+**This share is a cliff, not a dial.** The coin contest is winner-take-all — a
+lead compounds, so the standings settle in the opening seconds and hold. Moving
+it five points, `0.25` to `0.30`, took a typist at the map's advertised speed
+from a real share of the coins to **zero on all six maps**, and dropped a typist
+at 1.7× the advertised speed from four fifths of them to a quarter. Three
+attempts have now died here: a flat rise, a ladder up the six maps, and a floor
+that tracked the player's own momentum. Make the opponents harder in the chase.
 
 ## The coin contest
 
@@ -70,13 +78,33 @@ a leak.
 
 ## The chase
 
-An opponent more than **25 metres behind** the player runs harder, by 0.05 m/s per
-metre of deficit, capped at 22% of the map's pace. One in front gets nothing.
+An opponent more than **10 metres behind** the player runs harder, by 0.12 m/s per
+metre of deficit, capped at 55% of the map's pace. One in front gets nothing.
 
-This is the dial for making a good player work. Drawn pace is not: it moves both
-ends of the race at once, and the margin a typist at the map's advertised speed
-beats a bot by is small enough that raising it — flat, or as a ladder up the six
-maps, both were tried — takes every coin off them.
+This is the only dial for making a good player work, and it is safe to lean on
+precisely because it applies to an opponent who is **behind** — it cannot take a
+coin off a player who is in front. The coin assertions still pass at a 4-metre
+dead band and a cap of a whole extra map pace; where the numbers stop is a
+judgement about how a rubber band should feel, not a limit the tests imposed.
 
 The dead band is why a level race is left alone. Without it, one of the two is
 always a few metres down and always being handed the margin back.
+
+### Why it reads the player's momentum
+
+The reported bug: *"when I do not type the bots aren't moving faster, as if they
+do not create advantage while I am not typing."* True as written. Drawn pace
+never looked at the player, and a player who stops typing does not stop — their
+momentum only sags to `COASTING_FLOOR`, a few percent. Putting the keyboard down
+was close to free.
+
+So the further the player's momentum sits below what a working typist holds
+(`0.55`), the smaller the gap an opponent tolerates — the dead band shrinks by up
+to 75%, to 2.5 metres — and the harder it runs, up to double the chase rate.
+
+It **integrates**, which is the point. Momentum bottoms out between words for
+everybody, including a typist at twice the map's speed, so no instantaneous
+reading can tell idling from an ordinary gap between two words. Half a second of
+dip is worth a fraction of a metre and vanishes; ten seconds of silence is worth
+a chunk of the lead. Nothing has to decide what counts as "idle" — the arithmetic
+does it.

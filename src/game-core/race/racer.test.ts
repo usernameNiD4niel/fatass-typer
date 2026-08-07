@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MAP_1, MAP_6 } from '../../content/maps';
+import { COASTING_FLOOR } from '../motion/momentum';
 import { createRngFromString } from '../random';
 import {
   advanceRace,
@@ -32,7 +33,13 @@ function race(seed = 'race'): RaceState {
  * chase has its own tests below, which pass a player who is deliberately far
  * ahead.
  */
-function run(state: RaceState, totalMs: number, map = MAP_1, playerSpeed?: number): RaceState {
+function run(
+  state: RaceState,
+  totalMs: number,
+  map = MAP_1,
+  playerSpeed?: number,
+  playerMomentum?: number,
+): RaceState {
   let current = state;
   for (let elapsed = 0; elapsed < totalMs; elapsed += 16) {
     current = advanceRace(current, {
@@ -41,6 +48,7 @@ function run(state: RaceState, totalMs: number, map = MAP_1, playerSpeed?: numbe
       elapsedMs: elapsed,
       distanceMeters: map.distanceMeters,
       playerMeters: ((playerSpeed ?? referenceSpeed(map, elapsed)) * elapsed) / 1000,
+      playerMomentum,
     });
   }
 
@@ -186,21 +194,56 @@ describe('the chase', () => {
 
     // Well short of a player at six times the pace. The bound is the fastest
     // the field can legally go: the top of the drawn pace band (1.14) plus the
-    // chase cap (0.22), over the same half-minute.
-    expect(covered).toBeLessThan(reference * 1.36 * 30);
+    // chase cap (0.55), over the same half-minute.
+    expect(covered).toBeLessThan(reference * 1.69 * 30);
   });
 
-  it('does nothing in a race that is level', () => {
-    const reference = referenceSpeed(MAP_1, 0);
-    const level = run(race('deadband'), 20_000, MAP_1, reference);
-    const nudged = run(race('deadband'), 20_000, MAP_1, reference * 1.05);
+  /**
+   * Holds the player a fixed number of metres in front of where the field would
+   * otherwise put them, so the *gap* is the variable rather than a by-product of
+   * two speeds. `covered` totals both racers: taking the leader would miss the
+   * chase entirely, since the racer being chased is by definition the back one.
+   */
+  function chased(seed: string, leadMeters: number, momentum: number): number {
+    let state = race(seed);
+    for (let elapsed = 0; elapsed < 20_000; elapsed += 16) {
+      const behind = Math.min(...state.racers.map((racer) => racer.meters));
+      state = advanceRace(state, {
+        map: MAP_1,
+        deltaMs: 16,
+        elapsedMs: elapsed,
+        distanceMeters: MAP_1.distanceMeters,
+        playerMeters: behind + leadMeters,
+        playerMomentum: momentum,
+      });
+    }
 
-    const covered = (state: typeof level): number =>
-      Math.max(...state.racers.map((racer) => racer.meters));
+    return state.racers.reduce((total, racer) => total + racer.meters, 0);
+  }
 
+  it('does nothing at a gap a working typist has honestly earned', () => {
     // Inside the dead band the field is untouched: a neck-and-neck race is a
     // race, and helping the loser of it is what took every coin off a typist
     // running at exactly the speed the map advertises.
-    expect(covered(nudged)).toBe(covered(level));
+    expect(chased('deadband', 8, 0.6)).toBe(chased('deadband', 0, 0.6));
+  });
+
+  /*
+   * The reported bug, as an assertion: *"when I do not type the bots aren't
+   * moving faster, as if they do not create advantage while I am not typing."*
+   *
+   * Same lead, same seed, same road — the only difference is whether the player
+   * is still working. The dead band shrinks and the chase pulls harder the
+   * further their momentum sits below a working typist's, so a lead that costs
+   * a typist nothing to hold bleeds away from somebody who has stopped.
+   */
+  it('closes harder on a player who has stopped typing', () => {
+    expect(chased('coast', 40, COASTING_FLOOR)).toBeGreaterThan(chased('coast', 40, 0.75) + 10);
+  });
+
+  it('chases a coasting player at a gap it would leave a working one alone at', () => {
+    // Eight metres is inside the working dead band and outside the coasting one.
+    // This is the whole mechanism in one line.
+    expect(chased('band', 8, COASTING_FLOOR)).toBeGreaterThan(chased('band', 8, 0.75));
   });
 });

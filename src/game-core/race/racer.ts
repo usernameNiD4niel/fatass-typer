@@ -1,6 +1,7 @@
 import type { LaneIndex } from '../models/lane';
 import { LANE_INDICES } from '../models/lane';
 import type { MapConfig } from '../models/map';
+import { COASTING_FLOOR } from '../motion/momentum';
 import { rampedSpeed } from '../motion/speed';
 import { nextFloat, pick, type Rng } from '../random';
 
@@ -82,27 +83,26 @@ const NAMES = ['Rival', 'Pacer'] as const;
  * has stopped, and pacing the bots against it would make them trivially
  * beatable on every map.
  *
- * The share below is the tuning that matters in this file. A typist at exactly
- * the map's advertised speed earns a momentum of roughly `0.45`, so pacing the
- * bots a little under that puts them **neck and neck** with the map's own
- * audience: sometimes ahead, sometimes behind, the lead changing hands. Type
- * better than the map asks and you pull away and keep the coins; type worse and
- * you spend the run watching somebody else take them.
+ * ## Why this number cannot simply be raised — measured, twice
  *
- * Pacing them *at* 0.55 was tried first and it was too much — a target-speed
- * player never once led, so every coin in every run went to a bot.
+ * It is the obvious answer to "the opponents are too easy", and it has now been
+ * tried in three forms: a flat rise, a ladder climbing with the map number, and
+ * a floor that tracked the player's own momentum. All three failed the same
+ * assertions, and the numbers are worth writing down because they explain *why*
+ * this dial is off limits.
  *
- * ## Why this number cannot simply be raised
+ * The coin contest is **winner-take-all**. Whoever is in front reaches a coin
+ * first, and a lead compounds — so the standings settle in the opening seconds
+ * and then hold. Moving this share by five points, from `0.25` to `0.30`, took a
+ * typist at the map's advertised speed from a real share of the coins to
+ * **zero, on all six maps**, and dropped a typist at 1.7× the advertised speed
+ * from taking four fifths of them to taking a quarter.
  *
- * It was the obvious answer to opponents being too easy, and it was tried:
- * flat rises and a ladder climbing with the map number, both. Every version
- * failed the same assertion — a typist at the map's own advertised speed took
- * **zero** coins, on every map from 4 up, because the margin they beat a bot by
- * is small and this number eats it directly.
- *
- * Drawn pace decides whether the map's own audience is *in* the race. It is the
- * wrong dial for making a good player work, because it moves both. The chase
- * below is the right one: it does nothing until somebody is genuinely clear.
+ * That is not a tuning margin, it is a cliff. Drawn pace decides whether the
+ * map's own audience is *in* the race, and it moves both ends of it at once.
+ * The chase below is the dial for making a good player work: it does nothing
+ * until somebody is genuinely clear, and it only ever applies to an opponent
+ * who is **behind** — so it cannot take a coin off a player who is in front.
  */
 const RACER_MOMENTUM_SHARE = 0.25;
 
@@ -161,6 +161,13 @@ export interface AdvanceRaceInput {
   readonly distanceMeters: number;
   /** How far the player has come. Read only to decide how hard to chase. */
   readonly playerMeters: number;
+  /**
+   * The player's live momentum, 0..1 — including whatever a surge is holding it
+   * up to, because that is the speed the player is actually travelling at.
+   *
+   * Read only by the chase. Omitting it chases at the standing rate.
+   */
+  readonly playerMomentum?: number | undefined;
 }
 
 /**
@@ -175,18 +182,26 @@ export interface AdvanceRaceInput {
  * describes — the race is decided in its first thirty seconds and then nothing
  * happens for two minutes.
  *
- * So a racer that is *behind* runs a little harder, and the further behind, the
+ * So a racer that is *behind* runs a lot harder, and the further behind, the
  * harder. A racer in front gets nothing: this is a rubber band, not a leash, and
  * a player who has earned a lead should still be able to extend it — they just
  * have to keep typing to hold it.
  *
- * The cap is what keeps it honest. At full stretch it is worth about a fifth of
- * the map's pace, so a big lead still converts into coins; it cannot summon an
- * opponent back from any distance, which would make the lead meaningless and
- * the coins arbitrary.
+ * **This is the only dial there is.** Drawn pace is a cliff (see
+ * `RACER_MOMENTUM_SHARE`) and the chase is not, precisely because it applies to
+ * an opponent who is *behind* — it cannot take a coin off a player who is in
+ * front, so it can be made genuinely fierce without touching who wins the road.
+ * The rates below are roughly 2.5× what they were, because at the old ones a
+ * hundred-metre lead was still worth only a fifth of the map's pace and a good
+ * typist never saw the field again. Where they stop is a judgement, not a
+ * measurement: the coin assertions still pass at a 4-metre dead band and a cap
+ * of a *whole extra map pace*, which is a bot that teleports.
+ *
+ * The cap is what keeps it honest: it cannot summon an opponent back from any
+ * distance at once, which would make the lead meaningless.
  */
-const CHASE_PER_METER = 0.05;
-const CHASE_CAP_SHARE = 0.22;
+const CHASE_PER_METER = 0.12;
+const CHASE_CAP_SHARE = 0.55;
 
 /**
  * How far behind an opponent has to be before it starts chasing.
@@ -197,19 +212,61 @@ const CHASE_CAP_SHARE = 0.22;
  * typist at the map's advertised speed took **zero** coins on all six maps,
  * because the bot they had just edged out was immediately given the margin back.
  *
- * Twenty-five metres is about three seconds of road. Inside it the race is a
- * race and nobody is helped; outside it the player has genuinely pulled clear,
- * which is the only case this was ever meant to answer.
+ * Inside it the race is a race and nobody is helped; outside it the player has
+ * genuinely pulled clear, which is the only case this was ever meant to answer.
  */
-const CHASE_DEADBAND_METERS = 25;
+const CHASE_DEADBAND_METERS = 10;
 
-function chaseBonus(map: MapConfig, elapsedMs: number, deficitMeters: number): number {
-  const chased = deficitMeters - CHASE_DEADBAND_METERS;
+/**
+ * How far the dead band shrinks, and how much harder the chase pulls, against a
+ * player who has stopped typing.
+ *
+ * ## Why the chase reads the player's momentum
+ *
+ * The reported bug: *"when I do not type the bots aren't moving faster, as if
+ * they do not create advantage while I am not typing."* True as written. Their
+ * pace never looked at the player at all, and the player's own speed only sags
+ * to `COASTING_FLOOR` — so putting the keyboard down slowed the player by a few
+ * percent and did nothing whatever to the field.
+ *
+ * The obvious fix — pace the field above the coasting floor — is the cliff
+ * described above. So the coupling goes here instead, where it is safe: the
+ * further the player's momentum sits below what a working typist holds, the
+ * smaller the gap an opponent will tolerate and the harder it runs to close it.
+ *
+ * It **integrates**, which is the point. Momentum bottoms out between words for
+ * everybody, including a typist at twice the map's speed, so an instantaneous
+ * reading cannot tell idling from an ordinary gap between two words. A dip of
+ * half a second is worth a fraction of a metre and vanishes; ten seconds of
+ * silence is worth a chunk of the lead. Nothing has to decide what counts as
+ * "idle" — the arithmetic does it.
+ */
+const WORKING_MOMENTUM = 0.55;
+const COAST_DEADBAND_SHRINK = 0.75;
+const COAST_CHASE_BOOST = 1;
+
+/**
+ * How far below a working typist the player currently is, 0..1.
+ *
+ * `1` is a player coasting on nothing; `0` is anybody holding the momentum the
+ * map was tuned around.
+ */
+function coastingSlack(playerMomentum: number): number {
+  return Math.max(
+    0,
+    Math.min(1, (WORKING_MOMENTUM - playerMomentum) / (WORKING_MOMENTUM - COASTING_FLOOR)),
+  );
+}
+
+function chaseBonus(reference: number, deficitMeters: number, playerMomentum: number): number {
+  const slack = coastingSlack(playerMomentum);
+
+  const chased = deficitMeters - CHASE_DEADBAND_METERS * (1 - COAST_DEADBAND_SHRINK * slack);
   if (chased <= 0) return 0;
 
-  const reference = referenceSpeed(map, elapsedMs);
+  const urgency = 1 + COAST_CHASE_BOOST * slack;
 
-  return Math.min(chased * CHASE_PER_METER, reference * CHASE_CAP_SHARE);
+  return Math.min(chased * CHASE_PER_METER * urgency, reference * CHASE_CAP_SHARE * urgency);
 }
 
 /** Runs every racer forward one step. */
@@ -217,15 +274,21 @@ export function advanceRace(state: RaceState, input: AdvanceRaceInput): RaceStat
   const seconds = input.deltaMs / 1000;
   let rng = state.rng;
 
+  // The scale the chase cap is measured against.
+  const reference = referenceSpeed(input.map, input.elapsedMs);
+  // A caller with no momentum to report is not a caller reporting a coasting
+  // player, so the default is the working level: chase at the standing rate.
+  const playerMomentum = input.playerMomentum ?? WORKING_MOMENTUM;
+
   const racers = state.racers.map((racer) => {
     if (racer.finished) return racer;
 
     let { targetSpeed, retargetAtMs } = racer;
 
     if (input.elapsedMs >= retargetAtMs) {
-      const target = drawTarget(input.map, input.elapsedMs, rng);
-      rng = target.rng;
-      targetSpeed = target.value;
+      const drawn = drawTarget(input.map, input.elapsedMs, rng);
+      rng = drawn.rng;
+      targetSpeed = drawn.value;
 
       const spread = nextFloat(rng);
       rng = spread.rng;
@@ -243,7 +306,7 @@ export function advanceRace(state: RaceState, input: AdvanceRaceInput): RaceStat
      * fell behind once would accelerate away from its own target for the rest
      * of the run.
      */
-    const chase = chaseBonus(input.map, input.elapsedMs, input.playerMeters - racer.meters);
+    const chase = chaseBonus(reference, input.playerMeters - racer.meters, playerMomentum);
     const meters = racer.meters + (speed + chase) * seconds;
 
     const done = input.distanceMeters > 0 && meters >= input.distanceMeters;

@@ -156,7 +156,7 @@ describe systems that no longer exist.
 
 | | |
 |---|---|
-| **Last completed** | **biomes** — six maps that are six *places*: forest, desert, docks, night, volcano, and the city they all used to be |
+| **Last completed** | **the chase, sharpened** — the rivals now close 2.5× harder, and close harder still on a player who has stopped typing. See "Why the opponents chase" |
 | **Next up** | nothing scheduled — awaiting direction |
 | **In progress** | none |
 | **Blocked** | none |
@@ -209,16 +209,32 @@ They used to be moving obstacles: drawn pace, re-drawn every few seconds, and no
 they were winning. Get twenty metres up and they were gone for the rest of the run — the race
 was decided in its first thirty seconds.
 
-So a racer that is **more than 25 metres behind** runs harder, by 0.05 m/s per metre of deficit,
-capped at 22% of the map's pace (`racer.ts`). A racer in front gets nothing: a rubber band, not
+So a racer that is **more than 10 metres behind** runs harder, by 0.12 m/s per metre of deficit,
+capped at 55% of the map's pace (`racer.ts`). A racer in front gets nothing: a rubber band, not
 a leash. A lead still extends — it just has to be held.
 
-**The dead band is the whole trick, and it was found the hard way.** Without it the chase fires
-in a race that is already level, where somebody is always a few metres down, and a typist at the
-map's own advertised speed took **zero** coins on every map. The obvious lever — raising the
-opponents' drawn pace, flat or as a ladder up the six maps — was tried first and failed the same
-assertion, for the same reason: pace moves *both* ends of the race, and the margin the map's own
-audience beats a bot by is small enough to eat.
+**The chase is the only dial there is**, and it is safe to lean on because it applies to an
+opponent who is *behind*, so it cannot take a coin off a player who is in front. Drawn pace is a
+cliff by comparison: moving it five points took a typist at the map's advertised speed from a
+real share of the coins to **zero on all six maps**. Three attempts have died there — a flat
+rise, a ladder up the six maps, and a floor tracking the player's own momentum.
+
+**The dead band is the other half of the trick, and it was found the hard way.** Without it the
+chase fires in a race that is already level, where somebody is always a few metres down, and the
+map's own audience took zero coins.
+
+### Not typing has to cost something
+
+The chase reads the player's **momentum**, not just the gap. Drawn pace never looked at the
+player at all, and a player who stops typing does not stop — momentum only sags to
+`COASTING_FLOOR` — so putting the keyboard down was close to free, and the opponents visibly did
+nothing about it.
+
+Now the further the player's momentum sits below a working typist's (0.55), the smaller the gap
+an opponent tolerates (the dead band shrinks to 2.5 m) and the harder it runs (up to double
+rate). It **integrates**: momentum bottoms out between words for everybody, so no instantaneous
+reading can tell idling from an ordinary gap — but half a second of dip is worth a fraction of a
+metre, and ten seconds of silence is worth a chunk of the lead.
 
 ### The rival badges
 

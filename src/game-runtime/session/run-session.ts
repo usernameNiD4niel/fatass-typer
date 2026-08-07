@@ -942,14 +942,18 @@ export function advanceRunSession(session: RunSession, deltaMs: number): RunSess
     elapsedMs: session.elapsedMs + deltaMs,
     playerMeters: session.playerMeters + speed * seconds,
     momentum,
-    // The opponents run on the same clock. They are not driven by the player
-    // and nothing they do can end the run — see `game-core/race`.
+    // The opponents run on the same clock, and at a pace that tracks the
+    // player's own momentum. Nothing they do can end the run — see
+    // `game-core/race`.
     race: advanceRace(session.race, {
       map: session.map,
       deltaMs,
       elapsedMs: session.elapsedMs,
       distanceMeters: session.map.distanceMeters,
       playerMeters: session.playerMeters,
+      // The surged level, not the raw one: it is the speed the player is
+      // actually travelling at, so it is the speed the field has to answer.
+      playerMomentum: surgedMomentum(session),
     }),
     motion: advanceMotion(session.motion, deltaMs),
     effects: advanceEffects(session.effects, deltaMs),
