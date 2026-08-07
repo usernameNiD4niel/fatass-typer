@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MAP_1 } from '../../content';
 import type { MapConfig, PlayerProfile } from '../../game-core/models';
 import { createPlayerProfile, EMPTY_MAP_PROGRESS } from '../../game-core/models';
-import { mapCardLabel, mapCardModel, unlockRequirementText } from './map-card-model';
+import { mapCardLabel, mapCardModel, openingIndex, unlockRequirementText } from './map-card-model';
 import { MapSelection } from './MapSelection';
 
 /** Map 2 does not exist until step F3, so the locked cases use a stand-in. */
@@ -179,6 +179,156 @@ describe('MapSelection', () => {
     await user.tab();
 
     expect(screen.getByRole('button', { name: /Map 1: Neighborhood Dash/ })).toHaveFocus();
+  });
+});
+
+describe('the carousel', () => {
+  const MAP_3: MapConfig = {
+    ...MAP_1,
+    id: 'map-3',
+    mapNumber: 3,
+    name: 'Desert Canyon',
+    theme: 'desert-canyon',
+    targetWpm: 30,
+    unlock: { requiresMapId: 'map-2', minimumAccuracy: 0.87 },
+  };
+  const THREE: readonly MapConfig[] = [MAP_1, MAP_2, MAP_3];
+
+  function carousel(unlocked: readonly string[]) {
+    const onSelect = vi.fn();
+    render(
+      <MapSelection
+        maps={THREE}
+        profile={profileWith({ unlockedMapIds: unlocked })}
+        onSelect={onSelect}
+        onBack={vi.fn()}
+      />,
+    );
+
+    return { onSelect, user: userEvent.setup() };
+  }
+
+  const centred = (): HTMLElement => screen.getByRole('button', { pressed: true });
+
+  it('opens on the furthest map the player has unlocked', () => {
+    // Not Map 1 every time. A player who has reached Map 3 should not have to
+    // press Right twice to get back to where they left off.
+    carousel(['map-1', 'map-2', 'map-3']);
+
+    expect(centred()).toHaveAccessibleName(/Map 3: Desert Canyon/);
+  });
+
+  it('opens on the first map for a new profile', () => {
+    carousel(['map-1']);
+
+    expect(centred()).toHaveAccessibleName(/Map 1: Neighborhood Dash/);
+  });
+
+  it('highlights exactly one card at a time', () => {
+    carousel(['map-1']);
+
+    expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(1);
+  });
+
+  /*
+   * The carousel's own affordance. Focus and the centre are the same thing
+   * here, so this asserts both: pressing Right must move the highlight *and*
+   * take the keyboard with it, or the screen would show one card while Enter
+   * started another.
+   */
+  it('moves along the row with the arrow keys, and takes focus with it', async () => {
+    const { user } = carousel(['map-1']);
+
+    await user.tab();
+    expect(centred()).toHaveAccessibleName(/Map 1: Neighborhood Dash/);
+
+    await user.keyboard('{ArrowRight}');
+
+    expect(centred()).toHaveAccessibleName(/Map 2: Forest Valley/);
+    expect(centred()).toHaveFocus();
+
+    await user.keyboard('{ArrowLeft}');
+
+    expect(centred()).toHaveAccessibleName(/Map 1: Neighborhood Dash/);
+    expect(centred()).toHaveFocus();
+  });
+
+  it('stops at both ends rather than wrapping', async () => {
+    const { user } = carousel(['map-1']);
+
+    await user.tab();
+    await user.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}');
+    expect(centred()).toHaveAccessibleName(/Map 1: Neighborhood Dash/);
+
+    await user.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}');
+    expect(centred()).toHaveAccessibleName(/Map 3: Desert Canyon/);
+  });
+
+  it('disables the arrow that would go nowhere', async () => {
+    const { user } = carousel(['map-1']);
+
+    expect(screen.getByRole('button', { name: 'Previous map' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Next map' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Next map' }));
+    await user.click(screen.getByRole('button', { name: 'Next map' }));
+
+    expect(screen.getByRole('button', { name: 'Next map' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Previous map' })).toBeEnabled();
+  });
+
+  /*
+   * Tab still walks every card — this carousel deliberately does not use a
+   * roving tabindex, because a locked card carries the unlock requirement and
+   * spec §12 says a keyboard user has to be able to reach and read it.
+   * Centring on focus is what stops that leaving an off-screen card selected.
+   */
+  it('centres whichever card the keyboard reaches', async () => {
+    const { user } = carousel(['map-1']);
+
+    await user.tab();
+    await user.tab();
+
+    expect(centred()).toHaveAccessibleName(/Map 2: Forest Valley/);
+  });
+
+  it('says where you are in the row, in words', async () => {
+    const { user } = carousel(['map-1']);
+
+    expect(screen.getByText(/Neighborhood Dash — 1 of 3/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Next map' }));
+
+    expect(screen.getByText(/Forest Valley — 2 of 3/)).toBeInTheDocument();
+  });
+
+  it('starts the centred map when it is chosen', async () => {
+    const { user, onSelect } = carousel(['map-1', 'map-2']);
+
+    await user.click(centred());
+
+    expect(onSelect).toHaveBeenCalledWith('map-2');
+  });
+});
+
+describe('openingIndex', () => {
+  it('is the last unlocked entry, not the last entry', () => {
+    const models = [MAP_1, MAP_2].map((map) =>
+      mapCardModel(map, profileWith({ unlockedMapIds: ['map-1'] }), [MAP_1, MAP_2]),
+    );
+
+    expect(openingIndex(models)).toBe(0);
+  });
+
+  it('falls back to the first card when nothing is unlocked', () => {
+    // Should not happen — Map 1 is always unlocked — but a corrupt profile that
+    // was repaired field by field could produce it, and opening on nothing is
+    // worse than opening on a locked card the player can at least read.
+    const models = [MAP_1, MAP_2].map((map) =>
+      mapCardModel(map, profileWith({ unlockedMapIds: [] }), [MAP_1, MAP_2]),
+    );
+
+    expect(openingIndex(models)).toBe(0);
   });
 });
 

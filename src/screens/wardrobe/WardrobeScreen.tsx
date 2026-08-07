@@ -1,6 +1,7 @@
 import { useState, type JSX } from 'react';
 
-import { Button, Card, classes } from '../../components/ui';
+import { Panel, ScreenHead, TabRail } from '../../components/game-ui';
+import { Button, classes } from '../../components/ui';
 import { SKINS, skinsInCategory } from '../../content/skins';
 import type { PlayerProfile } from '../../game-core/models';
 import {
@@ -25,6 +26,14 @@ import styles from './WardrobeScreen.module.css';
  *
  * The screen owns no rules of its own. Buying and equipping are pure functions
  * over the profile; this renders their result and hands the new profile up.
+ *
+ * ## What the redesign changed
+ *
+ * A list of rows became a grid of cards, each showing the thing it sells at a
+ * size you can actually judge. A wardrobe is the one screen in the game whose
+ * entire job is *how something looks*, and a 24-pixel swatch at the end of a
+ * text row cannot do that job. The colours are the skin's own, straight from
+ * the catalogue, so the card and the runner cannot disagree.
  */
 
 const CATEGORY_LABELS: Readonly<Record<SkinCategory, string>> = {
@@ -45,12 +54,19 @@ export interface WardrobeScreenProps {
   readonly onBack: () => void;
 }
 
-function Swatch({ skin }: { skin: Skin }): JSX.Element {
+/**
+ * The item, shown large.
+ *
+ * Two colours on a lit ground rather than a flat chip: the runner is a shaded
+ * object under a sun, and a flat rectangle of the same hex looks like a
+ * different colour from the thing it is selling.
+ */
+function Preview({ skin }: { skin: Skin }): JSX.Element {
   return (
-    <span className={styles.swatch} aria-hidden="true">
-      <span className={styles.swatchPrimary} style={{ background: skin.colors.primary }} />
+    <span className={styles.preview} aria-hidden="true">
+      <span className={styles.previewPrimary} style={{ background: skin.colors.primary }} />
       {skin.colors.secondary !== undefined && (
-        <span className={styles.swatchSecondary} style={{ background: skin.colors.secondary }} />
+        <span className={styles.previewSecondary} style={{ background: skin.colors.secondary }} />
       )}
     </span>
   );
@@ -60,44 +76,38 @@ export function WardrobeScreen({ profile, onChange, onBack }: WardrobeScreenProp
   const [category, setCategory] = useState<SkinCategory>('character');
   const items = skinsInCategory(category);
   const worn = equippedSkin(profile, SKINS, category);
+  const owned = items.filter((skin) => owns(profile, skin)).length;
 
   return (
     <section className={styles.screen} aria-label="Wardrobe">
-      <header className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Wardrobe</h1>
-          <p className={styles.subtitle}>
-            Earned by placing in races and by taking coins. None of it makes you faster.
+      <ScreenHead
+        eyebrow="Locker"
+        title="Wardrobe"
+        subtitle="Earned by placing in races and by taking coins. None of it makes you faster."
+        aside={
+          <p className={styles.credits}>
+            <span className={styles.creditsLabel}>Credits</span>
+            <span className={styles.creditsValue}>{Math.round(profile.credits)}</span>
           </p>
-        </div>
-        <p className={styles.credits}>
-          <span className={styles.creditsLabel}>Credits</span>
-          <span className={styles.creditsValue}>{Math.round(profile.credits)}</span>
-        </p>
-      </header>
+        }
+      />
 
       {/*
         Tabs rather than three long lists. Each category is small, and a player
         who wants shoes should not scroll past the characters to reach them.
       */}
-      <div className={styles.tabs} role="tablist" aria-label="Skin categories">
-        {SKIN_CATEGORIES.map((entry) => (
-          <button
-            key={entry}
-            type="button"
-            role="tab"
-            aria-selected={entry === category}
-            className={classes(styles.tab, entry === category && styles.tabActive)}
-            onClick={() => {
-              setCategory(entry);
-            }}
-          >
-            {CATEGORY_LABELS[entry]}
-          </button>
-        ))}
-      </div>
+      <TabRail
+        label="Skin categories"
+        tabs={SKIN_CATEGORIES}
+        active={category}
+        render={(entry) => CATEGORY_LABELS[entry]}
+        onSelect={setCategory}
+      />
 
-      <Card title={CATEGORY_LABELS[category]} titleLevel={2}>
+      <Panel
+        title={CATEGORY_LABELS[category]}
+        meta={`${String(owned)} of ${String(items.length)} owned`}
+      >
         <p className={styles.blurb}>{CATEGORY_BLURBS[category]}</p>
 
         <ul className={styles.items}>
@@ -114,7 +124,7 @@ export function WardrobeScreen({ profile, onChange, onBack }: WardrobeScreenProp
                 // not depend on seeing a colour (spec §12).
                 aria-current={isWorn ? 'true' : undefined}
               >
-                <Swatch skin={skin} />
+                <Preview skin={skin} />
 
                 <span className={styles.itemText}>
                   <span className={styles.itemName}>{skin.name}</span>
@@ -127,6 +137,7 @@ export function WardrobeScreen({ profile, onChange, onBack }: WardrobeScreenProp
                   ) : isOwned ? (
                     <Button
                       size="small"
+                      fullWidth
                       onClick={() => {
                         onChange(equipSkin(profile, skin));
                       }}
@@ -136,6 +147,7 @@ export function WardrobeScreen({ profile, onChange, onBack }: WardrobeScreenProp
                   ) : (
                     <Button
                       size="small"
+                      fullWidth
                       disabled={!affordable}
                       onClick={() => {
                         onChange(buySkin(profile, skin));
@@ -154,9 +166,13 @@ export function WardrobeScreen({ profile, onChange, onBack }: WardrobeScreenProp
             );
           })}
         </ul>
-      </Card>
+      </Panel>
 
-      <Button onClick={onBack}>Back</Button>
+      <div className={styles.actions}>
+        <Button size="large" onClick={onBack}>
+          Back
+        </Button>
+      </div>
     </section>
   );
 }

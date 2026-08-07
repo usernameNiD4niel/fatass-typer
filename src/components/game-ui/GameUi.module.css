@@ -1,0 +1,297 @@
+/*
+ * The menus' own chrome.
+ *
+ * `components/ui` is the neutral kit — a Button is a Button on any screen. This
+ * is the layer above it: the framed panels, label plates and stat tiles that
+ * make the menus read as a game's front end rather than as a settings dialog.
+ *
+ * It is a separate module rather than more rules in `Surface.module.css`
+ * because the two answer to different things. A `Card` is content in a page and
+ * has to stay quiet; a `Panel` here is an instrument housing and is allowed to
+ * have an edge, a notch and a rail. Mixing them would mean every future change
+ * to one being weighed against the other.
+ *
+ * Everything below is built from the four `--frame-*` tokens, so the whole look
+ * moves from one place in `tokens.css`.
+ */
+
+/* ------------------------------------------------------------------- panel */
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--frame-fill);
+  border: var(--border-width-hairline) solid var(--frame-edge);
+  /*
+   * The notch.
+   *
+   * One cut corner is the whole visual conceit — it is what stops a rectangle
+   * reading as a document. Top-right rather than a matched pair, because two
+   * notches read as a decorative frame and one reads as a machined part.
+   */
+  clip-path: polygon(0 0, calc(100% - 1.1rem) 0, 100% 1.1rem, 100% 100%, 0 100%);
+}
+
+/* The header rail: a label plate rather than a heading in a box. */
+.panelRail {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-5);
+  background: var(--frame-rail);
+  border-bottom: var(--border-width-hairline) solid var(--frame-edge);
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-secondary);
+}
+
+/* A short fact that belongs to the panel rather than to its contents — a count,
+   a total, a "3 of 6". */
+.panelMeta {
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+
+.panelBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+/* The one panel on a screen that is the point of the screen. */
+.panelFeature {
+  box-shadow: 0 0 0 var(--border-width-thick) var(--frame-glow);
+}
+
+/* -------------------------------------------------------------- screen head */
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/*
+ * The eyebrow, and the rule beside it.
+ *
+ * The rule is what makes a heading read as a section of a machine rather than
+ * as the top of an article. It is `aria-hidden` scenery drawn in CSS, so it
+ * costs no markup and says nothing to a screen reader.
+ */
+.eyebrow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--accent-default);
+}
+
+.eyebrow::after {
+  flex: 1;
+  height: var(--border-width-hairline);
+  max-width: var(--space-16);
+  content: '';
+  background: linear-gradient(to right, var(--frame-edge), transparent);
+}
+
+.headTitle {
+  margin: 0;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+  color: var(--text-primary);
+}
+
+.headSubtitle {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+/* --------------------------------------------------------------- stat tile */
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  background: var(--surface-sunken);
+  border-left: var(--border-width-thick) solid var(--frame-edge);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+/*
+ * Tone is carried by the left edge, and never by the number itself.
+ *
+ * Colouring the value would make the figure harder to read at exactly the
+ * moment it matters, and spec §12 rules out anything that says something in
+ * colour alone — the tile's note says the same thing in words.
+ */
+.tileGood {
+  border-left-color: var(--status-success);
+}
+
+.tileWarn {
+  border-left-color: var(--status-warning);
+}
+
+.tileBad {
+  border-left-color: var(--status-danger);
+}
+
+.tileLabel {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-tertiary);
+}
+
+.tileValue {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.tileValueLarge {
+  font-size: var(--font-size-3xl);
+}
+
+/* A name, not a figure. Body size, normal weight, and allowed to wrap. */
+.tileValueCompact {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+}
+
+.tileNote {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.tiles {
+  display: grid;
+  /* 10rem, not 11: at 11 a pair of tiles missed fitting two-up in a 24rem side
+     column by twelve pixels, and dropped to one per row. */
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------- meter */
+
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.meterHead {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.meterValue {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.meterTrack {
+  height: var(--space-2);
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.meterFill {
+  height: 100%;
+  background: var(--accent-default);
+  border-radius: var(--radius-pill);
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+.meterFillGood {
+  background: var(--status-success);
+}
+
+.meterFillWarn {
+  background: var(--status-warning);
+}
+
+.meterFillBad {
+  background: var(--status-danger);
+}
+
+/* --------------------------------------------------------------- tab rail */
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--surface-sunken);
+  border: var(--border-width-hairline) solid var(--frame-edge);
+  border-radius: var(--radius-pill);
+}
+
+.tab {
+  padding: var(--space-2) var(--space-5);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.tab:hover:not([aria-selected='true']) {
+  color: var(--text-primary);
+  background: var(--surface-raised);
+}
+
+.tab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Selected is a fill *and* a weight, never a colour on its own (spec §12). */
+.tab[aria-selected='true'] {
+  color: var(--text-on-accent);
+  background: var(--accent-default);
+}

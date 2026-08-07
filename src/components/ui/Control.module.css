@@ -89,7 +89,15 @@
 .mark {
   position: absolute;
   top: 50%;
-  right: 0.55rem;
+  /*
+   * Opposite the knob, always.
+   *
+   * This used to sit on the *same* side as the knob in both states, so the knob
+   * covered it: "OFF" rendered as a sliver of its last letter, which read as a
+   * stray "F" on the track. The mark only works if it is in the space the knob
+   * is not currently occupying — on, the knob is right and the word goes left.
+   */
+  left: 0.6rem;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   color: var(--text-on-accent);
@@ -97,8 +105,8 @@
 }
 
 .markOff {
-  right: auto;
-  left: 0.6rem;
+  left: auto;
+  right: 0.5rem;
   color: var(--text-tertiary);
 }
 

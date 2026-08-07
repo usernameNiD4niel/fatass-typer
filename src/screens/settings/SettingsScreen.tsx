@@ -1,6 +1,7 @@
 import { type JSX, useId, useState } from 'react';
 
-import { Button, Card, Modal, Slider, Toggle } from '../../components/ui';
+import { Panel, ScreenHead } from '../../components/game-ui';
+import { Button, Modal, Slider, Toggle } from '../../components/ui';
 import type {
   GameSettings,
   MistakeBehavior,
@@ -18,6 +19,15 @@ import styles from './Settings.module.css';
  *
  * Presentational — it takes settings and emits a new object. Where they are
  * stored is the shell's business.
+ *
+ * ## What the redesign changed
+ *
+ * Only the housing. The controls are the same real radios, toggles and sliders
+ * they always were, because they were already right; what changed is that they
+ * now sit in the same framed panels as every other screen, in two columns
+ * rather than one long scroll. A settings screen that looks like a different
+ * program from the menu it was opened from is the thing this pass existed to
+ * fix — and a control is the last place to get clever, so none of them moved.
  */
 
 export interface SettingsScreenProps {
@@ -109,128 +119,131 @@ export function SettingsScreen({
 
   return (
     <section className={styles.screen} aria-label="Settings">
-      <header className={styles.header}>
-        <h1 className={styles.title}>Settings</h1>
-        <p className={styles.subtitle}>These apply immediately and affect every run.</p>
-      </header>
+      <ScreenHead
+        eyebrow="Options"
+        title="Settings"
+        subtitle="These apply immediately and affect every run."
+      />
 
-      <Card title="Display" titleLevel={2}>
-        <ChoiceRow
-          label="Theme"
-          description="Match system follows your operating system."
-          value={settings.theme}
-          options={['system', 'light', 'dark']}
-          labels={THEME_LABELS}
-          onSelect={(theme) => {
-            update({ theme });
-          }}
-        />
+      <div className={styles.columns}>
+        <Panel title="Display">
+          <ChoiceRow
+            label="Theme"
+            description="Match system follows your operating system."
+            value={settings.theme}
+            options={['system', 'light', 'dark']}
+            labels={THEME_LABELS}
+            onSelect={(theme) => {
+              update({ theme });
+            }}
+          />
 
-        <ChoiceRow
-          label="Prompt size"
-          description="How large the words you are typing appear."
-          value={settings.promptTextSize}
-          options={['small', 'medium', 'large', 'extra-large']}
-          labels={SIZE_LABELS}
-          onSelect={(promptTextSize) => {
-            update({ promptTextSize });
-          }}
-        />
+          <ChoiceRow
+            label="Prompt size"
+            description="How large the words you are typing appear."
+            value={settings.promptTextSize}
+            options={['small', 'medium', 'large', 'extra-large']}
+            labels={SIZE_LABELS}
+            onSelect={(promptTextSize) => {
+              update({ promptTextSize });
+            }}
+          />
 
-        <Toggle
-          label="Reduced motion"
-          description="Removes animation and camera movement. Nothing about the difficulty changes."
-          // `null` means "follow the system"; the toggle shows what is in effect.
-          checked={settings.reducedMotion === true}
-          onChange={(reducedMotion) => {
-            update({ reducedMotion });
-          }}
-        />
-      </Card>
+          <Toggle
+            label="Reduced motion"
+            description="Removes animation and camera movement. Nothing about the difficulty changes."
+            // `null` means "follow the system"; the toggle shows what is in effect.
+            checked={settings.reducedMotion === true}
+            onChange={(reducedMotion) => {
+              update({ reducedMotion });
+            }}
+          />
+        </Panel>
 
-      <Card title="Typing" titleLevel={2}>
-        <ChoiceRow
-          label="When you make a mistake"
-          description="Keep typing marks the error and lets you carry on. Stop until fixed blocks further progress until you correct it."
-          value={settings.mistakeBehavior}
-          options={['allow-and-mark', 'block-until-corrected']}
-          labels={MISTAKE_LABELS}
-          onSelect={(mistakeBehavior) => {
-            update({ mistakeBehavior });
-          }}
-        />
+        <Panel title="Typing">
+          <ChoiceRow
+            label="When you make a mistake"
+            description="Keep typing marks the error and lets you carry on. Stop until fixed blocks further progress until you correct it."
+            value={settings.mistakeBehavior}
+            options={['allow-and-mark', 'block-until-corrected']}
+            labels={MISTAKE_LABELS}
+            onSelect={(mistakeBehavior) => {
+              update({ mistakeBehavior });
+            }}
+          />
 
-        <Toggle
-          label="Case sensitive"
-          description="Off by default: capital letters are not required to match."
-          checked={settings.caseSensitive}
-          onChange={(caseSensitive) => {
-            update({ caseSensitive });
-          }}
-        />
+          <Toggle
+            label="Case sensitive"
+            description="Off by default: capital letters are not required to match."
+            checked={settings.caseSensitive}
+            onChange={(caseSensitive) => {
+              update({ caseSensitive });
+            }}
+          />
 
-        <Toggle
-          label="Adaptive assistance"
-          description="Small timing adjustments after repeated failures. The target speed shown never changes."
-          checked={settings.adaptiveAssistanceEnabled}
-          onChange={(adaptiveAssistanceEnabled) => {
-            update({ adaptiveAssistanceEnabled });
-          }}
-        />
-      </Card>
+          <Toggle
+            label="Adaptive assistance"
+            description="Small timing adjustments after repeated failures. The target speed shown never changes."
+            checked={settings.adaptiveAssistanceEnabled}
+            onChange={(adaptiveAssistanceEnabled) => {
+              update({ adaptiveAssistanceEnabled });
+            }}
+          />
+        </Panel>
 
-      <Card title="Audio" titleLevel={2}>
-        <Toggle
-          label="Music"
-          checked={settings.musicEnabled}
-          onChange={(musicEnabled) => {
-            update({ musicEnabled });
-          }}
-        />
-        <Slider
-          label="Music volume"
-          value={settings.musicVolume}
-          disabled={!settings.musicEnabled}
-          onChange={(musicVolume) => {
-            update({ musicVolume });
-          }}
-        />
+        <Panel title="Audio">
+          <Toggle
+            label="Music"
+            checked={settings.musicEnabled}
+            onChange={(musicEnabled) => {
+              update({ musicEnabled });
+            }}
+          />
+          <Slider
+            label="Music volume"
+            value={settings.musicVolume}
+            disabled={!settings.musicEnabled}
+            onChange={(musicVolume) => {
+              update({ musicVolume });
+            }}
+          />
 
-        <Toggle
-          label="Sound effects"
-          checked={settings.soundEffectsEnabled}
-          onChange={(soundEffectsEnabled) => {
-            update({ soundEffectsEnabled });
-          }}
-        />
-        <Slider
-          label="Sound effects volume"
-          value={settings.soundEffectsVolume}
-          disabled={!settings.soundEffectsEnabled}
-          onChange={(soundEffectsVolume) => {
-            update({ soundEffectsVolume });
-          }}
-        />
-      </Card>
+          <Toggle
+            label="Sound effects"
+            checked={settings.soundEffectsEnabled}
+            onChange={(soundEffectsEnabled) => {
+              update({ soundEffectsEnabled });
+            }}
+          />
+          <Slider
+            label="Sound effects volume"
+            value={settings.soundEffectsVolume}
+            disabled={!settings.soundEffectsEnabled}
+            onChange={(soundEffectsVolume) => {
+              update({ soundEffectsVolume });
+            }}
+          />
+        </Panel>
 
-      {onResetProgress !== undefined && (
-        <Card title="Progress" titleLevel={2}>
-          <div className={styles.danger}>
-            <p className={styles.description}>
-              Your progress is saved in this browser and survives closing the tab. Resetting erases
-              every unlock, best score and recorded run, and cannot be undone.
-            </p>
-            <Button
-              variant="danger"
-              onClick={() => {
-                setConfirmingReset(true);
-              }}
-            >
-              Reset progress
-            </Button>
-          </div>
-        </Card>
-      )}
+        {onResetProgress !== undefined && (
+          <Panel title="Progress">
+            <div className={styles.danger}>
+              <p className={styles.description}>
+                Your progress is saved in this browser and survives closing the tab. Resetting
+                erases every unlock, best score and recorded run, and cannot be undone.
+              </p>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  setConfirmingReset(true);
+                }}
+              >
+                Reset progress
+              </Button>
+            </div>
+          </Panel>
+        )}
+      </div>
 
       <div className={styles.actions}>
         <Button variant="primary" size="large" onClick={onClose}>

@@ -1,9 +1,9 @@
 /*
  * Main menu (spec §9).
  *
- * Generous whitespace, one clear primary action, and the player's own numbers
- * given room — the lifetime peak is the figure the whole progression is built
- * around (spec §7), so it is not a footnote.
+ * Two columns: the map you are up to, and everything else. The split is the
+ * whole layout decision — a player opening the game wants to know where they
+ * are and press one button, and a row of six equal buttons answered neither.
  */
 
 .screen {
@@ -13,10 +13,10 @@
   width: 100%;
   max-width: var(--layout-content-max);
   margin: 0 auto;
-  padding: var(--space-10) var(--layout-gutter);
+  padding: var(--space-12) var(--layout-gutter) var(--space-10);
 }
 
-.header {
+.masthead {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -26,53 +26,113 @@
   margin: 0;
   font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
   letter-spacing: var(--letter-spacing-tight);
   color: var(--text-primary);
 }
 
+/* The one place the accent is used as a rule rather than as a control colour:
+   it ties the title to the panels below without shouting. */
+.title::after {
+  display: block;
+  width: var(--space-16);
+  height: var(--border-width-thick);
+  margin-top: var(--space-3);
+  content: '';
+  background: var(--accent-default);
+}
+
 .tagline {
   margin: 0;
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-lg);
   color: var(--text-secondary);
 }
 
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.stats {
+.layout {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4);
-  margin: 0;
+  /* The hero takes the room; the rail takes what it needs. Fixed rather than a
+     fraction so the buttons stay a comfortable width whatever the map is
+     called. */
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: var(--space-5);
+  /* Stretch, not start: the rail beside the hero is taller, and a hero that
+     stopped short of it left a rectangle of empty page under the one thing the
+     screen is actually about. */
+  align-items: stretch;
 }
 
-.stat {
+/* ------------------------------------------------------------------- hero */
+
+.hero {
+  min-height: 24rem;
+}
+
+.heroArt {
+  /*
+   * The artwork is a band across the top of the panel, bled to its edges.
+   *
+   * Negative margins rather than a panel variant without padding: this is the
+   * only place in the app that wants it, and a `Panel` prop for "sometimes the
+   * body has no padding" is a prop every future caller has to think about.
+   */
+  height: 11rem;
+  margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) 0;
+  overflow: hidden;
+}
+
+.heroText {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
-.statLabel {
+.heroName {
   margin: 0;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-}
-
-.statValue {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
   color: var(--text-primary);
 }
 
-.statNote {
+.heroTarget {
   margin: 0;
-  font-size: var(--font-size-sm);
   color: var(--text-secondary);
+}
+
+.heroChip {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-default);
+  background: var(--accent-subtle);
+  border-radius: var(--radius-pill);
+}
+
+.heroActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: auto;
+}
+
+/* -------------------------------------------------------------------- side */
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.meterNote {
+  margin: calc(var(--space-2) * -1) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }

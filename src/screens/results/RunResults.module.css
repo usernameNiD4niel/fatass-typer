@@ -11,38 +11,84 @@
   flex-direction: column;
   gap: var(--space-6);
   width: 100%;
-  max-width: 48rem;
+  max-width: 56rem;
   margin: 0 auto;
   padding: var(--space-10) var(--layout-gutter);
 }
 
-.header {
+/*
+ * The verdict, over the place it happened.
+ *
+ * The first thing a player wants at the end of a run is not a table, it is an
+ * answer — so the answer is the biggest thing here and the map is behind it.
+ * The tint says which answer at a glance; the word says it for everyone else
+ * (spec §12).
+ */
+.banner {
+  position: relative;
+  overflow: hidden;
+  border: var(--border-width-hairline) solid var(--frame-edge);
+  border-radius: var(--radius-lg);
+  clip-path: polygon(0 0, calc(100% - 1.6rem) 0, 100% 1.6rem, 100% 100%, 0 100%);
+}
+
+.bannerArt {
+  position: absolute;
+  inset: 0;
+  /* Behind the words, and well behind them. This is a mood, not a picture: the
+     text on top has to stay comfortably readable at every map's palette. */
+  opacity: 0.35;
+}
+
+.bannerText {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding: var(--space-8) var(--space-8) var(--space-10);
+}
+
+/* The tint. A wash from the outcome's colour, so the whole banner carries it
+   rather than one word in the corner. */
+.bannerCompleted .bannerText {
+  background: linear-gradient(
+    to bottom,
+    var(--status-success-subtle),
+    var(--surface-canvas) 78%
+  );
+}
+
+.bannerCaught .bannerText {
+  background: linear-gradient(to bottom, var(--status-danger-subtle), var(--surface-canvas) 78%);
 }
 
 .outcome {
   margin: 0;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
 }
 
-.completed {
+.bannerCompleted .outcome {
   color: var(--status-success);
 }
 
-.caught {
+.bannerCaught .outcome {
   color: var(--status-danger);
 }
 
 .title {
   margin: 0;
-  font-size: var(--font-size-2xl);
+  font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
   color: var(--text-primary);
+}
+
+.headline {
+  display: block;
 }
 
 .subtitle {

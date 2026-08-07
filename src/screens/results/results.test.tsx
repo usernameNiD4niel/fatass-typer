@@ -186,19 +186,36 @@ describe('RunResults', () => {
     setup(resultWith({ completed: false }));
 
     expect(screen.getByText('Caught')).toBeInTheDocument();
-    // A player who crashed gets the same detail as one who finished.
-    expect(within(runCard()).getByText('1840')).toBeInTheDocument();
-    expect(within(runCard()).getByText('94%')).toBeInTheDocument();
+    // A player who crashed gets the same detail as one who finished. Asserted
+    // at screen level rather than inside the detail panel: the four headline
+    // figures were lifted out of it, and *where* they sit is a layout decision
+    // rather than the promise this test is here to keep.
+    const headline = within(screen.getByRole('region', { name: 'How the run went' }));
+    expect(headline.getByText('1840')).toBeInTheDocument();
+    expect(headline.getByText('94%')).toBeInTheDocument();
+    expect(within(runCard()).getByText('12×')).toBeInTheDocument();
   });
 
-  it('shows every figure the spec asks for', () => {
+  /*
+   * The four a run is actually judged on lead the screen, and the rest sit in
+   * the panel below. Split across two assertions rather than one, because that
+   * grouping is itself a promise: a player should not have to read eleven
+   * equal figures to find out how the run went.
+   */
+  it('leads with the four figures a run is judged on', () => {
+    setup(resultWith());
+    const headline = within(screen.getByRole('region', { name: 'How the run went' }));
+
+    expect(headline.getByText('1840')).toBeInTheDocument();
+    expect(headline.getByText('23 WPM')).toBeInTheDocument();
+    expect(headline.getByText('26 WPM')).toBeInTheDocument();
+    expect(headline.getByText('94%')).toBeInTheDocument();
+  });
+
+  it('shows every other figure the spec asks for', () => {
     setup(resultWith());
     const card = within(runCard());
 
-    expect(card.getByText('1840')).toBeInTheDocument();
-    expect(card.getByText('23 WPM')).toBeInTheDocument();
-    expect(card.getByText('26 WPM')).toBeInTheDocument();
-    expect(card.getByText('94%')).toBeInTheDocument();
     expect(card.getByText('12×')).toBeInTheDocument();
     expect(card.getByText('100%')).toBeInTheDocument();
     expect(card.getByText('20')).toBeInTheDocument();

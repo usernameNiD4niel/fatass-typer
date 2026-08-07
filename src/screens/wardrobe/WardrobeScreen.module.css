@@ -1,104 +1,62 @@
 /*
  * The wardrobe.
  *
- * Every value below is a semantic token. Nothing here invents a colour: a skin's
- * own colours arrive as inline styles from the catalogue, which is the one place
- * raw hex belongs.
+ * A grid of cards, not a list of rows. This is the one screen whose entire job
+ * is *how something looks*, and a swatch the size of a full stop at the end of a
+ * text row cannot do that job.
  */
 
 .screen {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-5);
   width: 100%;
-  max-width: 52rem;
+  max-width: var(--layout-content-max);
   margin: 0 auto;
   padding: var(--space-10) var(--layout-gutter);
 }
 
-.header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-6);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-}
-
-.subtitle {
-  margin: var(--space-2) 0 0;
-  color: var(--text-secondary);
-}
-
+/* The balance, beside the title. It is the constraint on everything below it,
+   so it belongs at the top rather than next to each price. */
 .credits {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   align-items: flex-end;
   margin: 0;
-  white-space: nowrap;
+  padding: var(--space-3) var(--space-5);
+  background: var(--frame-fill);
+  border: var(--border-width-hairline) solid var(--frame-edge);
+  border-radius: var(--radius-md);
 }
 
 .creditsLabel {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--letter-spacing-wide);
   text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
   color: var(--text-tertiary);
 }
 
 .creditsValue {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
   font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-}
-
-.tabs {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.tab {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill);
-  background: var(--surface-raised);
-  color: var(--text-secondary);
-  font: inherit;
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-.tab:hover {
-  background: var(--surface-glass-strong);
-}
-
-.tab:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.tabActive {
-  background: var(--accent-default);
-  color: var(--accent-contrast);
+  color: var(--accent-default);
 }
 
 .blurb {
-  margin: 0 0 var(--space-4);
+  margin: 0;
   color: var(--text-secondary);
 }
 
+/* -------------------------------------------------------------------- items */
+
 .items {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -106,65 +64,89 @@
 
 .item {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
   background: var(--surface-sunken);
+  border: var(--border-width-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-lg);
 }
 
-/* The border says it, and so does the word "Worn" — never colour alone (spec §12). */
+/* Worn is a ring *and* the word "Worn" on the card (spec §12). */
 .itemWorn {
   border-color: var(--accent-default);
+  box-shadow: 0 0 0 var(--border-width-hairline) var(--accent-default);
 }
 
-.swatch {
-  display: flex;
-  flex: none;
+/* ------------------------------------------------------------------ preview */
+
+.preview {
+  position: relative;
+  display: block;
+  height: 6.5rem;
   overflow: hidden;
-  width: 2.75rem;
-  height: 2.75rem;
-  border: 1px solid var(--border-subtle);
+  /* A lit ground, so a colour is judged the way it will be seen — the runner is
+     a shaded object under a sun, and a flat chip of the same hex reads as a
+     different colour from the thing being sold. */
+  background: linear-gradient(160deg, var(--surface-raised), var(--surface-default));
   border-radius: var(--radius-md);
 }
 
-.swatchPrimary {
-  flex: 2;
+.previewPrimary {
+  position: absolute;
+  inset: 18% 26% 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  box-shadow: inset 0 -1.5rem 1.5rem rgb(0 0 0 / 22%);
 }
 
-.swatchSecondary {
-  flex: 1;
+.previewSecondary {
+  position: absolute;
+  inset: auto 34% 0;
+  height: 26%;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  box-shadow: inset 0 -0.5rem 0.6rem rgb(0 0 0 / 28%);
 }
+
+/* --------------------------------------------------------------------- text */
 
 .itemText {
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: var(--space-1);
-  min-width: 0;
 }
 
 .itemName {
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
 .itemDescription {
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-snug);
   color: var(--text-secondary);
 }
 
 .itemAction {
-  flex: none;
+  display: block;
 }
 
+/* A tag, not a button: there is nothing to press on the thing you are wearing. */
 .wornTag {
-  display: inline-block;
-  padding: 0.15em 0.7em;
-  border-radius: var(--radius-pill);
-  background: var(--accent-default);
-  color: var(--accent-contrast);
+  display: block;
+  padding: var(--space-2);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--accent-default);
+  background: var(--accent-subtle);
+  border-radius: var(--radius-pill);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
 }

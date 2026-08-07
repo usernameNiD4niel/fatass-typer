@@ -1,39 +1,173 @@
 /*
  * Map selection (spec §9).
+ *
+ * A carousel: one card centred, raised and full size, its neighbours smaller
+ * and set back. See the note in `MapSelection.tsx` for why it is not a grid.
+ *
+ * The layout is driven by one number per card, which the component sets as a
+ * custom property on the list item: how many places it sits from the centre.
+ * Everything below is arithmetic on that, so the stylesheet never needs to know
+ * how many maps there are and the component never needs to know how wide a card
+ * is.
  */
 
 .screen {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-5);
   width: 100%;
   max-width: var(--layout-content-max);
   margin: 0 auto;
   padding: var(--space-10) var(--layout-gutter);
 }
 
-.header {
+
+
+
+/* ---------------------------------------------------------------- carousel */
+
+/** One card's footprint. Everything else is derived from it. */
+.carousel {
+  --card-width: 17rem;
+  --card-height: 25rem;
+  /*
+   * How far apart two cards sit, centre to centre.
+   *
+   * Less than a full card width, so neighbours tuck *behind* the centred one
+   * rather than sitting beside it in a row. That overlap is what makes the
+   * middle card read as raised rather than merely bigger.
+   */
+  --card-stride: 14.5rem;
+
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.viewport {
+  /*
+   * The window the row moves behind. Overflow is hidden here rather than on the
+   * track, because the track is what is being translated — clipping the thing
+   * that moves would clip it against itself.
+   */
+  position: relative;
+  flex: 1;
+  height: calc(var(--card-height) + var(--space-10));
+  overflow: hidden;
+}
+
+.track {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  /*
+   * Every card in the same cell, then pushed out by its own distance. A flex
+   * row would reserve width per card and the overlap above would be impossible;
+   * stacking and translating means a card's position is purely a function of
+   * `--distance`, which is what makes the whole thing one line of arithmetic.
+   */
+  grid-template-areas: 'stack';
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.slot {
+  --distance: 0;
+  --abs-distance: 0;
+
+  grid-area: stack;
+  width: var(--card-width);
+  /*
+   * Position, size and depth from one number.
+   *
+   * `translateX` spaces the row; `scale` is what "elevated" actually means
+   * here; the small `translateY` drops the neighbours so the centred card's top
+   * edge clears them, which is what makes the raise read where they overlap.
+   *
+   * This lives on the list item and not on the card because `SelectableCard`
+   * sets its own `transform` on `:active`. A card that dipped when pressed
+   * would otherwise snap back to the middle of the row under the mouse.
+   */
+  transform: translateX(calc(var(--distance) * var(--card-stride)))
+    scale(calc(1 - var(--abs-distance) * 0.13))
+    translateY(calc(var(--abs-distance) * var(--space-4)));
+  /*
+   * Falls to nothing by the third card out, so the row fades rather than
+   * ending at a hard edge. Those cards stay in the DOM and in the tab order —
+   * they are still buttons a screen reader reads and Tab reaches, which is the
+   * whole reason this is not a roving-tabindex carousel. Focusing one centres
+   * it, so nothing invisible can ever be the thing being acted on.
+   */
+  opacity: max(0, calc(1 - var(--abs-distance) * 0.34));
+  /*
+   * Depth of field, and it is doing a real job rather than decorating.
+   *
+   * The cards overlap, so a neighbour's title and target speed land inches from
+   * the centred card's own — two legible headings side by side, and the eye has
+   * to work out which one it is being asked about. Throwing the neighbours out
+   * of focus settles that instantly and keeps their artwork readable as a
+   * *place*, which is what they are there to convey.
+   *
+   * It cannot hide anything: a card is only blurred while it is off-centre, and
+   * reaching one — by Tab, arrow or click — centres it first.
+   */
+  filter: blur(calc(var(--abs-distance) * 2px));
+  /* Highest in the middle, falling away both ways, or a neighbour would cover
+     the card the player is actually on. */
+  z-index: calc(100 - var(--abs-distance) * 10);
+  transition:
+    transform var(--duration-normal) var(--ease-spring),
+    opacity var(--duration-normal) var(--ease-out);
+}
+
+.mapCard.mapCard {
+  /*
+   * Doubled for specificity, deliberately.
+   *
+   * `SelectableCard` brings its own `.card` rules — padding, gap, text
+   * alignment — and CSS modules give both classes the same weight, which would
+   * leave the winner decided by the order the two stylesheets happen to land in
+   * the bundle. Doubling the class settles it here instead of by luck.
+   */
   display: flex;
   flex-direction: column;
+  gap: 0;
+  width: 100%;
+  height: var(--card-height);
+  padding: 0;
+  overflow: hidden;
+  text-align: left;
+}
+
+/*
+ * The centred card is the only one that casts a real shadow.
+ *
+ * Keyed off `aria-pressed`, which `SelectableCard` sets from `selected` — the
+ * same fact a screen reader is told, rather than a second source of truth that
+ * could disagree with it.
+ */
+.mapCard[aria-pressed='true'] {
+  box-shadow: var(--shadow-xl);
+}
+
+.arrow {
+  flex: none;
+  min-width: var(--space-12);
+  height: var(--space-12);
+  font-size: var(--font-size-xl);
+  line-height: 1;
+}
+
+/* --------------------------------------------------------------------- body */
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   gap: var(--space-2);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-}
-
-.subtitle {
-  margin: 0;
-  color: var(--text-secondary);
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
-  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-5);
 }
 
 .cardHead {
@@ -69,6 +203,14 @@
   background: var(--surface-sunken);
 }
 
+.name {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+  color: var(--text-primary);
+}
+
 .theme {
   margin: 0;
   font-size: var(--font-size-sm);
@@ -78,26 +220,62 @@
 
 .target {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
 }
 
 .bests {
   display: flex;
-  gap: var(--space-4);
-  margin: 0;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: auto 0 0;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
 .lock {
+  margin: auto 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* --------------------------------------------------------- position readout */
+
+.dots {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    width var(--duration-fast) var(--ease-out);
+}
+
+.dotActive {
+  width: var(--space-5);
+  background: var(--accent-default);
+}
+
+.position {
   margin: 0;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+  text-align: center;
 }
 
 .footer {
   display: flex;
   gap: var(--space-3);
+  justify-content: center;
 }

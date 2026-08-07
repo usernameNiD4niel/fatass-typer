@@ -61,6 +61,38 @@ describe('design tokens', () => {
     expect(unknown, `fallback declares unknown tokens: ${unknown.join(', ')}`).toEqual([]);
   });
 
+  /*
+   * The gap the test above did not close, found the hard way.
+   *
+   * Adding `--frame-*` to both explicit themes left the fallback block behind,
+   * and the fallback is what an ordinary player gets: they never open Settings,
+   * their OS is dark, and the menus rendered with the *light* theme's panel fill
+   * — white text on a white panel, on every screen at once.
+   *
+   * A token whose light and dark values differ is one the fallback has to
+   * restate. One that is identical in both themes does not need restating, and
+   * exempting those is what keeps this from becoming a list nobody maintains.
+   */
+  it('leaves no token that differs between themes out of the fallback', () => {
+    const fallback = declaredTokens(blockBody(":root:not([data-theme='light'])"));
+    const lightBody = blockBody(":root[data-theme='light']");
+    const darkBody = blockBody(":root[data-theme='dark']");
+
+    const valueIn = (body: string, token: string): string | undefined =>
+      new RegExp(`${token}\\s*:([^;]*);`).exec(body)?.[1]?.trim();
+
+    const missing = [...darkTokens].filter((token) => {
+      if (fallback.has(token)) return false;
+
+      return valueIn(lightBody, token) !== valueIn(darkBody, token);
+    });
+
+    expect(
+      missing,
+      `these differ by theme but the system-dark fallback does not restate them: ${missing.join(', ')}`,
+    ).toEqual([]);
+  });
+
   it('collapses motion durations under reduced motion', () => {
     const reduced = blockBody(":root[data-reduced-motion='on']");
 

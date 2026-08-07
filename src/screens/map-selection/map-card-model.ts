@@ -76,3 +76,24 @@ export function mapCardLabel(model: MapCardModel): string {
 
   return parts.join(', ');
 }
+
+/**
+ * Where the carousel opens.
+ *
+ * The furthest map the player has unlocked, which is where they are in the
+ * progression and overwhelmingly the one they came to play. Opening on Map 1
+ * every time would make a player who has reached Map 5 press Right four times
+ * to get back to where they left off.
+ *
+ * A brand-new profile has only Map 1 unlocked, so for them this is the first
+ * card anyway.
+ */
+export function openingIndex(models: readonly MapCardModel[]): number {
+  let furthest = 0;
+
+  for (const [index, model] of models.entries()) {
+    if (!model.locked) furthest = index;
+  }
+
+  return furthest;
+}

@@ -1,84 +1,72 @@
 /*
  * Level briefing (spec §9).
+ *
+ * The map on the left, what it asks on the right. The split is the point: a
+ * player is deciding whether to press Start, and the two things that decision
+ * turns on are what the place is and what it will demand.
  */
 
 .screen {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
   width: 100%;
-  max-width: 46rem;
+  max-width: var(--layout-content-max);
   margin: 0 auto;
   padding: var(--space-10) var(--layout-gutter);
 }
 
-.header {
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24rem;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.brief {
+  min-height: 26rem;
+}
+
+.art {
+  /*
+   * Bled to the panel's edges. Negative margins for the same reason the main
+   * menu's hero uses them: this and that are the only two places that want it,
+   * and a `Panel` prop for "sometimes no padding" is one every future caller
+   * would have to reason about.
+   */
+  height: 12rem;
+  margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) 0;
+  overflow: hidden;
+}
+
+.head {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.eyebrow {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-}
-
 .title {
   margin: 0;
-  font-size: var(--font-size-2xl);
+  font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
   color: var(--text-primary);
 }
 
 .summary {
+  max-width: 52ch;
   margin: 0;
-  font-size: var(--font-size-md);
   color: var(--text-secondary);
-}
-
-.facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: var(--space-4);
-  margin: 0;
-}
-
-.fact {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.factLabel {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-}
-
-.factValue {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-}
-
-.tips {
-  margin: 0;
-  padding-left: var(--space-5);
-  color: var(--text-secondary);
-}
-
-.tips li + li {
-  margin-top: var(--space-2);
 }
 
 .actions {
   display: flex;
   gap: var(--space-3);
+  margin-top: auto;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }

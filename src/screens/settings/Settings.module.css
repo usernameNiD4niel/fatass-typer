@@ -7,7 +7,14 @@
   flex-direction: column;
   gap: var(--space-6);
   width: 100%;
-  max-width: 46rem;
+  /*
+   * Wider than it was, because it is now two columns.
+   *
+   * 46rem was right for one column of controls and wrong for two: it left each
+   * about 300px, which wrapped "Sound effects volume" onto three lines and
+   * squeezed the toggles until their Off/On label was clipped to a letter.
+   */
+  max-width: var(--layout-content-max);
   margin: 0 auto;
   padding: var(--space-10) var(--layout-gutter);
 }
@@ -72,4 +79,22 @@
 .actions {
   display: flex;
   gap: var(--space-3);
+}
+
+/*
+ * Two columns.
+ *
+ * The four groups are short and unrelated to each other, so a single column
+ * made the screen a scroll through four unconnected things. `masonry` is not
+ * broadly available yet, so this is plain columns with the panels kept whole —
+ * `break-inside` is what stops a panel being split down the middle of a group.
+ */
+.columns {
+  columns: 2;
+  column-gap: var(--space-5);
+}
+
+.columns > * {
+  margin-bottom: var(--space-5);
+  break-inside: avoid;
 }

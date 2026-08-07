@@ -1,5 +1,8 @@
 /*
- * Statistics (spec §9).
+ * Statistics (spec §9, §7).
+ *
+ * A dashboard rather than a report: the peak gets a panel of its own because it
+ * is the number the progression is built on, and everything else sits beside it.
  */
 
 .screen {
@@ -7,62 +10,22 @@
   flex-direction: column;
   gap: var(--space-6);
   width: 100%;
-  max-width: 52rem;
+  max-width: var(--layout-content-max);
   margin: 0 auto;
   padding: var(--space-10) var(--layout-gutter);
 }
 
-.header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-}
-
-.subtitle {
-  margin: 0;
-  color: var(--text-secondary);
-}
-
-.grid {
+.top {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: var(--space-4);
-  margin: 0;
+  /* The headline is narrower than the grid beside it: one figure does not need
+     half the screen, and giving it half would make the other five look like an
+     afterthought rather than the supporting detail they are. */
+  grid-template-columns: 22rem minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
 }
 
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.statLabel {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-}
-
-.statValue {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-}
-
-.statNote {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-}
+/* --------------------------------------------------------------- map table */
 
 .table {
   width: 100%;
@@ -72,28 +35,75 @@
 
 .table th,
 .table td {
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-3);
   text-align: right;
   border-bottom: var(--border-width-hairline) solid var(--border-subtle);
 }
 
 .table thead th {
   font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-tertiary);
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-tertiary);
 }
 
-.table tbody th {
-  font-weight: var(--font-weight-medium);
+.table th[scope='row'] {
+  text-align: left;
+  font-weight: var(--font-weight-regular);
   color: var(--text-primary);
+}
+
+.table thead th:first-child {
   text-align: left;
 }
 
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.mapName {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Locked rows are dimmed, but the word "locked" is what states it (spec §12). */
+.rowLocked {
+  opacity: 0.65;
+}
+
 .locked {
-  font-weight: var(--font-weight-regular);
+  font-size: var(--font-size-sm);
   color: var(--text-tertiary);
+}
+
+/* An accuracy figure with its own bar under it, so a column of five can be
+   compared without reading five numbers. */
+.cellBar {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-end;
+  min-width: 5rem;
+}
+
+.cellValue {
+  color: var(--text-primary);
+}
+
+.track {
+  width: 100%;
+  height: var(--space-1);
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-default);
+  border-radius: var(--radius-pill);
 }
 
 .actions {

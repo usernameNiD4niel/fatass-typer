@@ -162,7 +162,7 @@ describe systems that no longer exist.
 
 | | |
 |---|---|
-| **Last completed** | **typing feedback is immediate** — the snapshot is refreshed on input, not only on a frame, and the highlighting is painted at 60Hz rather than React's 10Hz |
+| **Last completed** | **the shell is one design** — six screens rebuilt on a shared game-UI kit (`components/game-ui`): framed panels, label plates, stat tiles, meters |
 | **Next up** | nothing scheduled — awaiting direction |
 | **In progress** | none |
 | **Blocked** | none |
@@ -389,6 +389,59 @@ Two things fell out of the rework and are worth keeping straight:
   for vehicles, whose front works out to `-z`, so an animal built the obvious way galloped down
   the road backwards on every same-direction track. They also run at half the vehicle speeds:
   a deer closing at the car rate is a deer doing seventy miles an hour, and it looked it.
+
+### The menus
+
+Six screens — main menu, map selection, level briefing, statistics, wardrobe, settings and
+results — are built from one kit, `components/game-ui`. Framed panels with a label plate and
+a corner notch, a shared screen header, stat tiles, meters and a tab rail. Its README records
+the rules; the short version is that the neutral `components/ui` kit stayed neutral and the
+game's chrome went in a layer above it.
+
+The whole look moves from four tokens: `--frame-fill`, `--frame-edge`, `--frame-rail`,
+`--frame-glow`.
+
+**A theme-varying token has to be declared three times** — light, dark, and the
+`prefers-color-scheme: dark` fallback. The fallback is what an ordinary player gets: system
+dark, Settings never opened. Leaving `--frame-*` out of it rendered the light theme's
+near-white panels on a near-black page, on every screen at once. `tokens.test.ts` now fails
+on exactly that omission, which the old parity test could not see.
+
+What each screen leads with, which is the whole of the redesign:
+
+| | |
+|---|---|
+| **Main menu** | the map you are up to, drawn, with one primary button against it |
+| **Statistics** | the sustainable peak, alone, against the game's top target |
+| **Wardrobe** | the item, big enough to judge — it is the one screen about how a thing looks |
+| **Settings** | nothing new; the controls were already right, only the housing changed |
+| **Level briefing** | the place, with the target set beside your own best on it |
+| **Results** | the verdict, over the map it happened on, then four figures, then the rest |
+
+### Choosing a map
+
+A **carousel**, not a grid. A grid of seven equal cards says every map is equally the one
+you are about to play; a player opens that screen to start *one*, and the other six are
+context. So one card is centred, raised and full size, and its neighbours are scaled down,
+dimmed and thrown out of focus behind it.
+
+Each card carries **artwork of its own place** — a sky, a horizon glow and two or three
+silhouettes, so the docks are recognisable from the canyon before either name is read.
+Polygons in `content/map-art.ts`, not pictures: this project ships no binary assets, and
+four points are enough to tell a pine from a crane at card size. They are deliberately
+*not* the scene's palettes — `screens` may not import `game-scene` (it arrives with Three.js
+attached, and the menu loads before the canvas does), and a colour lit by a sun, a fog and a
+tone mapper reads flat when it is pasted onto a dark menu.
+
+**Focus is the carousel position.** There is no second "which card is centred" state: the
+centred card is the focused card, and every card stays a real button in the tab order. That
+is against the usual roving-tabindex carousel, and on purpose — a locked card carries the
+one thing a stuck player needs to read, and spec §12 says they must be able to reach it.
+Left/Right move focus too, so arrows and Tab can never disagree.
+
+The blur on the neighbours is doing a real job rather than decorating. The cards overlap, so
+a neighbour's title and target speed land inches from the centred card's own; two legible
+headings side by side leaves the eye working out which one it is being asked about.
 
 ### Where the new work lives
 

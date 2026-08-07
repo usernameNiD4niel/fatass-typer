@@ -240,6 +240,19 @@
   --shadow-md: 0 4px 12px rgb(14 17 22 / 0.08), 0 1px 3px rgb(14 17 22 / 0.05);
   --shadow-lg: 0 12px 28px rgb(14 17 22 / 0.11), 0 2px 6px rgb(14 17 22 / 0.06);
   --shadow-xl: 0 24px 56px rgb(14 17 22 / 0.16), 0 4px 12px rgb(14 17 22 / 0.07);
+
+  /*
+   * Game frame — the menus' own chrome (the "heavy UI" pass).
+   *
+   * A menu panel is not a document card: it wants an edge you can see, a header
+   * rail that reads as a label plate, and a corner notch that says "instrument"
+   * rather than "paragraph". These four are what every screen's chrome is built
+   * from, so the look moves in one place rather than in six.
+   */
+  --frame-fill: rgb(255 255 255 / 0.9);
+  --frame-edge: var(--color-neutral-300);
+  --frame-rail: var(--color-neutral-100);
+  --frame-glow: rgb(58 130 247 / 0.16);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -301,6 +314,16 @@
   --shadow-md: 0 4px 12px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.35);
   --shadow-lg: 0 12px 28px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.4);
   --shadow-xl: 0 24px 56px rgb(0 0 0 / 0.62), 0 4px 12px rgb(0 0 0 / 0.45);
+
+  /*
+   * Game frame. Darker and edgier than the light theme's: the dark menu is the
+   * one the game actually ships in, and the frame has to hold its own against a
+   * near-black page rather than sit on paper.
+   */
+  --frame-fill: rgb(22 27 36 / 0.92);
+  --frame-edge: rgb(96 114 145 / 0.45);
+  --frame-rail: rgb(38 47 63 / 0.9);
+  --frame-glow: rgb(96 165 250 / 0.22);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -362,6 +385,18 @@
     --shadow-md: 0 4px 12px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.35);
     --shadow-lg: 0 12px 28px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.4);
     --shadow-xl: 0 24px 56px rgb(0 0 0 / 0.62), 0 4px 12px rgb(0 0 0 / 0.45);
+
+    /*
+     * Game frame. Mirrors the explicit dark theme, and it has to: this block is
+     * what an ordinary player gets — system dark, Settings never opened. Left
+     * out once, and every menu rendered the light theme's near-white panel on a
+     * near-black page. `tokens.test.ts` now fails if a theme-varying token is
+     * missing here.
+     */
+    --frame-fill: rgb(22 27 36 / 0.92);
+    --frame-edge: rgb(96 114 145 / 0.45);
+    --frame-rail: rgb(38 47 63 / 0.9);
+    --frame-glow: rgb(96 165 250 / 0.22);
   }
 }
 
