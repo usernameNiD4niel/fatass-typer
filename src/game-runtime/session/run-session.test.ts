@@ -12,6 +12,7 @@ import {
   isBoosting,
   isSurging,
   liveStats,
+  nextPromptPreview,
   pauseRun,
   playerLane,
   promptSuccessRate,
@@ -259,6 +260,71 @@ describe('coins', () => {
 
     return current;
   }
+
+  /*
+   * The promise, as an assertion: **the word on screen does not change until it
+   * is typed.**
+   *
+   * A coin line, a crate and a surge all take the typing field, and all three
+   * used to take it the moment they were ready — so a player half-way through a
+   * word watched it become a different word, with the characters they had
+   * already entered thrown away. Reported from play, and the one thing in the
+   * game that took back input the player had already given.
+   *
+   * Running out of time is the exception, and the only one. A word that lapses
+   * is replaced, but the player was told: the combo breaks, the chaser gains
+   * ground, and `flowWordMissed` says so. That is the game's difficulty, not a
+   * word being taken away — what is banned is the *silent* swap, where a word
+   * still inside its deadline is replaced by something that wanted the field.
+   *
+   * This types a single character into every word it is offered and holds it
+   * there for a minute of run time, which is long enough for coin lines, a
+   * crate and a surge all to come due.
+   */
+  it('never silently changes a word the player has started typing', () => {
+    let session = untilChallenge(newSession('no-swap'));
+
+    for (let elapsed = 0; elapsed < 60_000; elapsed += STEP_MS) {
+      if (session.phase !== 'running') break;
+
+      const target = session.typing.target;
+      if (target.length > 0 && session.typing.typed.length === 0) {
+        session = applyRunInput(session, target.slice(0, 1)).session;
+      }
+
+      const engaged = session.typing.typed.length > 0 ? session.typing.target : null;
+      const stepped = advanceRunSession(session, STEP_MS);
+      session = stepped.session;
+
+      if (engaged === null || session.typing.target === engaged) continue;
+
+      // It changed. The only acceptable reason is that it ran out of time.
+      const lapsed = stepped.events.some((event) => event.type === 'flowWordMissed');
+      expect(lapsed, `"${engaged}" became "${session.typing.target}" without lapsing`).toBe(true);
+    }
+  });
+
+  /*
+   * The read-ahead. A word finishes and the next appears in the same frame, but
+   * a word the player has not seen yet cannot be typed yet — so every
+   * completion cost a beat of looking before typing.
+   *
+   * What is asserted is the only thing that makes the hint worth showing: that
+   * it is *true*. A hint naming a word that turns out not to be next is worse
+   * than no hint, because the player will have started typing it.
+   */
+  it('names the next word before the current one is finished', () => {
+    let session = untilChallenge(newSession('hint'));
+
+    for (let word = 0; word < 6; word += 1) {
+      const promised = nextPromptPreview(session);
+      expect(promised, 'nothing queued').not.toBeNull();
+
+      session = advanceRunSession(typePrompt(session), STEP_MS).session;
+
+      expect(session.prompt?.text, `word ${String(word)}`).toBe(promised?.text);
+    }
+  });
 
   it('offers coins in a lane the player has to move to', () => {
     const session = untilCoinWord(newSession('coins'));

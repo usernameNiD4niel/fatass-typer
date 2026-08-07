@@ -203,6 +203,20 @@ export interface CoinAdvanceInput {
   readonly playerMeters: number;
   readonly speedMetersPerSecond: number;
   readonly elapsedMs: number;
+  /**
+   * The player is part-way through the word already on screen.
+   *
+   * A coin line takes the typing field when its word arms, and it used to take
+   * it whatever was there — so a word being typed could be replaced mid-keystroke
+   * by a different one. The line waits instead: it stays `approaching`, and its
+   * deadline does not start, so waiting costs it nothing.
+   *
+   * The wait is bounded — see `COIN_LEAD_FACTOR` below. A line that waited all
+   * the way to its own plane would be a line the player was never offered, and
+   * measured, that is exactly what happened: whole lines went by unarmed and
+   * were booked as missed.
+   */
+  readonly fieldEngaged?: boolean;
   /** Which lane the player is in right now. */
   readonly playerLane?: LaneIndex;
   /** Whether they are settled in it rather than halfway across the road. */
@@ -262,7 +276,23 @@ export function advanceCoin(coin: ActiveCoin, input: CoinAdvanceInput): CoinAdva
   // Same as a hazard: the word goes up when the coins do. Placement is measured
   // against a boosted player, so waiting for time-to-collect to fall to the
   // budget left the line visible and unanswerable for a second or more.
-  if (current.status === 'approaching' && untilMs <= reserveHint * COIN_LEAD_FACTOR * 3) {
+  /*
+   * The word arms three leads out, and holds off across the first of them while
+   * the player is part-way through the word already on screen.
+   *
+   * A flow word lasts a second or two, so in practice the wait is over well
+   * before the last-chance mark and the line arms on a clear field. The bound
+   * matters twice over: it stops a player who is *always* mid-word — which is
+   * the point of the game — from never being offered a coin, and it keeps the
+   * wait short. A line that is only approaching still suppresses flow words, so
+   * every step it waits is a step with nothing on screen; measured, a wait of
+   * two leads cost a run a whole encounter and left a map's sentence unfinished.
+   */
+  const armWindow = reserveHint * COIN_LEAD_FACTOR * 3;
+  const lastChance = reserveHint * COIN_LEAD_FACTOR * 2;
+  const held = input.fieldEngaged === true && untilMs > lastChance;
+
+  if (current.status === 'approaching' && untilMs <= armWindow && !held) {
     current = {
       ...current,
       status: 'active',

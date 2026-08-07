@@ -182,6 +182,15 @@ export interface PowerupAdvanceInput {
   readonly playerMeters: number;
   readonly speedMetersPerSecond: number;
   readonly elapsedMs: number;
+  /**
+   * The player is part-way through the word already on screen.
+   *
+   * The crate's clause waits rather than replacing a word mid-keystroke. Its
+   * deadline starts when the clause arms, so waiting costs the player nothing —
+   * and a crate is optional, so a crate that waits too long and is reached
+   * unarmed is a crate that was never offered rather than one that was failed.
+   */
+  readonly fieldEngaged?: boolean;
 }
 
 export function distanceToPowerup(powerup: ActivePowerup, playerMeters: number): number {
@@ -206,7 +215,11 @@ export function advancePowerup(
     input.speedMetersPerSecond,
   );
 
-  if (current.status === 'approaching' && untilMs <= current.timing.availableMs) {
+  if (
+    current.status === 'approaching' &&
+    untilMs <= current.timing.availableMs &&
+    input.fieldEngaged !== true
+  ) {
     current = {
       ...current,
       status: 'active',

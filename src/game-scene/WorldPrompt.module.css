@@ -8,6 +8,8 @@
  */
 
 .word {
+  /* The hint hangs off this box without taking any width in it. */
+  position: relative;
   margin: 0;
   padding: 0.35em 0.7em;
   border-radius: var(--radius-lg);
@@ -26,6 +28,36 @@
 
 .word[data-urgent='true'] {
   background: rgb(52 12 16 / 82%);
+}
+
+/*
+ * The next word, so the hands never have to wait to find out what it is.
+ *
+ * Out of flow on purpose: the word being typed stays centred on its anchor in
+ * the world, and a hint that took layout width would shove it sideways — by a
+ * different amount every time the queued word changed length.
+ *
+ * Deliberately quieter than the live word — smaller and dimmer — but it does
+ * carry its own backing plate. Without one it sat unreadable against a bright
+ * sky exactly half the time, and a hint that has to be squinted at is slower
+ * than no hint at all. The plate is what makes it legible over anything; the
+ * size and the muted colour are what stop it being mistaken for the word the
+ * player is supposed to be typing right now.
+ */
+.hint {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 0.4em);
+  padding: 0.3em 0.6em;
+  border-radius: var(--radius-md);
+  background: rgb(12 15 20 / 58%);
+  color: rgb(232 241 252 / 72%);
+  font-size: 0.62em;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 /*

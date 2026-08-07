@@ -156,7 +156,7 @@ describe systems that no longer exist.
 
 | | |
 |---|---|
-| **Last completed** | **the chase, sharpened** — the rivals now close 2.5× harder, and close harder still on a player who has stopped typing. See "Why the opponents chase" |
+| **Last completed** | **the word does not move under you** — nothing replaces a word the player has started typing, and the next word is shown beside it. See the prompt rules below |
 | **Next up** | nothing scheduled — awaiting direction |
 | **In progress** | none |
 | **Blocked** | none |
@@ -178,8 +178,25 @@ Short words are *generous*, not hard — the flat reaction allowance means "the"
 demands about 15 WPM on a map advertising 20 — so a prompt takes sentence words until it
 is worth asking for: "of our", then "street has", rather than three free words.
 
-**A word on screen is never swapped out** by another word. A coin line or a crate takes the
-field from a flow word, which costs nothing to drop; nothing else preempts anything.
+**A word the player has started typing is never swapped out.** A coin line, a crate and a
+surge all take the typing field, and they used to take it the moment they were ready —
+dropping the flow word that was there, because a flow word "costs nothing to drop". It
+costs nothing only while it is *untouched*. A player half-way through `yellow` watched it
+become a different word with their keystrokes discarded, which is the one place the game
+took back input it had already accepted. Now an untouched word is still dropped freely and
+everything else waits; the only thing that replaces a started word is that word running out
+of time, which is announced (`flowWordMissed`, combo broken, ground lost).
+
+The wait is bounded for a coin line only — a line that is merely approaching still suppresses
+flow words, so every step it waits is a step with nothing on screen. It holds off across one
+of its three leads and then arms regardless. Measured, an unbounded wait cost a run a whole
+encounter and left Map 1's sentence two words short.
+
+**The next word is shown beside the current one**, dimmed and out of layout flow, so the
+hands never wait to find out what is coming. It is derived rather than queued —
+`nextPromptPreview` re-runs the same draw against a throwaway copy of the session with the
+sentence advanced past what is on screen. A queued word would be a second copy of the
+sentence pointer, and a coin declined or a word lapsed makes a second copy wrong.
 
 In the gaps, a **line of coins** appears one lane over with a word of its own. Type it and
 you swerve across and take them; ignore it and you drive past. Coins cost nothing to miss —

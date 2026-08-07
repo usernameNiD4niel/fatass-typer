@@ -35,6 +35,7 @@ import {
   currentSpeed,
   isBoosting,
   liveStats,
+  nextPromptPreview,
   promptSuccessRate,
   pauseRun,
   type RunSession,
@@ -631,6 +632,9 @@ export class RuntimeHost implements GameHost {
 
     const typed = {
       word: session.prompt.text,
+      // Read-ahead, so the player never waits to find out what is next. Derived
+      // from the sentence rather than queued — see `nextPromptPreview`.
+      nextWord: nextPromptPreview(session)?.text ?? '',
       typedLength: session.typing.typed.length,
       firstErrorIndex: firstErrorIndex(
         session.typing.target,

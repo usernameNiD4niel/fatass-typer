@@ -98,6 +98,15 @@ export interface ChallengeSnapshot {
   kind: ChallengeKind;
   /** The word being typed. */
   word: string;
+  /**
+   * The word queued behind it, or `''` when there is nothing to show.
+   *
+   * Read-ahead, so the player can keep their hands moving instead of waiting
+   * for the next word to appear before they know what it is. It is a *hint*:
+   * the scene draws it dimmed and beside the real word, and typing never goes
+   * anywhere near it — `typedLength` and `firstErrorIndex` describe `word` only.
+   */
+  nextWord: string;
   /** Characters accepted as correct so far. */
   typedLength: number;
   /** Index of the first uncorrected mistake, or -1. */

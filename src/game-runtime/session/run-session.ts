@@ -861,6 +861,70 @@ function attachCoinPrompt(session: RunSession, coin: ActiveCoin): RunSessionResu
   };
 }
 
+/**
+ * The word the player will be asked for after the one on screen.
+ *
+ * ## Why there is no queue
+ *
+ * The obvious implementation is to draw the next prompt when the current one is
+ * placed and hold it in a field. That would be a second copy of the sentence
+ * pointer, and the whole reason the sentence lives in `secretIndex` plus a span
+ * encoded into the prompt id is that a second copy drifts — a coin declined, a
+ * word lapsed, a crate forfeited, and the queued word is no longer the word
+ * that comes next.
+ *
+ * So this derives rather than remembers. `advanceSecret` on a throwaway copy of
+ * the session moves the sentence past whatever is on screen without committing
+ * it, and then the same draw the real spawner would make answers the question.
+ * Nothing is written, no RNG is consumed, and it cannot fall out of step with
+ * the sentence because it *is* the sentence.
+ *
+ * The one honest limit: once a map's sentence is finished, the next word comes
+ * from the pool via the seeded selector, and the preview is only correct if the
+ * next draw is the next thing to draw. It is, in the ordinary case; a coin line
+ * placed in between takes a word from the same selector and the preview will
+ * have named that word instead. A hint that is occasionally the word after next
+ * is worth more than no hint, and the sentence — which is most of a run — is
+ * exact.
+ */
+export function nextPromptPreview(session: RunSession): PromptEntry | null {
+  if (session.prompt === null) return null;
+
+  const ahead = advanceSecret(session, session.prompt);
+  const chunk = takeSecretChunk(ahead, ENCOUNTER_MIN_CHARACTERS, ENCOUNTER_MAX_WORDS);
+  if (chunk !== null) return chunk;
+
+  return nextPrompt(ahead.selector, ahead.pool, {
+    mapNumber: ahead.map.mapNumber,
+    categories: ahead.map.content.promptCategories,
+    usage: 'boost',
+    preferredTags: ahead.map.content.themeTags,
+    weakCharacters: ahead.weakCharacters,
+  }).prompt;
+}
+
+/**
+ * The player is part-way through the word on screen.
+ *
+ * ## Why anything wanting the field has to ask
+ *
+ * A flow word costs nothing to drop, so coins, crates and surges all used to
+ * take the field from one the moment they were ready. That is fine when the
+ * word is untouched and invisible when it is — but a player half-way through
+ * `yellow` watched it become a different word under their fingers, with the
+ * characters they had already typed thrown away. Reported as a bug, and it is
+ * one: nothing else in the game takes input the player has already given.
+ *
+ * So the rule is now the one the player would state: **the word on screen does
+ * not change until it is typed.** An untouched word is still dropped freely —
+ * there is nothing there to lose — and everything else waits a beat. A flow
+ * word lasts a second or two, so the beat is short, and none of the waiting
+ * things has a clock running while it waits.
+ */
+function fieldIsEngaged(session: RunSession): boolean {
+  return session.challenge !== null && session.typing.typed.length > 0;
+}
+
 /** Clears the typing field. A flow word takes it back on the same step. */
 function clearPrompt(session: RunSession): RunSessionResult {
   if (session.prompt === null && session.challenge === null) return { session, events: [] };
@@ -1242,6 +1306,8 @@ function advanceCoinLifecycle(session: RunSession): RunSessionResult {
       speedMetersPerSecond: speed,
       elapsedMs: session.elapsedMs,
       magnet: hasMagnet(session.effects),
+      // Belt and braces: the line waits rather than replacing a word being typed.
+      fieldEngaged: fieldIsEngaged(current),
       playerLane: session.motion.lane,
       settled: isSettled(session.motion),
       // Whoever is in front gets there first.
@@ -1369,6 +1435,9 @@ function spawnDueSurge(session: RunSession): RunSessionResult {
   if (session.surge !== null) return { session, events: [] };
   if (session.coins.some(isCoinLive)) return { session, events: [] };
   if (session.powerups.some(isPowerupLive)) return { session, events: [] };
+  // And waits for a word the player has started. A surge is due on a clock, not
+  // at a place, so a step or two late costs it nothing.
+  if (fieldIsEngaged(session)) return { session, events: [] };
 
   const index = session.surgesCompleted + session.surgesBroken;
   // Long *for this map*: a twelve-word sentence on a 20 WPM map cannot be
@@ -1835,6 +1904,8 @@ function advancePowerupLifecycle(session: RunSession): RunSessionResult {
       playerMeters: session.playerMeters,
       speedMetersPerSecond: speed,
       elapsedMs: session.elapsedMs,
+      // The clause waits rather than replacing a word being typed.
+      fieldEngaged: fieldIsEngaged(current),
     });
 
     let latest = result.powerup;

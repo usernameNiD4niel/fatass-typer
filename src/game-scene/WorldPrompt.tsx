@@ -211,6 +211,7 @@ export function WorldPrompt({
           aria-hidden="true"
         >
           {challenge === null ? null : renderWord(challenge)}
+          {challenge === null ? null : renderHint(challenge)}
         </p>
       </Html>
     </group>
@@ -311,6 +312,38 @@ function renderSurge(challenge: ChallengeSnapshot): JSX.Element[] {
 /** Which renderer a challenge gets. Only a surge is drawn word by word. */
 function renderWord(challenge: ChallengeSnapshot): JSX.Element[] {
   return challenge.kind === 'surge' ? renderSurge(challenge) : renderCharacters(challenge);
+}
+
+/**
+ * The word after this one, dimmed and set to the right.
+ *
+ * ## Why it is here at all
+ *
+ * A word finishes and the next appears in the same frame, but the player cannot
+ * read a word that does not exist yet — so every completion cost a beat of
+ * looking-then-typing, and the run read as stop-start however fast they were.
+ * Naming the next word removes the beat: the hands can already be moving.
+ *
+ * ## Why it is positioned out of flow
+ *
+ * `position: absolute` in the stylesheet, so it takes no width in the label.
+ * The word is centred on its anchor in the world, and a hint that occupied
+ * layout would shove the word the player is *actually* typing off-centre —
+ * and shove it again by a different amount every time the next word changed
+ * length. The word being typed does not move. The hint hangs off it.
+ *
+ * Not drawn for a surge, which is already a whole sentence, and not drawn when
+ * the run has nothing queued.
+ */
+function renderHint(challenge: ChallengeSnapshot): JSX.Element | null {
+  if (challenge.kind === 'surge') return null;
+  if (challenge.nextWord.length === 0) return null;
+
+  return (
+    <span className={styles.hint} aria-hidden="true">
+      {challenge.nextWord}
+    </span>
+  );
 }
 
 /** Where in the world a word belongs. */
