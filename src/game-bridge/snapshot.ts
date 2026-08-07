@@ -26,6 +26,20 @@ import type { GameState } from './messages';
  *
  * Read it, do not keep it. A reference held across frames is a reference to
  * whatever the world looks like *now*.
+ *
+ * ## Refreshed by the frame, and by input
+ *
+ * "The scene reads it every frame" is the normal case, and it made an easy
+ * assumption easy to make: that the frame loop is the only thing that changes
+ * the world. It is not. **Keystrokes arrive from the keyboard**, and they are
+ * applied to the rules the instant they land.
+ *
+ * `challenge` was left to be rebuilt by the next `advance()`, so between two
+ * frames it described the word with fewer characters typed than the player had
+ * typed — and anything repainting in that window drew the stale count, turning
+ * green characters grey again. `RuntimeHost` now republishes the challenge from
+ * `submitInput` too. Anything else that can change outside the frame loop has
+ * the same obligation.
  */
 
 /** Opponents in the race. Fixed: there are two, and there will be two.  */

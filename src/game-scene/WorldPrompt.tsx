@@ -6,6 +6,7 @@ import type { Group, Mesh, MeshBasicMaterial } from 'three';
 import type { ChallengeSnapshot, WorldSnapshot } from '../game-bridge';
 import { laneCenterX, LANE_WIDTH_METERS, type RunnerLook, type ScenePalette } from './scene-config';
 import { shiftAt } from './curve-state';
+import { characterClass, paintTyping } from './typing-paint';
 import styles from './WorldPrompt.module.css';
 
 /**
@@ -128,6 +129,10 @@ export function WorldPrompt({
     // Urgency: a restrained pulse as the deadline closes, never a flash.
     const word = wordRef.current;
     if (word) {
+      // The typed-so-far highlighting, at 60Hz rather than at React's ~10Hz.
+      // See `paintTyping` for why this cannot wait for a re-render.
+      paintTyping(word, challenge);
+
       // An optional word never turns urgent: nothing is going to happen to you
       // if you ignore it, and dressing it up as a threat would be a lie.
       const urgent = !challenge.optional && challenge.urgency > 0.6;
@@ -232,15 +237,8 @@ function renderCharacters(challenge: ChallengeSnapshot, offset = 0): JSX.Element
       return (
         <span
           key={`${character}-${String(at)}`}
-          className={
-            at === challenge.firstErrorIndex
-              ? styles.incorrect
-              : at < challenge.typedLength
-                ? styles.correct
-                : at === challenge.typedLength
-                  ? styles.current
-                  : styles.untyped
-          }
+          data-at={at}
+          className={characterClass(at, challenge.typedLength, challenge.firstErrorIndex)}
         >
           {character === ' ' ? '\u00a0' : character}
         </span>
@@ -281,6 +279,10 @@ function renderSurge(challenge: ChallengeSnapshot): JSX.Element[] {
         key={`${word}-${String(position)}`}
         className={[styles.surgeWord, done ? styles.surgeWordDone : null].filter(Boolean).join(' ')}
         data-active={active ? 'true' : 'false'}
+        // The span the cursor is in, so `paintTyping` can re-shade the group
+        // every frame without re-deriving the split.
+        data-start={start}
+        data-end={end}
       >
         {Array.from(word).map((character, offset) => {
           const at = start + offset;
@@ -288,15 +290,8 @@ function renderSurge(challenge: ChallengeSnapshot): JSX.Element[] {
           return (
             <span
               key={`${character}-${String(at)}`}
-              className={
-                at === challenge.firstErrorIndex
-                  ? styles.incorrect
-                  : at < challenge.typedLength
-                    ? styles.correct
-                    : at === challenge.typedLength
-                      ? styles.current
-                      : styles.untyped
-              }
+              data-at={at}
+              className={characterClass(at, challenge.typedLength, challenge.firstErrorIndex)}
             >
               {character}
             </span>

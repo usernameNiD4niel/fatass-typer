@@ -102,7 +102,13 @@ Hard rules:
   lives in config files under `content/`.
 - Per-frame data does not flow into React. The bridge emits UI *events* at a fixed low
   frequency (~10Hz); per-frame state goes into `WorldSnapshot`, which the scene reads and
-  React never subscribes to.
+  React never subscribes to. **This cuts both ways**: anything that changes faster than
+  10Hz must be painted from `useFrame`, not rendered by React. The typed-so-far
+  highlighting was React's, and at 10Hz that is a visible tenth of a second of input lag —
+  see `game-scene/typing-paint.ts`.
+- The snapshot is refreshed by the frame loop *and* by anything else that changes the
+  world. Keystrokes are the other thing: they arrive from the keyboard, not from a frame.
+  See the note in `game-bridge/snapshot.ts`.
 - One render loop. The simulation is advanced from inside R3F's `useFrame` at priority
   `-1`, never from a second `requestAnimationFrame` chain of our own.
 
@@ -156,7 +162,7 @@ describe systems that no longer exist.
 
 | | |
 |---|---|
-| **Last completed** | **the word does not move under you** — nothing replaces a word the player has started typing, and the next word is shown beside it. See the prompt rules below |
+| **Last completed** | **typing feedback is immediate** — the snapshot is refreshed on input, not only on a frame, and the highlighting is painted at 60Hz rather than React's 10Hz |
 | **Next up** | nothing scheduled — awaiting direction |
 | **In progress** | none |
 | **Blocked** | none |

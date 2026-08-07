@@ -215,6 +215,31 @@ export class RuntimeHost implements GameHost {
 
       case 'submitInput':
         this.apply(applyRunInput(this.session, command.value), emit);
+        /*
+         * The word the scene is drawing has just changed, so republish it now
+         * rather than at the next frame.
+         *
+         * ## The bug this fixes
+         *
+         * Keystrokes arrive from the keyboard; the snapshot was only rebuilt
+         * from `advance()`. So between two frames the snapshot described a word
+         * with *fewer characters typed than the player had actually typed* —
+         * and anything that repainted in that window drew the stale count.
+         *
+         * The visible result was characters that had gone green turning grey
+         * again, intermittently: a repaint landing before the next frame
+         * redrew the word as the last frame had left it. It looked like input
+         * being dropped, and it was really the display running a frame behind
+         * the rules. Completing a word made it near-certain, because completion
+         * emits `promptChanged`, which repaints immediately — reading a
+         * snapshot that still held the *previous* word at its old count.
+         *
+         * Only the challenge is rebuilt. A whole `refreshSnapshot` would also
+         * re-interpolate the player's position with an alpha that belongs to
+         * the frame loop rather than to a keystroke, which would jitter the
+         * runner in time with the typing.
+         */
+        this.world.challenge = this.buildChallenge();
 
         return;
 
