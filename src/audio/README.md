@@ -35,13 +35,24 @@ to add to the asset manifest.
 
 ## Cues
 
-`keystroke` · `mistake` · `promptComplete` · `boost` · `obstacleWarning` ·
-`collision` · `stumble` · `victory` · `gameOver`.
+**In a run:** `keystroke` · `mistake` · `promptComplete` · `boost` · `taunt` ·
+`obstacleWarning` · `collision` · `stumble` · `victory` · `gameOver`.
+
+**In the menus:** `uiMove` · `uiSelect`.
 
 `keystroke` is deliberately the quietest thing in the game — it fires on every
 correct character, and anything with presence would become torture inside ten
 seconds. `stumble` and `collision` are pitched apart on purpose: they cost the
 player different amounts, so they must not sound alike.
+
+`uiMove` is a *detent*, not a note — a short downward tick with no tail, quieter
+even than `keystroke`. It is the other cue that repeats: running the length of
+the map carousel fires it seven times in two seconds, and anything with pitch
+would become a tune the player did not ask for. `uiSelect` is the one menu
+action with a consequence, so it is a rising figure — and deliberately a
+different interval and register from `promptComplete`, because the palette is
+meant to be learnable and "I finished a word" should not be remembered as the
+same sound as "I chose a map".
 
 ## Music and the danger layer
 

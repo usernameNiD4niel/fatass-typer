@@ -246,6 +246,7 @@ export function App(): JSX.Element {
             onBack={() => {
               machine.send('BACK');
             }}
+            audio={audio}
           />
         </Shell>
       );

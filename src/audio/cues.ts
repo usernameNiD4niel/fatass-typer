@@ -19,7 +19,10 @@ export type SoundCue =
   | 'collision'
   | 'stumble'
   | 'victory'
-  | 'gameOver';
+  | 'gameOver'
+  /* Menu cues. Not gameplay: these fire while nothing is at stake. */
+  | 'uiMove'
+  | 'uiSelect';
 
 export interface CueTone {
   readonly frequency: number;
@@ -113,6 +116,31 @@ export const CUES: Readonly<Record<SoundCue, readonly CueTone[]>> = {
     { frequency: 392, durationMs: 200, type: 'sawtooth', gain: 0.24 },
     { frequency: 294, durationMs: 200, type: 'sawtooth', gain: 0.24, delayMs: 180 },
     { frequency: 196, durationMs: 500, type: 'sawtooth', gain: 0.24, delayMs: 360 },
+  ],
+
+  /*
+   * Stepping through a list — the map carousel moving one card.
+   *
+   * A detent, not a note: a short downward tick with no tail, the sound a dial
+   * makes rather than a chime. It has to survive being held down. A player
+   * running the length of the carousel fires this seven times in two seconds,
+   * and anything with pitch or personality becomes a tune they did not ask for.
+   * Quieter than `keystroke`, which is the other cue that repeats.
+   */
+  uiMove: [{ frequency: 560, endFrequency: 500, durationMs: 26, type: 'sine', gain: 0.07 }],
+
+  /*
+   * Committing to something — choosing the map to run.
+   *
+   * A rising two-note figure, because this is the one menu action with a
+   * consequence. Deliberately a different interval and register from
+   * `promptComplete`: the two never share a screen, but the palette is meant to
+   * be learnable, and "I finished a word" and "I chose a map" should not be the
+   * same sound in a player's memory.
+   */
+  uiSelect: [
+    { frequency: 440, durationMs: 60, type: 'triangle', gain: 0.18 },
+    { frequency: 659, durationMs: 110, type: 'triangle', gain: 0.16, delayMs: 55 },
   ],
 };
 

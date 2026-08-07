@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, type Mock, vi } from 'vitest';
 
+import type { SoundCue } from '../../audio';
 import { MAP_1 } from '../../content';
 import type { MapConfig, PlayerProfile } from '../../game-core/models';
 import { createPlayerProfile, EMPTY_MAP_PROGRESS } from '../../game-core/models';
@@ -308,6 +309,131 @@ describe('the carousel', () => {
     await user.click(centred());
 
     expect(onSelect).toHaveBeenCalledWith('map-2');
+  });
+});
+
+describe('the carousel’s sound', () => {
+  const MAP_3: MapConfig = {
+    ...MAP_1,
+    id: 'map-3',
+    mapNumber: 3,
+    name: 'Desert Canyon',
+    unlock: { requiresMapId: 'map-2', minimumAccuracy: 0.87 },
+  };
+
+  function withAudio(unlocked: readonly string[] = ['map-1']) {
+    const audio = {
+      unlock: vi.fn(),
+      play: vi.fn<(cue: SoundCue) => void>(),
+      setTrack: vi.fn(),
+      setDanger: vi.fn(),
+      isReady: () => true,
+    };
+    const onSelect = vi.fn();
+
+    render(
+      <MapSelection
+        maps={[MAP_1, MAP_2, MAP_3]}
+        profile={profileWith({ unlockedMapIds: unlocked })}
+        onSelect={onSelect}
+        onBack={vi.fn()}
+        audio={audio}
+      />,
+    );
+
+    return { audio, onSelect, user: userEvent.setup() };
+  }
+
+  /** The cues played, in order. Typed, so the assertions compare real strings. */
+  const cues = (audio: { play: Mock<(cue: SoundCue) => void> }): SoundCue[] =>
+    audio.play.mock.calls.map(([cue]) => cue);
+
+  it('ticks once for each step of the carousel', async () => {
+    const { audio, user } = withAudio();
+
+    await user.click(screen.getByRole('button', { name: 'Next map' }));
+    await user.click(screen.getByRole('button', { name: 'Next map' }));
+
+    expect(cues(audio)).toEqual(['uiMove', 'uiMove']);
+  });
+
+  it('ticks on the arrow keys too', async () => {
+    const { audio, user } = withAudio();
+
+    await user.tab();
+    await user.keyboard('{ArrowRight}{ArrowLeft}');
+
+    expect(cues(audio)).toEqual(['uiMove', 'uiMove']);
+  });
+
+  /*
+   * The interface must not claim something happened when it did not. Pressing
+   * Right on the last card moves nothing, so it says nothing.
+   */
+  it('says nothing when a step changes nothing', async () => {
+    const { audio, user } = withAudio();
+
+    await user.tab();
+    await user.keyboard('{ArrowLeft}{ArrowLeft}');
+
+    expect(audio.play).not.toHaveBeenCalled();
+  });
+
+  it('plays the committing cue when a map is chosen', async () => {
+    const { audio, onSelect, user } = withAudio();
+
+    await user.click(screen.getByRole('button', { name: /Map 1: Neighborhood Dash/ }));
+
+    expect(cues(audio)).toEqual(['uiSelect']);
+    expect(onSelect).toHaveBeenCalledWith('map-1');
+  });
+
+  /*
+   * Clicking a card focuses it *and* selects it. A cue on focus would double up
+   * with the one on select every time, which is why Tab is silent.
+   */
+  it('does not tick as well as select when a card is clicked', async () => {
+    const { audio, user } = withAudio(['map-1', 'map-2']);
+
+    await user.click(screen.getByRole('button', { name: /Map 2: Forest Valley/ }));
+
+    expect(cues(audio)).toEqual(['uiSelect']);
+  });
+
+  it('says nothing when Tab moves the carousel', async () => {
+    const { audio, user } = withAudio();
+
+    await user.tab();
+    await user.tab();
+
+    expect(audio.play).not.toHaveBeenCalled();
+  });
+
+  it('unlocks the audio engine, since a menu click may be the first gesture', async () => {
+    // Nothing can be heard before a real user gesture (spec §11), and a player
+    // who goes straight to the maps has not made one anywhere else yet.
+    const { audio, user } = withAudio();
+
+    await user.click(screen.getByRole('button', { name: 'Next map' }));
+
+    expect(audio.unlock).toHaveBeenCalled();
+  });
+
+  it('works without an engine at all', async () => {
+    const onSelect = vi.fn();
+    render(
+      <MapSelection
+        maps={[MAP_1, MAP_2]}
+        profile={profileWith()}
+        onSelect={onSelect}
+        onBack={vi.fn()}
+      />,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /Map 1: Neighborhood Dash/ }));
+
+    expect(onSelect).toHaveBeenCalledWith('map-1');
   });
 });
 

@@ -3,6 +3,7 @@ import { type CSSProperties, type JSX, useCallback, useEffect, useRef, useState 
 import { MapArtwork, ScreenHead } from '../../components/game-ui';
 import { Button, classes, SelectableCard } from '../../components/ui';
 import type { MapConfig, PlayerProfile } from '../../game-core/models';
+import type { GameAudio } from '../../hooks/useGameAudio';
 import { type MapCardModel, mapCardLabel, mapCardModel, openingIndex } from './map-card-model';
 import styles from './MapSelection.module.css';
 import { formatDistance } from '../../components/format';
@@ -41,6 +42,18 @@ import { formatDistance } from '../../components/format';
  * Left and Right are the carousel's own affordance and also move focus, so
  * arrows and Tab cannot disagree either.
  *
+ * ## What makes a sound, and what does not
+ *
+ * Stepping the carousel ticks; choosing a map plays a rising figure. Tab does
+ * neither, and that is not an oversight: clicking a card focuses it *and*
+ * selects it, so a cue on focus would double up with the one on select every
+ * time a card was clicked. The tick belongs to the deliberate act of moving
+ * along the row — the arrows and the two arrow buttons.
+ *
+ * A step that changes nothing is silent too. Pressing Right on the last card
+ * does not move the carousel, and a tick that fires anyway is the interface
+ * claiming something happened.
+ *
  * ## Why the geometry is on the list item
  *
  * The transform that places a card lives on its `<li>`, not on the card. The
@@ -54,6 +67,13 @@ export interface MapSelectionProps {
   readonly profile: PlayerProfile;
   readonly onSelect: (mapId: string) => void;
   readonly onBack: () => void;
+  /**
+   * Optional, like every other screen's.
+   *
+   * Absent in tests and in any shell that has not built an engine; the screen
+   * works in silence rather than requiring one.
+   */
+  readonly audio?: GameAudio;
 }
 
 function formatTheme(theme: string): string {
@@ -135,7 +155,13 @@ function MapCard({
   );
 }
 
-export function MapSelection({ maps, profile, onSelect, onBack }: MapSelectionProps): JSX.Element {
+export function MapSelection({
+  maps,
+  profile,
+  onSelect,
+  onBack,
+  audio,
+}: MapSelectionProps): JSX.Element {
   const models = maps.map((map) => mapCardModel(map, profile, maps));
   const [active, setActive] = useState(() => openingIndex(models));
   const trackRef = useRef<HTMLUListElement>(null);
@@ -149,12 +175,45 @@ export function MapSelection({ maps, profile, onSelect, onBack }: MapSelectionPr
    */
   const pendingFocus = useRef(false);
 
+  /**
+   * The live index, for `move` to compare against.
+   *
+   * `move` has to know whether the carousel actually went anywhere before it
+   * ticks, and it cannot read that from a state updater: updaters must be pure,
+   * and React double-invokes them under StrictMode — which would play the cue
+   * twice. It cannot read it from `active` either, because holding an arrow key
+   * fires faster than React commits and a stale index would tick past the end
+   * of the row. A ref is current in both directions.
+   */
+  const activeRef = useRef(active);
+  activeRef.current = active;
+
   const move = useCallback(
     (delta: number) => {
+      const current = activeRef.current;
+      const next = Math.max(0, Math.min(models.length - 1, current + delta));
+      // A step that changes nothing is silent. Pressing Right on the last card
+      // does not move the carousel, and a tick that fired anyway would be the
+      // interface claiming something happened.
+      if (next === current) return;
+
+      activeRef.current = next;
       pendingFocus.current = true;
-      setActive((current) => Math.max(0, Math.min(models.length - 1, current + delta)));
+      audio?.unlock();
+      audio?.play('uiMove');
+      setActive(next);
     },
-    [models.length],
+    [audio, models.length],
+  );
+
+  /** Choosing a map: the one menu action with a consequence, so it says so. */
+  const choose = useCallback(
+    (mapId: string) => {
+      audio?.unlock();
+      audio?.play('uiSelect');
+      onSelect(mapId);
+    },
+    [audio, onSelect],
   );
 
   useEffect(() => {
@@ -223,7 +282,7 @@ export function MapSelection({ maps, profile, onSelect, onBack }: MapSelectionPr
                   setActive(index);
                 }}
               >
-                <MapCard model={model} active={index === active} onSelect={onSelect} />
+                <MapCard model={model} active={index === active} onSelect={choose} />
               </li>
             ))}
           </ul>
