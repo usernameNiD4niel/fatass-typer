@@ -159,7 +159,11 @@ describe('MainMenu', () => {
     const { user } = setup(profileWith());
 
     await user.tab();
+    // GitHub link comes first in tab order
+    expect(screen.getByRole('link', { name: 'View on GitHub' })).toHaveFocus();
 
+    await user.tab();
+    // Then the Start button
     expect(screen.getByRole('button', { name: 'Start' })).toHaveFocus();
   });
 });
